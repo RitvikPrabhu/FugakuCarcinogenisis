@@ -14,11 +14,17 @@ struct Node {
 };
 
 
-void funcName(int totalGenes){
+void funcName(std::vector<std::set<int> > data, int totalGenes, int numTumor, int numNormal){
+	for (int i = 0; i < totalGenes; i++){
+		std::set<int> gene1 = data[i];
+		for (int j = i + 1; j < totalGenes; j++){
+			std::set<int> gene2 = data[j];
+			std::set<int> intersect;
 
-	for (int i = 1; i <= totalGenes; i++){
-		for (int j = i + 1; j <= totalGenes; j++){
-			for (int k = j + 1; k <= totalGenes; k++){
+			std::set_intersection(gene1.begin(), gene1.end(), gene2.begin(), gene2.end(),
+                        std::inserter(intersect, intersect.begin()));
+			
+			for (int k = j + 1; k < totalGenes; k++){
 				printf("Combination: %d %d %d\n", i, j, k);
 			}
 		
@@ -43,20 +49,21 @@ int main(int argc, char *argv[]){
 		perror("Error opening file");
 		return 1; 
 	}
-
 	char geneId[MAX_BUF_SIZE], sampleId[MAX_BUF_SIZE];
-	int numGenes, numSamples, value;
-	if (fscanf(dataFile, "%d %d %d %s %s\n", &numGenes, &numSamples, &value, geneId, sampleId) != 5) {
+	int numGenes, numSamples, value, numTumor, numNormal;
+	if (fscanf(dataFile, "%d %d %d %d %d\n", &numGenes, &numSamples, &value, &numTumor, &numNormal) != 5) {
 		printf("Error reading the first line numbers\n");
 		fclose(dataFile);
 		return 1; 
 	}
 
-	printf("%d %d %d %s %s\n", numGenes, numSamples, value, geneId, sampleId); 
+	printf("%d %d %d %d %d\n", numGenes, numSamples, value, numTumor, numNormal); 
 
 	std::vector<std::set<int> > sparseData (numGenes);
 
-	for (int i = 0; i < numGenes * numSamples; i++){
+	int fileRows = numGenes * numSamples;
+
+	for (int i = 0; i < fileRows; i++){
 		int gene, sample;	
 		if (fscanf(dataFile, "%d %d %d %s %s\n", &gene, &sample, &value, geneId, sampleId) != 5) {
 			printf("Error reading the line numbers\n");
@@ -69,7 +76,7 @@ int main(int argc, char *argv[]){
 		}
 	}
 
-	
+	funcName(sparseData, numGenes, numTumor, numNormal);
 
 
 
