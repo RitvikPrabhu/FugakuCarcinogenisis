@@ -7,14 +7,20 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
                                  names=["row", "column", "mutation", "gene", "sample"], skiprows=1)
     gene_sample_pivot = gene_sample_df.pivot(index="gene", columns="sample", values="mutation").fillna(0)
     gene_sample_pivot = gene_sample_pivot.apply(lambda x: x.map(lambda y: 1 if y > 0 else 0))
+    
+    num_tumor_samples = gene_sample_pivot.shape[1]
+
+
     normal_gene_list_df = pd.read_csv(normal_gene_list_file, sep="\s+", header=None, names=["gene", "sample"])
     normal_samples = normal_gene_list_df["sample"].unique()
     normal_columns = [f'normal_{sample}' for sample in normal_samples]
     normal_data = pd.DataFrame(0, index=gene_sample_pivot.index.union(normal_gene_list_df["gene"].unique()), columns=normal_columns)
+
     for _, row in normal_gene_list_df.iterrows():
         gene = row['gene']
         sample = f'normal_{row["sample"]}'
-        normal_data.at[gene, sample] = 1
+        normal_data.at[gene, sample] = 1    
+    num_cancer_samples = normal_data.shape[1]
 
     gene_sample_pivot = pd.concat([gene_sample_pivot, normal_data], axis=1).fillna(0).astype(int)
     gene_sample_pivot = gene_sample_pivot.sample(frac=1).drop(gene_sample_pivot.sample(n=gene_sample_pivot.shape[0] - 5, random_state=42).index)
@@ -34,7 +40,7 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
 
     try:
         with open(output_file, 'w') as f:
-            f.write(f"{num_rows} {num_cols} -1 Gene Sample\n")
+            f.write(f"{num_rows} {num_cols} -1 {num_tumor_samples} {num_cancer_samples}\n")
             final_result.to_csv(f, sep=" ", index=False, header=False)
         print(f"File successfully written to {output_file}")
     except Exception as e:
