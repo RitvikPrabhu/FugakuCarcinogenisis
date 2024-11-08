@@ -9,7 +9,7 @@
 #include <cmath>
 
 #define MAX_BUF_SIZE 1024
-#define NUM_HITS 3
+#define NUM_HITS 2
 
 struct Gene {
 	std::set<int> tumor;
@@ -36,26 +36,26 @@ void funcName(std::vector<Gene> data, int totalGenes, int numTumor, int numNorma
 	long long int lambda = 0;
 	
 	for (long long int lambda = 0; lambda < num_Comb; lambda++){
-		//long long int i = std::floor(lambda + 0.5 - std::sqrt(2.25 + 2*lambda)) ;
 		long long int j = static_cast<long long int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
-                long long int i = lambda - (j * (j - 1)) / 2; 
-		Gene gene1 = data[i];
+		long long int i = lambda - (j * (j - 1)) / 2;
 
-//printf("HELLLLLOOOOO, number of combinations: %lld, lambda: %lld\n", num_Comb, lambda);
+		Gene gene1 = data[i];
+		
 		if (!gene1.tumor.empty()) {	
+						
 			Gene gene2 = data[j];
+
 			std::set<int> intersectNormal1, intersectTumor1;
+
 			std::set_intersection(gene1.tumor.begin(), gene1.tumor.end(), gene2.tumor.begin(), gene2.tumor.end(), std::inserter(intersectTumor1, intersectTumor1.begin()));
 			std::set_intersection(gene1.normal.begin(), gene1.normal.end(), gene2.normal.begin(), gene2.normal.end(), std::inserter(intersectNormal1, intersectNormal1.begin()));
-				
+						
 				if (!intersectTumor1.empty() && intersectNormal1.empty()){
 					count++;
 					if (count % 10000 == 0){
 						printf("We are at %lld combinations with genes %lld %lld\n", count, i, j);
 					}
 				}
-				
-
 		}
 
 	}
