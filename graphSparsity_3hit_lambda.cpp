@@ -9,7 +9,6 @@
 #include <cmath>
 
 #define MAX_BUF_SIZE 1024
-#define NUM_HITS 3
 
 struct Gene {
 	std::set<int> tumor;
@@ -31,12 +30,11 @@ long long int nCr(int n, int r) {
 
 void funcName(std::vector<Gene> data, int totalGenes, int numTumor, int numNormal){
 	
-	long long int num_Comb = nCr(totalGenes, NUM_HITS);
+	long long int num_Comb = nCr(totalGenes, 2);
 	long long int count = 0;
 	long long int lambda = 0;
 	
 	for (long long int lambda = 0; lambda < num_Comb; lambda++){
-
 		long long int j = static_cast<long long int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
 		long long int i = lambda - (j * (j - 1)) / 2;
 
@@ -51,7 +49,6 @@ void funcName(std::vector<Gene> data, int totalGenes, int numTumor, int numNorma
 		if (!intersectTumor1.empty()) {	
 
 			for (long long int k = j + 1; k < totalGenes; k++){
-    	//printf("HELLLLLLLLLOOOOOOOOOOO, i = %lld, j = %lld, k = %lld, numTumor = %d\n", i, j, k, numTumor);	
 					Gene gene3 = data[k];
 					std::set<int> intersectNormal2, intersectTumor2;
 							std::set_intersection(gene3.tumor.begin(), gene3.tumor.end(), intersectTumor1.begin(), intersectTumor1.end(), std::inserter(intersectTumor2, intersectTumor2.begin()));
