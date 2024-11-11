@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -5,9 +6,8 @@
 #include <vector>
 #include <set>
 #include <algorithm>
-#include <chrono>
 #include <cmath>
-#include <mpi.h>
+#include <fstream>
 
 #define MAX_BUF_SIZE 1024
 
@@ -29,13 +29,9 @@ long long int nCr(int n, int r) {
     return result;
 }
 
-void forTheLoveOfAllThingsHolyFindAName_PLEASE(std::vector<Gene> data, long long int start, long long int end, int totalGenes, int numTumor, int numNormal, long long int &count){
+void funcName(std::vector<Gene> data, int totalGenes, int numTumor, int numNormal, long long int &count, int rank, int size, std::ofstream &outFile){
 	
-	//long long int count = 0;
-	
-	int rank, size;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	long long int num_Comb, startComb, endComb, chunkSize, remainder;
  	num_Comb = nCr(totalGenes, 2);	
 	chunkSize = num_Comb / size;
 	remainder = num_Comb % size;
@@ -43,7 +39,7 @@ void forTheLoveOfAllThingsHolyFindAName_PLEASE(std::vector<Gene> data, long long
 	startComb = rank * chunkSize + (rank < remainder ? rank : remainder);
 	endComb = startComb + chunkSize + (rank < remainder ? 1 : 0);
 	
-	for (long long int lambda = start; lambda < end; lambda++){
+	for (long long int lambda = startComb; lambda < endComb; lambda++){
 		long long int j = static_cast<long long int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
 		long long int i = lambda - (j * (j - 1)) / 2;
 
@@ -66,6 +62,7 @@ void forTheLoveOfAllThingsHolyFindAName_PLEASE(std::vector<Gene> data, long long
 					if (!intersectTumor2.empty() && intersectNormal2.empty()){
 						count++;
 						//printf("(%lld %lld %lld)\n", count, i, j, k);
+						outFile << "("  << i << " " << j << " " << k << ")\n";
 					}
 				}
 
@@ -78,13 +75,12 @@ void forTheLoveOfAllThingsHolyFindAName_PLEASE(std::vector<Gene> data, long long
 
 int main(int argc, char *argv[]){
 	MPI_Init(&argc, &argv);
-
+	int rank, size;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	if (argc != 2){
-		if (rank == 0){
-			printf("One argument expected: ./graphSparcity <dataFile>");
-		}
-
+		printf("One argument expected: ./graphSparcity <dataFile>");
 		MPI_Finalize();
 		return 1;
 	}
@@ -131,14 +127,21 @@ int main(int argc, char *argv[]){
 	}
 	
 	fclose(dataFile);
-	long long int num_Comb, startComb, endComb, chunkSize, remainder;
+	
+	std::ofstream outFile;
+	outFile.open("combinations_rank_" + std::to_string(rank) + ".txt");
+	if (!outFile.is_open()) {
+		printf("Error opening output file for rank %d\n", rank);
+		MPI_Finalize();
+		return 1;
+	}
 	long long int count = 0;
 	//auto start = std::chrono::high_resolution_clock::now();
-	forTheLoveOfAllThingsHolyFindAName_PLEASE(sparseData, startComb, endComb, numGenes, numTumor, numNormal);
+	funcName(sparseData, numGenes, numTumor, numNormal, count, rank, size, outFile);
 	//auto end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> duration = end - start;
+//	std::chrono::duration<double, std::milli> duration = end - start;
         //printf("Time taken: %.3f ms\n", duration.count());
-        
+        outFile.close();
 
 	long long int totalCount = 0;
     	MPI_Reduce(&count, &totalCount, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
