@@ -29,13 +29,21 @@ long long int nCr(int n, int r) {
     return result;
 }
 
-void funcName(std::vector<Gene> data, int totalGenes, int numTumor, int numNormal){
+void forTheLoveOfAllThingsHolyFindAName_PLEASE(std::vector<Gene> data, long long int start, long long int end, int totalGenes, int numTumor, int numNormal, long long int &count){
 	
-	long long int num_Comb = nCr(totalGenes, 2);
-	long long int count = 0;
-	long long int lambda = 0;
+	//long long int count = 0;
 	
-	for (long long int lambda = 0; lambda < num_Comb; lambda++){
+	int rank, size;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+ 	num_Comb = nCr(totalGenes, 2);	
+	chunkSize = num_Comb / size;
+	remainder = num_Comb % size;
+
+	startComb = rank * chunkSize + (rank < remainder ? rank : remainder);
+	endComb = startComb + chunkSize + (rank < remainder ? 1 : 0);
+	
+	for (long long int lambda = start; lambda < end; lambda++){
 		long long int j = static_cast<long long int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
 		long long int i = lambda - (j * (j - 1)) / 2;
 
@@ -57,23 +65,20 @@ void funcName(std::vector<Gene> data, int totalGenes, int numTumor, int numNorma
 					
 					if (!intersectTumor2.empty() && intersectNormal2.empty()){
 						count++;
-						printf("We are at %lld combinations with genes %lld %lld %lld\n", count, i, j, k);
+						//printf("(%lld %lld %lld)\n", count, i, j, k);
 					}
 				}
 
 		}
 
 	}
-	printf("Number of combinations: %lld\n", count);
+
 }
 
 
 int main(int argc, char *argv[]){
 	MPI_Init(&argc, &argv);
 
-	int rank, size;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	if (argc != 2){
 		if (rank == 0){
@@ -83,17 +88,14 @@ int main(int argc, char *argv[]){
 		MPI_Finalize();
 		return 1;
 	}
-	
 
 	FILE* dataFile;
-	if (rank == 0){
-		dataFile = fopen(argv[1], "r");
-		
-		if (dataFile == NULL) {
-			perror("Error opening file");
-			MPI_Finalize();
-			return 1; 
-		}
+	dataFile = fopen(argv[1], "r");
+	
+	if (dataFile == NULL) {
+		perror("Error opening file");
+		MPI_Finalize();
+		return 1; 
 	}
 
 	char geneId[MAX_BUF_SIZE], sampleId[MAX_BUF_SIZE];
@@ -101,14 +103,9 @@ int main(int argc, char *argv[]){
 	if (fscanf(dataFile, "%d %d %d %d %d\n", &numGenes, &numSamples, &value, &numTumor, &numNormal) != 5) {
 		printf("Error reading the first line numbers\n");
 		fclose(dataFile);
+		MPI_Finalize();
 		return 1; 
 	}
-
-	printf("%d %d %d %d %d\n", numGenes, numSamples, value, numTumor, numNormal); 
-
-	MPI_Bcast(&numGenes, 1, MPI_INT, 0, MPI_COMM_WORLD);
-   	MPI_Bcast(&numTumor, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    	MPI_Bcast(&numNormal, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 	std::vector<Gene> sparseData (numGenes);
 
@@ -119,6 +116,7 @@ int main(int argc, char *argv[]){
 		if (fscanf(dataFile, "%d %d %d %s %s\n", &gene, &sample, &value, geneId, sampleId) != 5) {
 			printf("Error reading the line numbers\n");
 			fclose(dataFile);
+			MPI_Finalize();
 			return 1; 
 		}
 	
@@ -131,10 +129,24 @@ int main(int argc, char *argv[]){
 			}
 		}
 	}
- 		
-	auto start = std::chrono::high_resolution_clock::now();
-	funcName(sparseData, numGenes, numTumor, numNormal);
-	auto end = std::chrono::high_resolution_clock::now();
+	
+	fclose(dataFile);
+	long long int num_Comb, startComb, endComb, chunkSize, remainder;
+	long long int count = 0;
+	//auto start = std::chrono::high_resolution_clock::now();
+	forTheLoveOfAllThingsHolyFindAName_PLEASE(sparseData, startComb, endComb, numGenes, numTumor, numNormal);
+	//auto end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> duration = end - start;
-        printf("Time taken: %.3f ms\n", duration.count());
+        //printf("Time taken: %.3f ms\n", duration.count());
+        
+
+	long long int totalCount = 0;
+    	MPI_Reduce(&count, &totalCount, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+	
+	if (rank == 0) {
+		printf("Total number of combinations: %lld\n", totalCount);
+	}
+
+	MPI_Finalize();
+
 }
