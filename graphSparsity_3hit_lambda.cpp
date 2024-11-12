@@ -54,11 +54,9 @@ void funcName(std::vector<Gene> data, int totalGenes, int numTumor, int numNorma
 							std::set_intersection(gene3.tumor.begin(), gene3.tumor.end(), intersectTumor1.begin(), intersectTumor1.end(), std::inserter(intersectTumor2, intersectTumor2.begin()));
 					std::set_intersection(gene3.normal.begin(), gene3.normal.end(), intersectNormal1.begin(), intersectNormal1.end(), std::inserter(intersectNormal2, intersectNormal2.begin()));
 					
-					if (!intersectTumor2.empty() && intersectNormal2.empty()){
+					if (!intersectTumor2.empty()){
 						count++;
-						if (count % 10000 == 0){
-							printf("We are at %lld combinations with genes %lld %lld %lld\n", count, i, j, k);
-						}
+						printf("We are at %lld combinations with genes %lld %lld %lld\n", count, i, j, k);
 					}
 				}
 
