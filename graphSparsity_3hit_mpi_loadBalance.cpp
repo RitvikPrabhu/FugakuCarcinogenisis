@@ -86,7 +86,7 @@ int main(int argc, char *argv[]){
     }
     double start_time, end_time;
     double elapsed_time_loading, elapsed_time_func;    
-    start_time = MPI_Wtime();
+    start_time = MPI_Wtime(); // Start timing the data loading stage
     FILE* dataFile;
     dataFile = fopen(argv[1], "r");
     
@@ -105,10 +105,11 @@ int main(int argc, char *argv[]){
         return 1; 
     }
 
+    // Create a data structure to store information about each gene
     std::vector<Gene> sparseData (numGenes);
-
     int fileRows = numGenes * numSamples;
     
+    // Load data row by row and categorize samples as either tumor or normal
     for (int i = 0; i < fileRows; i++){
         int gene, sample;    
         if (fscanf(dataFile, "%d %d %d %s %s\n", &gene, &sample, &value, geneId, sampleId) != 5) {
@@ -129,36 +130,35 @@ int main(int argc, char *argv[]){
     }
     
     fclose(dataFile);
-    end_time = MPI_Wtime();
+    end_time = MPI_Wtime(); // End timing the data loading stage
     elapsed_time_loading = end_time - start_time;
     
+    // Prepare data structures for holding pairs of genes with common tumor samples
     std::vector<int> localGene1Idx;
     std::vector<int> localGene2Idx;
     std::vector<int> localTumorCounts;
-    start_time = MPI_Wtime();
+    start_time = MPI_Wtime(); // Start timing the computation stage
 
+    // Each process calls funcName to find intersecting tumor samples for its assigned gene pairs
     funcName(sparseData, numGenes, numTumor, numNormal, rank, size, localGene1Idx, localGene2Idx, localTumorCounts);
+    
     int localTractableSize = localGene1Idx.size();
-    std::vector<int> tractableSizes(size);
-    MPI_Gather(&localTractableSize, 1, MPI_INT, tractableSizes.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    std::vector<int> rankDataSizes(size);
 
-    // Debugging tractableSizes after MPI_Gather
-    if (rank == 0) {
-        printf("Rank %d: Gathered tractable sizes:\n", rank);
-        for (int i = 0; i < size; i++) {
-            printf("tractableSizes[%d] = %d\n", i, tractableSizes[i]);
-        }
-    }
-
+    // Gather the sizes of results from all processes at rank 0
+    MPI_Gather(&localTractableSize, 1, MPI_INT, rankDataSizes.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    
+    // Calculate where each rank’s data will go in the global array on rank 0
     std::vector<int> rank_displacement_idx(size);
     int totalWorkSize = 0;
     if (rank == 0) {
         for (int i = 0; i < size; i++) {
             rank_displacement_idx[i] = totalWorkSize;
-            totalWorkSize += tractableSizes[i];
+            totalWorkSize += rankDataSizes[i];
         }
     }
 
+    // Create global arrays to store data from all processes (only on rank 0)
     std::vector<int> globalGene1Idx;
     std::vector<int> globalGene2Idx;
     std::vector<int> globalTumorCounts;
@@ -167,50 +167,65 @@ int main(int argc, char *argv[]){
         globalGene2Idx.resize(totalWorkSize);
         globalTumorCounts.resize(totalWorkSize);
     }
+
+    // Gather results from all ranks into global arrays on rank 0
     MPI_Gatherv(localGene1Idx.data(), localTractableSize, MPI_INT, 
-                globalGene1Idx.data(), tractableSizes.data(), rank_displacement_idx.data(), MPI_INT, 0, MPI_COMM_WORLD);
+                globalGene1Idx.data(), rankDataSizes.data(), rank_displacement_idx.data(), MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Gatherv(localGene2Idx.data(), localTractableSize, MPI_INT, 
-                globalGene2Idx.data(), tractableSizes.data(), rank_displacement_idx.data(), MPI_INT, 0, MPI_COMM_WORLD);
+                globalGene2Idx.data(), rankDataSizes.data(), rank_displacement_idx.data(), MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Gatherv(localTumorCounts.data(), localTractableSize, MPI_INT, 
-                globalTumorCounts.data(), tractableSizes.data(), rank_displacement_idx.data(), MPI_INT, 0, MPI_COMM_WORLD);
+                globalTumorCounts.data(), rankDataSizes.data(), rank_displacement_idx.data(), MPI_INT, 0, MPI_COMM_WORLD);
 
     std::vector<int> redistributedGene1Idx;
     std::vector<int> redistributedGene2Idx;
     std::vector<int> redistributedTumorCounts;
     if (rank == 0) {
-        int newChunkSize = totalWorkSize / size;
-        int remainder = totalWorkSize % size;
-        rank_displacement_idx[0] = 0;
-        for (int i = 0; i < size; ++i) {
-            tractableSizes[i] = newChunkSize + (i < remainder ? 1 : 0);
-            if (i > 0) {
-                rank_displacement_idx[i] = rank_displacement_idx[i - 1] + tractableSizes[i - 1];
+        int newChunkSize = totalWorkSize / size; //Basic size of work per rank
+        int remainder = totalWorkSize % size; //In case the amount of data is not divisble
+
+        rank_displacement_idx[0] = 0; //Rank 0 has to start at index 0 on the global array
+	// The below for loop dtermines how many items each rank should get and calculates start positions
+        for (int i = 0; i < size; i++) {
+            rankDataSizes[i] = newChunkSize + (i < remainder ? 1 : 0);
+            
+	    // Calculate the starting index for each rank’s portion in the global array
+	    if (i > 0) {
+                rank_displacement_idx[i] = rank_displacement_idx[i - 1] + rankDataSizes[i - 1];
             }
         }
     }
 
-    redistributedGene1Idx.resize(tractableSizes[rank]);
-    redistributedGene2Idx.resize(tractableSizes[rank]);
-    redistributedTumorCounts.resize(tractableSizes[rank]);
-    MPI_Scatterv(globalGene1Idx.data(), tractableSizes.data(), rank_displacement_idx.data(), MPI_INT, 
-                 redistributedGene1Idx.data(), tractableSizes[rank], MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Scatterv(globalGene2Idx.data(), tractableSizes.data(), rank_displacement_idx.data(), MPI_INT, 
-                 redistributedGene2Idx.data(), tractableSizes[rank], MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Scatterv(globalTumorCounts.data(), tractableSizes.data(), rank_displacement_idx.data(), MPI_INT, 
-                 redistributedTumorCounts.data(), tractableSizes[rank], MPI_INT, 0, MPI_COMM_WORLD);
+    // Scatter redistributed data back to each process
+    redistributedGene1Idx.resize(rankDataSizes[rank]);
+    redistributedGene2Idx.resize(rankDataSizes[rank]);
+    redistributedTumorCounts.resize(rankDataSizes[rank]);
+    MPI_Scatterv(globalGene1Idx.data(), rankDataSizes.data(), rank_displacement_idx.data(), MPI_INT, 
+                 redistributedGene1Idx.data(), rankDataSizes[rank], MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(globalGene2Idx.data(), rankDataSizes.data(), rank_displacement_idx.data(), MPI_INT, 
+                 redistributedGene2Idx.data(), rankDataSizes[rank], MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(globalTumorCounts.data(), rankDataSizes.data(), rank_displacement_idx.data(), MPI_INT, 
+                 redistributedTumorCounts.data(), rankDataSizes[rank], MPI_INT, 0, MPI_COMM_WORLD);
 
+    // Count the number of three-way intersections (basically the inner loop of the lambda program)
     long long int count = 0;
     processInnerLoop(redistributedGene1Idx, redistributedGene2Idx, redistributedTumorCounts, sparseData, numGenes, count);
 
-    end_time = MPI_Wtime();
+    end_time = MPI_Wtime(); //Ending of Computation time
     elapsed_time_func = end_time - start_time;
-    double elapsed_times[2] = {elapsed_time_loading, elapsed_time_func};
-    double all_times[2][size];
-    MPI_Gather(elapsed_times, 2, MPI_DOUBLE, all_times, 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+   
+    // Combine results from all ranks to get the total count of three-way intersections
     long long int totalCount = 0;
     MPI_Reduce(&count, &totalCount, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-    
+
+    //Record Computation time
+    double elapsed_times[2] = {elapsed_time_loading, elapsed_time_func};
+    double all_times[2][size];
+
+    // Gather time metrics from all ranks to rank 0
+    MPI_Gather(elapsed_times, 2, MPI_DOUBLE, all_times, 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    // Rank 0 outputs the timing data and total count to a file
      if (rank == 0) {
         std::ofstream timingFile("output.txt");
         if (timingFile.is_open()) {
