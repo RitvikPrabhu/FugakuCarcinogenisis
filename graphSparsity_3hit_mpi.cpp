@@ -140,7 +140,7 @@ int main(int argc, char *argv[]){
 	end_time = MPI_Wtime();
     	elapsed_time_func = end_time - start_time;
 	double elapsed_times[3] = {elapsed_time_loading, elapsed_time_func, elapsed_time_total};
-    	double all_times[3][size];
+    	double all_times[size][3];
 	MPI_Gather(elapsed_times, 3, MPI_DOUBLE, all_times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
 	long long int totalCount = 0;
@@ -153,7 +153,7 @@ int main(int argc, char *argv[]){
 			double max_time = -1.0, min_time = 1e9, total_time = 0.0;
 			int rank_max = 0, rank_min = 0;
 			for (int i = 0; i < size; ++i) {
-			    double time = all_times[stage][i];
+			    double time = all_times[i][stage];
 			    if (time > max_time) {
 				max_time = time;
 				rank_max = i;
