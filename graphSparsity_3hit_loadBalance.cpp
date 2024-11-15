@@ -12,7 +12,7 @@
 #include <utility>
 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 2LL
+#define CHUNK_SIZE 1000000LL
 
 struct Gene {
 	std::set<int> tumor;
@@ -36,7 +36,7 @@ void funcName(std::vector<Gene> data, long long int startComb, long long int end
 	
 	
 	for (long long int lambda = startComb; lambda < endComb; lambda++){
-		printf("Here is lambda: %lld, startComb: %lld, endComb: %lld\n", lambda, startComb, endComb);
+		//printf("Here is lambda: %lld, startComb: %lld, endComb: %lld\n", lambda, startComb, endComb);
 		long long int j = static_cast<long long int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
 		long long int i = lambda - (j * (j - 1)) / 2;
 
@@ -73,6 +73,8 @@ int main(int argc, char *argv[]){
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	
+
 	const int WORK_REQUEST_TAG = 1;
 	const int WORK_ASSIGN_TAG = 2;
 	const int STEAL_TAG = 3;
@@ -86,6 +88,7 @@ int main(int argc, char *argv[]){
 	double start_time, end_time;
     	double elapsed_time_loading, elapsed_time_func, elapsed_time_total;	
 	start_time = MPI_Wtime();
+	//Read Data function start
 	FILE* dataFile;
 	dataFile = fopen(argv[1], "r");
 	
@@ -128,6 +131,7 @@ int main(int argc, char *argv[]){
 	}
 	
 	fclose(dataFile);
+	//Read data function should end and returns the sparse data
 	end_time = MPI_Wtime();
 	elapsed_time_loading = end_time - start_time;
 
@@ -141,6 +145,7 @@ int main(int argc, char *argv[]){
 	remainder = num_Comb % num_workers;
 	long long int count = 0;
 
+//
 	if (rank != 0){
 
 		long long int startComb = (rank-1) * chunkSize + ((rank-1) < remainder ? (rank-1) : remainder);
@@ -189,7 +194,6 @@ int main(int argc, char *argv[]){
 			long long int workerChunkSize = chunkSize + (i < (num_Comb % num_workers) ? 1 : 0);
 			assignedCombs += workerChunkSize;
 		}
-
 		if (assignedCombs < num_Comb) {
      			workQueue.push({assignedCombs, num_Comb});
     		}
@@ -241,8 +245,8 @@ int main(int argc, char *argv[]){
 
 	long long int totalCount = 0;
     	MPI_Reduce(&count, &totalCount, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-	
 	if (rank == 0) {
+//Put the below code in a function	
 		std::ofstream timingFile("output.txt");
 		if (timingFile.is_open()) {
 		    for (int stage = 0; stage < 3; ++stage) {
