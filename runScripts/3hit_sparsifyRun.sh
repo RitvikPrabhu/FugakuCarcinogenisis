@@ -1,1 +1,1 @@
-mpiFCC -Nclang -std=c++11 -Ofast -o ../sparsification/dataSparsity_3hit_loadBalance ../sparsification/dataSparsity_3hit_loadBalance.cpp && mpirun ../sparsification/dataSparsity_3hit_loadBalance sample.txt  && cat output.txt && rm ../sparsification/dataSparsity_3hit_loadBalance
+mpiFCC -Nclang -std=c++11 -Ofast -o ../sparsification/dataSparsity_3hit_loadBalance ../sparsification/dataSparsity_3hit_loadBalance.cpp && mpirun ../sparsification/dataSparsity_3hit_loadBalance ../data/sample.txt  && cat output.txt && rm ../sparsification/dataSparsity_3hit_loadBalance
