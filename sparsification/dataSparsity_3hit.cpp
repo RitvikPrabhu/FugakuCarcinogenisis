@@ -44,7 +44,7 @@ void process_lambda_interval(const std::vector<std::set<int>>& data, long long i
                     uniqueNumbers.insert(i);
                     uniqueNumbers.insert(j);
                     uniqueNumbers.insert(k);
-		    //printf("%lld %lld %lld\n", i, j, k);
+		    printf("%lld %lld %lld\n", i, j, k);
                 }
             }
         }
