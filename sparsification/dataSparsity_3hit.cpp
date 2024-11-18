@@ -22,7 +22,7 @@ long long int nCr(int n, int r) {
     return result;
 }
 
-void process_lambda_interval(const std::vector<std::set<int>>& data, long long int startComb, long long int endComb, int totalGenes, long long int &count, int rank, int size){
+void process_lambda_interval(const std::vector<std::set<int>>& data, long long int startComb, long long int endComb, int totalGenes, long long int &count, int rank, int size, std::set<int>& uniqueNumbers){
     for (long long int lambda = startComb; lambda < endComb; lambda++){
         long long int j = static_cast<long long int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
         long long int i = lambda - (j * (j - 1)) / 2;
@@ -41,13 +41,17 @@ void process_lambda_interval(const std::vector<std::set<int>>& data, long long i
 
                 if (!intersectTumor2.empty()){
                     count++;
+                    uniqueNumbers.insert(i);
+                    uniqueNumbers.insert(j);
+                    uniqueNumbers.insert(k);
+		    //printf("%lld %lld %lld\n", i, j, k);
                 }
             }
         }
     }
 }
 
-void write_timings_to_file(const double all_times[][3], int size, long long int totalCount) {
+void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, std::vector<int> allUniqueNumbers) {
     std::ofstream timingFile("output.txt");
     if (timingFile.is_open()) {
         for (int stage = 0; stage < 3; ++stage) {
@@ -78,6 +82,9 @@ void write_timings_to_file(const double all_times[][3], int size, long long int 
             timingFile << "Average time: " << avg_time << " seconds.\n\n";
         }
         timingFile << "Total number of combinations: " << totalCount << "\n";
+        std::set<int> globalUniqueNumbers(allUniqueNumbers.begin(), allUniqueNumbers.end());
+        int globalUniqueCount = globalUniqueNumbers.size();
+	timingFile << "Total unique numbers: " << globalUniqueCount << std::endl;
         timingFile.close();
     } else {
         printf("Error opening timings output file\n");
@@ -150,12 +157,12 @@ void master_process(int num_workers, long long int num_Comb) {
     }
 }
 
-void worker_process(int rank, int num_workers, long long int num_Comb, const std::vector<std::set<int>>& sparseData, int numGenes, long long int& count) {
+void worker_process(int rank, int num_workers, long long int num_Comb, const std::vector<std::set<int>>& sparseData, int numGenes, long long int& count, std::set<int>& uniqueNumbers) {
     int begin = (rank - 1) * CHUNK_SIZE;
     int end = std::min(begin + CHUNK_SIZE, num_Comb);
     MPI_Status status;
     while (end <= num_Comb) {
-        process_lambda_interval(sparseData, begin, end, numGenes, count, rank, num_workers);
+        process_lambda_interval(sparseData, begin, end, numGenes, count, rank, num_workers, uniqueNumbers);
         MPI_Request request;
         char c = 'a';
         MPI_Isend(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD, &request);
@@ -167,7 +174,7 @@ void worker_process(int rank, int num_workers, long long int num_Comb, const std
     }
 }
 
-void distribute_tasks(int rank, int size, int numGenes, const std::vector<std::set<int>>& sparseData, long long int& count) {
+void distribute_tasks(int rank, int size, int numGenes, const std::vector<std::set<int>>& sparseData, long long int& count, std::set<int>& uniqueNumbers) {
     int num_workers = size - 1;
     long long int num_Comb, remainder;
     num_Comb = nCr(numGenes, 2);
@@ -176,7 +183,7 @@ void distribute_tasks(int rank, int size, int numGenes, const std::vector<std::s
     if (rank == 0) { // Master
         master_process(num_workers, num_Comb);
     } else { // Worker
-        worker_process(rank, num_workers, num_Comb, sparseData, numGenes, count);
+        worker_process(rank, num_workers, num_Comb, sparseData, numGenes, count, uniqueNumbers);
     }
 }
 
@@ -211,7 +218,30 @@ int main(int argc, char *argv[]){
 
     start_time = MPI_Wtime();
     long long int count = 0;
-    distribute_tasks(rank, size, numGenes, sparseData, count);
+    std::set<int> uniqueNumbers;
+    distribute_tasks(rank, size, numGenes, sparseData, count, uniqueNumbers);
+    std::vector<int> localUniqueNumbers(uniqueNumbers.begin(), uniqueNumbers.end());
+    int localSize = localUniqueNumbers.size();
+    std::vector<int> recvSizes(size);
+
+    // Gather sizes of local unique sets at rank 0
+    MPI_Gather(&localSize, 1, MPI_INT, recvSizes.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    std::vector<int> recvDispls(size);
+    int totalSize = 0;
+    if (rank == 0) {
+        recvDispls[0] = 0;
+        for (int i = 1; i < size; ++i) {
+            recvDispls[i] = recvDispls[i - 1] + recvSizes[i - 1];
+        }
+        totalSize = recvDispls[size - 1] + recvSizes[size - 1];
+    }
+
+    std::vector<int> allUniqueNumbers(totalSize);
+
+    // Gather all unique numbers at rank 0
+    MPI_Gatherv(localUniqueNumbers.data(), localSize, MPI_INT,
+                allUniqueNumbers.data(), recvSizes.data(), recvDispls.data(), MPI_INT, 0, MPI_COMM_WORLD);
     double total_end_time = MPI_Wtime();
     elapsed_time_total = total_end_time - total_start_time;
     end_time = MPI_Wtime();
@@ -228,7 +258,7 @@ int main(int argc, char *argv[]){
     long long int totalCount = 0;
     MPI_Reduce(&count, &totalCount, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     if (rank == 0) {
-        write_timings_to_file(all_times, size, totalCount);
+        write_timings_to_file(all_times, size, totalCount, allUniqueNumbers);
     }
 
 
