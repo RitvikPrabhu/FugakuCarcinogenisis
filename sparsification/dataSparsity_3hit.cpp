@@ -22,24 +22,25 @@ long long int nCr(int n, int r) {
     return result;
 }
 
-void process_lambda_interval(const std::vector<std::set<int>>& data, long long int startComb, long long int endComb, int totalGenes, long long int &count, int rank, int size){
+void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long long int startComb, long long int endComb, int totalGenes, long long int &count, int rank, std::vector<std::array<int, 3>>& bestCombinations){
     for (long long int lambda = startComb; lambda < endComb; lambda++){
-        long long int j = static_cast<long long int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
-        long long int i = lambda - (j * (j - 1)) / 2;
+        int j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
+        int i = lambda - (j * (j - 1)) / 2;
 
-        const std::set<int>& gene1Tumor = data[i];
-        const std::set<int>& gene2Tumor = data[j];
+        const std::set<int>& gene1Tumor = tumorData[i];
+        const std::set<int>& gene2Tumor = tumorData[j];
 
         std::set<int> intersectTumor1;
         std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(), gene2Tumor.begin(), gene2Tumor.end(), std::inserter(intersectTumor1, intersectTumor1.begin()));
 
         if (!intersectTumor1.empty()) {
-            for (long long int k = j + 1; k < totalGenes; k++){
-                const std::set<int>& gene3Tumor = data[k];
+            for (int k = j + 1; k < totalGenes; k++){
+                const std::set<int>& gene3Tumor = tumorData[k];
                 std::set<int> intersectTumor2;
                 std::set_intersection(gene3Tumor.begin(), gene3Tumor.end(), intersectTumor1.begin(), intersectTumor1.end(), std::inserter(intersectTumor2, intersectTumor2.begin()));
 
                 if (!intersectTumor2.empty()){
+					bestCombinations.push_back({i, j, k});
                     count++;
                 }
             }
@@ -84,7 +85,7 @@ void write_timings_to_file(const double all_times[][3], int size, long long int 
     }
 }
 
-std::vector<std::set<int>> read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal) {
+std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal) {
     FILE* dataFile;
     dataFile = fopen(filename, "r");
 
@@ -103,7 +104,8 @@ std::vector<std::set<int>> read_data(const char* filename, int& numGenes, int& n
         exit(1);
     }
 
-    std::vector<std::set<int>> sparseData(numGenes);
+    std::vector<std::set<int>> sparseTumorData(numGenes);
+    std::vector<std::set<int>> sparseNormalData(numGenes);
 
     int fileRows = numGenes * numSamples;
 
@@ -118,13 +120,16 @@ std::vector<std::set<int>> read_data(const char* filename, int& numGenes, int& n
 
         if (value > 0){
             if (sample < numTumor){
-                sparseData[gene].insert(sample);
-            }
+                sparseTumorData[gene].insert(sample);
+            } 
+			else{
+				sparseNormalData[gene].insert(sample);
+			}
         }
     }
 
     fclose(dataFile);
-    return sparseData;
+    return std::make_pair(sparseTumorData, sparseNormalData);;
 }
 
 void master_process(int num_workers, long long int num_Comb) {
@@ -150,12 +155,13 @@ void master_process(int num_workers, long long int num_Comb) {
     }
 }
 
-void worker_process(int rank, int num_workers, long long int num_Comb, const std::vector<std::set<int>>& sparseData, int numGenes, long long int& count) {
+void worker_process(int rank, int num_workers, long long int num_Comb, const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, int numGenes, long long int& count, int Nt, int Nn) {
     int begin = (rank - 1) * CHUNK_SIZE;
     int end = std::min(begin + CHUNK_SIZE, num_Comb);
     MPI_Status status;
+	std::vector<std::array<int, 3>> localComb;
     while (end <= num_Comb) {
-        process_lambda_interval(sparseData, begin, end, numGenes, count, rank, num_workers);
+        process_lambda_interval(tumorData, begin, end, numGenes, count, rank, localComb);
         MPI_Request request;
         char c = 'a';
         MPI_Isend(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD, &request);
@@ -165,9 +171,48 @@ void worker_process(int rank, int num_workers, long long int num_Comb, const std
         if (begin == -1) break;
         end = std::min(next_idx + CHUNK_SIZE, num_Comb);
     }
+/*	
+	// Calculate the offset based on ranks
+	long long int prev_offset;
+	
+	if (rank == 1) {
+			prev_offset = 0;
+	}
+	else {
+		MPI_Recv(&prev_offset, 1, MPI_LONG_LONG, rank - 1, 0, MPI_COMM_WORLD, &status);
+	}
+
+	// Prepare data for writing
+	std::string localData;
+	for (const auto& comb : localComb) {
+		localData += std::to_string(comb[0]) + " " + std::to_string(comb[1]) + " " + std::to_string(comb[2]) + "\n";
+	}
+	long long int local_size = static_cast<long long int>(localData.size());
+	MPI_Offset file_offset = prev_offset;
+
+	// Send offset to the next rank
+	if (rank < num_workers) {
+		long long int next_offset = file_offset + local_size;
+		MPI_Send(&next_offset, 1, MPI_LONG_LONG, rank + 1, 0, MPI_COMM_WORLD);
+	}
+
+
+	MPI_File file;
+	MPI_File_open(MPI_COMM_WORLD, "prunedData.txt", 
+                  MPI_MODE_CREATE | MPI_MODE_WRONLY, 
+                  MPI_INFO_NULL, &file);
+
+    // Write data at the calculated offset
+    MPI_File_write_at(file, file_offset, 
+                      localData.c_str(), 
+                      static_cast<int>(localData.size()), 
+                      MPI_CHAR, MPI_STATUS_IGNORE);
+
+    // Close the file
+    MPI_File_close(&file);*/
 }
 
-void distribute_tasks(int rank, int size, int numGenes, const std::vector<std::set<int>>& sparseData, long long int& count) {
+void distribute_tasks(int rank, int size, int numGenes, const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int& count, int Nt, int Nn) {
     int num_workers = size - 1;
     long long int num_Comb, remainder;
     num_Comb = nCr(numGenes, 2);
@@ -176,7 +221,7 @@ void distribute_tasks(int rank, int size, int numGenes, const std::vector<std::s
     if (rank == 0) { // Master
         master_process(num_workers, num_Comb);
     } else { // Worker
-        worker_process(rank, num_workers, num_Comb, sparseData, numGenes, count);
+        worker_process(rank, num_workers, num_Comb, tumorData, normalData, numGenes, count, Nt, Nn);
     }
 }
 
@@ -203,7 +248,9 @@ int main(int argc, char *argv[]){
 
     start_time = MPI_Wtime();
     int numGenes, numSamples, numTumor, numNormal;
-    std::vector<std::set<int>> sparseData = read_data(argv[1], numGenes, numSamples, numTumor, numNormal);
+    std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> dataPair = read_data(argv[1], numGenes, numSamples, numTumor, numNormal);
+	std::vector<std::set<int>>& tumorData = dataPair.first;   
+    std::vector<std::set<int>>& normalData = dataPair.second;
     end_time = MPI_Wtime();
     elapsed_time_loading = end_time - start_time;
 
@@ -211,7 +258,7 @@ int main(int argc, char *argv[]){
 
     start_time = MPI_Wtime();
     long long int count = 0;
-    distribute_tasks(rank, size, numGenes, sparseData, count);
+    distribute_tasks(rank, size, numGenes, tumorData, normalData, count, numTumor, numNormal);
     double total_end_time = MPI_Wtime();
     elapsed_time_total = total_end_time - total_start_time;
     end_time = MPI_Wtime();
@@ -231,7 +278,7 @@ int main(int argc, char *argv[]){
         write_timings_to_file(all_times, size, totalCount);
     }
 
-
+	printf("Num Genes: %d, Num Samples: %d, num Tumor: %d, num Normal: %d\n", numGenes, numSamples, numTumor, numNormal);
 
     MPI_Finalize();
     return 0;
