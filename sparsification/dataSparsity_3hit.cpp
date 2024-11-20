@@ -202,11 +202,6 @@ void worker_process(int rank, int num_workers, long long int num_Comb,
     // Adjust the offset to account for the total_count at the beginning of the file
     MPI_Offset file_offset = sizeof(long long int) + local_offset;
 
-    printf("Rank %d: Writing %zu bytes at offset %lld\n", rank, data_size, file_offset);
-    fflush(stdout);
-
-
-
     MPI_Status write_status;
 	int mpi_err = MPI_File_write_at(file, file_offset, data_buffer, data_size, MPI_BYTE, &write_status);
     if (mpi_err != MPI_SUCCESS) {
@@ -324,8 +319,6 @@ int main(int argc, char *argv[]){
     if (rank == 0) {
         write_timings_to_file(all_times, size, totalCount);
     }
-
-	printf("Num Genes: %d, Num Samples: %d, num Tumor: %d, num Normal: %d\n", numGenes, numSamples, numTumor, numNormal);
 
     MPI_Finalize();
     return 0;
