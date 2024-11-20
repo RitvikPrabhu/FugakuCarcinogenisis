@@ -7,7 +7,7 @@
 #include <mpi.h>
 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 2LL
+#define CHUNK_SIZE 100000LL
 
 long long int nCr(int n, int r) {
     if (r > n) return 0;
@@ -168,9 +168,9 @@ void worker_process(int rank, int num_workers, long long int num_Comb,
 
     while (end <= num_Comb) {
         process_lambda_interval(tumorData, begin, end, numGenes, count, rank, localComb);
-        MPI_Request request;
+        //MPI_Request request;
         char c = 'a';
-        MPI_Isend(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD, &request);
+        MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
         int next_idx;
         MPI_Recv(&next_idx, 1, MPI_INT, 0, 2, MPI_COMM_WORLD, &status);
