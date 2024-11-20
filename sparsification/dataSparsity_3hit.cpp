@@ -7,7 +7,7 @@
 #include <mpi.h>
 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 100000LL
+#define CHUNK_SIZE 2LL
 
 long long int nCr(int n, int r) {
     if (r > n) return 0;
@@ -155,73 +155,122 @@ void master_process(int num_workers, long long int num_Comb) {
     }
 }
 
-void worker_process(int rank, int num_workers, long long int num_Comb, const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, int numGenes, long long int& count, int Nt, int Nn) {
+void worker_process(int rank, int num_workers, long long int num_Comb,
+                    const std::vector<std::set<int>>& tumorData,
+                    const std::vector<std::set<int>>& normalData,
+                    int numGenes, long long int& count, int Nt, int Nn,
+                    MPI_File file) {
     int begin = (rank - 1) * CHUNK_SIZE;
     int end = std::min(begin + CHUNK_SIZE, num_Comb);
+
     MPI_Status status;
-	std::vector<std::array<int, 3>> localComb;
+    std::vector<std::array<int, 3>> localComb;
+
     while (end <= num_Comb) {
         process_lambda_interval(tumorData, begin, end, numGenes, count, rank, localComb);
         MPI_Request request;
         char c = 'a';
         MPI_Isend(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD, &request);
+
         int next_idx;
         MPI_Recv(&next_idx, 1, MPI_INT, 0, 2, MPI_COMM_WORLD, &status);
+        if (next_idx == -1) break;
+
         begin = next_idx;
-        if (begin == -1) break;
         end = std::min(next_idx + CHUNK_SIZE, num_Comb);
     }
-/*	
-	// Calculate the offset based on ranks
-	long long int prev_offset;
-	
-	if (rank == 1) {
-			prev_offset = 0;
-	}
-	else {
-		MPI_Recv(&prev_offset, 1, MPI_LONG_LONG, rank - 1, 0, MPI_COMM_WORLD, &status);
-	}
+    // Prepare data for writing (binary format)
+    size_t num_combinations = localComb.size();
+    size_t data_size = num_combinations * 3 * sizeof(int);
+    int* data_buffer = new int[num_combinations * 3];
+    for (size_t idx = 0; idx < num_combinations; ++idx) {
+        data_buffer[idx * 3 + 0] = localComb[idx][0];
+        data_buffer[idx * 3 + 1] = localComb[idx][1];
+        data_buffer[idx * 3 + 2] = localComb[idx][2];
+    }
 
-	// Prepare data for writing
-	std::string localData;
-	for (const auto& comb : localComb) {
-		localData += std::to_string(comb[0]) + " " + std::to_string(comb[1]) + " " + std::to_string(comb[2]) + "\n";
-	}
-	long long int local_size = static_cast<long long int>(localData.size());
-	MPI_Offset file_offset = prev_offset;
+    MPI_Offset local_offset = 0;
+    if (rank > 1) {
+        MPI_Recv(&local_offset, 1, MPI_OFFSET, rank - 1, 0, MPI_COMM_WORLD, &status);
+    }
 
-	// Send offset to the next rank
-	if (rank < num_workers) {
-		long long int next_offset = file_offset + local_size;
-		MPI_Send(&next_offset, 1, MPI_LONG_LONG, rank + 1, 0, MPI_COMM_WORLD);
-	}
+    MPI_Offset new_offset = local_offset + data_size;
+    if (rank < num_workers) {
+        MPI_Send(&new_offset, 1, MPI_OFFSET, rank + 1, 0, MPI_COMM_WORLD);
+    }
+
+    // Adjust the offset to account for the total_count at the beginning of the file
+    MPI_Offset file_offset = sizeof(long long int) + local_offset;
+
+    printf("Rank %d: Writing %zu bytes at offset %lld\n", rank, data_size, file_offset);
+    fflush(stdout);
 
 
-	MPI_File file;
-	MPI_File_open(MPI_COMM_WORLD, "prunedData.txt", 
-                  MPI_MODE_CREATE | MPI_MODE_WRONLY, 
-                  MPI_INFO_NULL, &file);
 
-    // Write data at the calculated offset
-    MPI_File_write_at(file, file_offset, 
-                      localData.c_str(), 
-                      static_cast<int>(localData.size()), 
-                      MPI_CHAR, MPI_STATUS_IGNORE);
+    MPI_Status write_status;
+	int mpi_err = MPI_File_write_at(file, file_offset, data_buffer, data_size, MPI_BYTE, &write_status);
+    if (mpi_err != MPI_SUCCESS) {
+        char error_string[MPI_MAX_ERROR_STRING];
+        int length_of_error_string;
+        MPI_Error_string(mpi_err, error_string, &length_of_error_string);
+        printf("Rank %d: Error writing to file: %s\n", rank, error_string);
+        MPI_Abort(MPI_COMM_WORLD, mpi_err);
+    }
 
-    // Close the file
-    MPI_File_close(&file);*/
+    delete[] data_buffer;
 }
 
-void distribute_tasks(int rank, int size, int numGenes, const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int& count, int Nt, int Nn) {
+
+void distribute_tasks(int rank, int size, int numGenes,
+                      const std::vector<std::set<int>>& tumorData,
+                      const std::vector<std::set<int>>& normalData, long long int& count,
+                      int Nt, int Nn) {
     int num_workers = size - 1;
-    long long int num_Comb, remainder;
-    num_Comb = nCr(numGenes, 2);
-    remainder = num_Comb % num_workers;
+    long long int num_Comb = nCr(numGenes, 2); 
+    MPI_File file;
+    int mpi_err = MPI_File_open(MPI_COMM_WORLD, "prunedData.bin",
+                                MPI_MODE_CREATE | MPI_MODE_WRONLY,
+                                MPI_INFO_NULL, &file);
+    if (mpi_err != MPI_SUCCESS) {
+        char error_string[MPI_MAX_ERROR_STRING];
+        int length_of_error_string;
+        MPI_Error_string(mpi_err, error_string, &length_of_error_string);
+        printf("Rank %d: Error opening file: %s\n", rank, error_string);
+        MPI_Abort(MPI_COMM_WORLD, mpi_err);
+    }
+
+    count = 0;
 
     if (rank == 0) { // Master
         master_process(num_workers, num_Comb);
     } else { // Worker
-        worker_process(rank, num_workers, num_Comb, tumorData, normalData, numGenes, count, Nt, Nn);
+        worker_process(rank, num_workers, num_Comb, tumorData, normalData,
+                       numGenes, count, Nt, Nn, file);
+    }
+
+    long long int total_count = 0;
+	MPI_Reduce(&count, &total_count, 1, MPI_LONG_LONG_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    count = total_count;
+
+    if (rank == 0) {
+        MPI_Status write_status;
+        mpi_err = MPI_File_write_at(file, 0, &total_count, 1, MPI_LONG_LONG_INT, &write_status);
+        if (mpi_err != MPI_SUCCESS) {
+            char error_string[MPI_MAX_ERROR_STRING];
+            int length_of_error_string;
+            MPI_Error_string(mpi_err, error_string, &length_of_error_string);
+            printf("Rank %d: Error writing total count to file: %s\n", rank, error_string);
+            MPI_Abort(MPI_COMM_WORLD, mpi_err);
+        }
+    }
+
+    mpi_err = MPI_File_close(&file);
+    if (mpi_err != MPI_SUCCESS) {
+        char error_string[MPI_MAX_ERROR_STRING];
+        int length_of_error_string;
+        MPI_Error_string(mpi_err, error_string, &length_of_error_string);
+        printf("Rank %d: Error closing file: %s\n", rank, error_string);
+        MPI_Abort(MPI_COMM_WORLD, mpi_err);
     }
 }
 
@@ -257,8 +306,8 @@ int main(int argc, char *argv[]){
 
 
     start_time = MPI_Wtime();
-    long long int count = 0;
-    distribute_tasks(rank, size, numGenes, tumorData, normalData, count, numTumor, numNormal);
+    long long int totalCount = 0;
+    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal);
     double total_end_time = MPI_Wtime();
     elapsed_time_total = total_end_time - total_start_time;
     end_time = MPI_Wtime();
@@ -272,8 +321,6 @@ int main(int argc, char *argv[]){
 
 
 
-    long long int totalCount = 0;
-    MPI_Reduce(&count, &totalCount, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     if (rank == 0) {
         write_timings_to_file(all_times, size, totalCount);
     }
