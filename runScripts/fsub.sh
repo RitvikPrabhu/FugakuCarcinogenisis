@@ -5,4 +5,4 @@
 #PJM --mpi proc=192
 #PJM -x PJM_LLIO_GFSCACHE=/vol0004
 
-./3hit_sparsifyRun.sh
+./run.sh
