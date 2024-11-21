@@ -7,6 +7,7 @@
 #include <set>
 #include <array>
 #include <algorithm>
+#include <chrono>
 #define MAX_BUF_SIZE 1024
 
 
@@ -148,14 +149,6 @@ std::pair<double, std::array<int, 3>> maxF(std::vector<std::set<int>>& tumorData
 		int FN = Nt - TP;
 
 		double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
-        //std::cout << "Combination: (" << i << ", " << j << ", " << k << ")\n";
-       // std::cout << "intersectTumor2 size: " << intersectTumor2.size() << "\n";
-        //std::cout << "F value: " << F << "\n";
-        //std::cout << "intersectTumor2 elements: { ";
-        //for (const int sample : intersectTumor2) {
-         //   std::cout << sample << " ";
-        //}
-        //std::cout << "}\n";
 		if (F >= maxF){
 			maxF = F;
 			bestComb = {i, j, k};
@@ -167,8 +160,10 @@ std::pair<double, std::array<int, 3>> maxF(std::vector<std::set<int>>& tumorData
 }
 
 int main(int argc, char** argv) {
+	auto total_start = std::chrono::high_resolution_clock::now();
     int size, rank;
     initialize_mpi(argc, argv, size, rank);
+	auto mpi_init_end = std::chrono::high_resolution_clock::now();
 
     if (argc != 3) {
         if (rank == 0) {
@@ -177,25 +172,33 @@ int main(int argc, char** argv) {
         MPI_Finalize();
         return 1;
     }
-	
+	auto read_data_start = std::chrono::high_resolution_clock::now();
 	int numGenes, numSamples, numTumor, numNormal;
 	std::set<int> tumorSamples;
     std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> dataPair = read_data(argv[2], numGenes, numSamples, numTumor, numNormal, tumorSamples);
     std::vector<std::set<int>>& tumorData = dataPair.first;
     std::vector<std::set<int>>& normalData = dataPair.second;	
+	auto read_data_end = std::chrono::high_resolution_clock::now();
 
+	auto get_line_count_start = std::chrono::high_resolution_clock::now();
     int line_count = get_line_count(argv[1], rank);
+	auto get_line_count_end = std::chrono::high_resolution_clock::now();
 
+	auto calc_line_indices_start = std::chrono::high_resolution_clock::now();
     int start_line, end_line;
     calculate_line_indices(rank, size, line_count, start_line, end_line);
+	auto calc_line_indices_end = std::chrono::high_resolution_clock::now();	
 
+	auto read_lines_segment_start = std::chrono::high_resolution_clock::now();
     std::vector<std::string> local_lines = read_lines_segment(argv[1], start_line, end_line);
+	auto read_lines_segment_end = std::chrono::high_resolution_clock::now();
+
 	double alpha = 0.1;
 
 	std::set<int> droppedSamples;
 	int numComb = 0;	
-	printf("YELLLO\n");
-	fflush(stdout);
+
+	auto main_loop_start = std::chrono::high_resolution_clock::now();
 	while(tumorSamples != droppedSamples){
 			std::pair<double, std::array<int,3>> maxFOut = maxF(tumorData, normalData, numTumor, numNormal, alpha, local_lines);
 			double localMaxF = maxFOut.first;
@@ -217,7 +220,6 @@ int main(int argc, char** argv) {
 			}
 
 			MPI_Bcast(globalBestComb.data(), 3, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
-			printf("Process %d: globalBestComb = (%d, %d, %d)\n", rank, globalBestComb[0], globalBestComb[1], globalBestComb[2]);
 			std::set<int> finalIntersect1;
     		std::set<int> sampleToCover;
     		std::set_intersection(tumorData[globalBestComb[0]].begin(), tumorData[globalBestComb[0]].end(),
@@ -238,7 +240,7 @@ int main(int argc, char** argv) {
 			numTumor -= sampleToCover.size();	
 
 			if (rank == 0) {
-				std::ofstream outfile("output_coverset.txt", std::ios::app);
+				std::ofstream outfile("3hit_coverset_results.txt", std::ios::app);
 				if (!outfile) {
 					std::cerr << "Error: Could not open output file." << std::endl;
 					MPI_Abort(MPI_COMM_WORLD, 1);
@@ -248,8 +250,37 @@ int main(int argc, char** argv) {
 				numComb++;
 			}
 	}
-
+	auto main_loop_end = std::chrono::high_resolution_clock::now();
 	MPI_Finalize();
+	auto mpi_finalize_end = std::chrono::high_resolution_clock::now(); 
+
+    auto total_end = std::chrono::high_resolution_clock::now(); 
+
+    std::chrono::duration<double> total_time = total_end - total_start;
+    std::chrono::duration<double> read_data_time = read_data_end - read_data_start;
+    std::chrono::duration<double> get_line_count_time = get_line_count_end - get_line_count_start;
+    std::chrono::duration<double> calc_line_indices_time = calc_line_indices_end - calc_line_indices_start;
+    std::chrono::duration<double> read_lines_segment_time = read_lines_segment_end - read_lines_segment_start;
+    std::chrono::duration<double> main_loop_time = main_loop_end - main_loop_start;
+
+    // Only rank 0 writes to output.txt
+    if (rank == 0) {
+        std::ofstream outfile("output.txt", std::ios::app);
+        if (!outfile) {
+            std::cerr << "Error: Could not open output file." << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
+        outfile << "----------------------Timing Information for 3 hit set cover----------------------" << std::endl;
+        outfile << "Total time: " << total_time.count() << " seconds" << std::endl;
+        outfile << "Time for reading data: " << read_data_time.count() << " seconds" << std::endl;
+        outfile << "Time for getting line count: " << get_line_count_time.count() << " seconds" << std::endl;
+        outfile << "Time for calculating line indices: " << calc_line_indices_time.count() << " seconds" << std::endl;
+        outfile << "Time for reading lines segment: " << read_lines_segment_time.count() << " seconds" << std::endl;
+        outfile << "Time for main loop: " << main_loop_time.count() << " seconds" << std::endl;
+        outfile << std::endl;
+        outfile.close();
+    }
     return 0;
 }
 
