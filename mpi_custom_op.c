@@ -35,11 +35,13 @@ int main(int argc, char *argv[]) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   struct scored_triplet_t triplet = {
-      5 - rank + 1. / 2,
+      rank + 1. / 2,
       10 * rank + 1,
       10 * rank + 2,
       10 * rank + 3,
   };
+  if (rank == 1)
+    triplet.fscore = 200;
 
   MPI_Datatype MPI_SCORED_TRIPLET;
   int blocklen[] = {1, 3};
@@ -51,12 +53,14 @@ int main(int argc, char *argv[]) {
 
   struct scored_triplet_t x;
   print_triplet(triplet);
-  MPI_Reduce(&triplet, &x, 1, MPI_SCORED_TRIPLET, max_op, 0, MPI_COMM_WORLD);
+  void *sendbuf = rank == 0 ? MPI_IN_PLACE : &triplet;
+  MPI_Reduce(sendbuf, &triplet, 1, MPI_SCORED_TRIPLET, max_op, 0,
+             MPI_COMM_WORLD);
   print_triplet(triplet);
-  if (rank == 0) {
-    printf("result: ");
-    print_triplet(x);
-  }
+  // if (rank == 0) {
+  printf("result: ");
+  print_triplet(triplet);
+  // }
   MPI_Finalize();
   return 0;
 }
