@@ -195,9 +195,9 @@ int main(int argc, char** argv) {
     initialize_mpi(argc, argv, size, rank);
     auto mpi_init_end = std::chrono::high_resolution_clock::now();
 
-    if (argc != 3) {
+    if (argc != 5) {
         if (rank == 0) {
-            std::cerr << "Usage: " << argv[0] << " <intermediate binary data file> <raw input file>" << std::endl;
+            std::cerr << "Usage: " << argv[0] << " <intermediate binary data file> <raw input file> <metrics output file> <results file>" << std::endl;
         }
         MPI_Finalize();
         return 1;
@@ -269,7 +269,7 @@ int main(int argc, char** argv) {
         numTumor -= sampleToCover.size();
 
         if (rank == 0) {
-            std::ofstream outfile("3hit_coverset_results.txt", std::ios::app);
+            std::ofstream outfile(argv[4], std::ios::app);
             if (!outfile) {
                 std::cerr << "Error: Could not open output file." << std::endl;
                 MPI_Abort(MPI_COMM_WORLD, 1);
@@ -302,7 +302,7 @@ int main(int argc, char** argv) {
 
     // Only rank 0 writes to output.txt
     if (rank == 0) {
-        std::ofstream outfile("output.txt", std::ios::app);
+        std::ofstream outfile(argv[3], std::ios::app);
         if (!outfile) {
             std::cerr << "Error: Could not open output file." << std::endl;
             MPI_Abort(MPI_COMM_WORLD, 1);

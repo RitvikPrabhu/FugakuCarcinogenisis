@@ -48,8 +48,8 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long l
     }
 }
 
-void write_timings_to_file(const double all_times[][3], int size, long long int totalCount) {
-    std::ofstream timingFile("output.txt");
+void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, const char* filename) {
+    std::ofstream timingFile(filename);
     if (timingFile.is_open()) {
         for (int stage = 0; stage < 3; ++stage) {
             double max_time = -1.0, min_time = 1e9, total_time = 0.0;
@@ -74,6 +74,7 @@ void write_timings_to_file(const double all_times[][3], int size, long long int 
             } else {
                 timingFile << "Stage " << stage << " (Total Time):\n";
             }
+			timingFile << "----------------------Timing Information for 3-hit sparsification----------------------" << std::endl;
             timingFile << "Rank " << rank_max << " took the longest time: " << max_time << " seconds.\n";
             timingFile << "Rank " << rank_min << " took the shortest time: " << min_time << " seconds.\n";
             timingFile << "Average time: " << avg_time << " seconds.\n\n";
@@ -219,11 +220,11 @@ void worker_process(int rank, int num_workers, long long int num_Comb,
 void distribute_tasks(int rank, int size, int numGenes,
                       const std::vector<std::set<int>>& tumorData,
                       const std::vector<std::set<int>>& normalData, long long int& count,
-                      int Nt, int Nn) {
+                      int Nt, int Nn, const char* filename) {
     int num_workers = size - 1;
     long long int num_Comb = nCr(numGenes, 2); 
     MPI_File file;
-    int mpi_err = MPI_File_open(MPI_COMM_WORLD, "prunedData.bin",
+    int mpi_err = MPI_File_open(MPI_COMM_WORLD, filename,
                                 MPI_MODE_CREATE | MPI_MODE_WRONLY,
                                 MPI_INFO_NULL, &file);
     if (mpi_err != MPI_SUCCESS) {
@@ -276,8 +277,8 @@ int main(int argc, char *argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (argc != 2){
-        printf("One argument expected: ./graphSparcity <dataFile>");
+    if (argc != 4){
+        printf("Three argument expected: ./graphSparcity <dataFile> <outputMetricFile> <prunedDataOutputFile>");
         MPI_Finalize();
         return 1;
     }
@@ -302,7 +303,7 @@ int main(int argc, char *argv[]){
 
     start_time = MPI_Wtime();
     long long int totalCount = 0;
-    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal);
+    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3]);
     double total_end_time = MPI_Wtime();
     elapsed_time_total = total_end_time - total_start_time;
     end_time = MPI_Wtime();
@@ -317,7 +318,7 @@ int main(int argc, char *argv[]){
 
 
     if (rank == 0) {
-        write_timings_to_file(all_times, size, totalCount);
+        write_timings_to_file(all_times, size, totalCount, argv[2]);
     }
 
     MPI_Finalize();

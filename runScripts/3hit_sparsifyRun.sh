@@ -1,1 +1,0 @@
-mpiFCC -Nclang -std=c++11 -Ofast -o ../sparsification/dataSparsity_3hit ../sparsification/dataSparsity_3hit.cpp && mpirun ../sparsification/dataSparsity_3hit ../data/sample.txt  && cat output.txt && rm ../sparsification/dataSparsity_3hit
