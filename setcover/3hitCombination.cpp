@@ -86,49 +86,69 @@ std::pair<double, std::array<int32_t, 3>> maxF(
     double alpha,
     const std::vector<std::array<int32_t, 3>>& local_triplets
 ) {
-    double maxF = -1.0;
-    std::array<int32_t, 3> bestComb = {-1, -1, -1};
-    for (const auto& triplet : local_triplets) {
-        int i = triplet[0];
-        int j = triplet[1];
-        int k = triplet[2];
+    double maxF_global = -1.0; // Global maximum F value
+    std::array<int32_t, 3> bestComb_global = {-1, -1, -1}; // Global best combination
 
-        const std::set<int>& gene1Tumor = tumorData[i];
-        const std::set<int>& gene2Tumor = tumorData[j];
-        const std::set<int>& gene3Tumor = tumorData[k];
+#pragma omp parallel
+    {
+        double maxF_local = -1.0; // Thread-local maximum F value
+        std::array<int32_t, 3> bestComb_local = {-1, -1, -1}; // Thread-local best combination
 
-        std::set<int> intersectTumor1;
-        std::set<int> intersectTumor2;
-        std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(), gene2Tumor.begin(), gene2Tumor.end(),
-                              std::inserter(intersectTumor1, intersectTumor1.begin()));
-        std::set_intersection(gene3Tumor.begin(), gene3Tumor.end(), intersectTumor1.begin(), intersectTumor1.end(),
-                              std::inserter(intersectTumor2, intersectTumor2.begin()));
+#pragma omp for nowait
+        for (size_t idx = 0; idx < local_triplets.size(); ++idx) {
+            const auto& triplet = local_triplets[idx];
+            int i = triplet[0];
+            int j = triplet[1];
+            int k = triplet[2];
 
-        const std::set<int>& gene1Normal = normalData[i];
-        const std::set<int>& gene2Normal = normalData[j];
-        const std::set<int>& gene3Normal = normalData[k];
+            // Tumor intersections
+            const std::set<int>& gene1Tumor = tumorData[i];
+            const std::set<int>& gene2Tumor = tumorData[j];
+            const std::set<int>& gene3Tumor = tumorData[k];
 
-        std::set<int> intersectNormal1;
-        std::set<int> intersectNormal2;
-        std::set_intersection(gene1Normal.begin(), gene1Normal.end(), gene2Normal.begin(), gene2Normal.end(),
-                              std::inserter(intersectNormal1, intersectNormal1.begin()));
-        std::set_intersection(gene3Normal.begin(), gene3Normal.end(), intersectNormal1.begin(), intersectNormal1.end(),
-                              std::inserter(intersectNormal2, intersectNormal2.begin()));
+            std::set<int> intersectTumor1;
+            std::set<int> intersectTumor2;
+            std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(), gene2Tumor.begin(), gene2Tumor.end(),
+                                  std::inserter(intersectTumor1, intersectTumor1.begin()));
+            std::set_intersection(gene3Tumor.begin(), gene3Tumor.end(), intersectTumor1.begin(), intersectTumor1.end(),
+                                  std::inserter(intersectTumor2, intersectTumor2.begin()));
 
-        int TP = intersectTumor2.size();
-        int FP = intersectNormal2.size();
+            // Normal intersections
+            const std::set<int>& gene1Normal = normalData[i];
+            const std::set<int>& gene2Normal = normalData[j];
+            const std::set<int>& gene3Normal = normalData[k];
 
-        int TN = Nn - FP;
-        int FN = Nt - TP;
+            std::set<int> intersectNormal1;
+            std::set<int> intersectNormal2;
+            std::set_intersection(gene1Normal.begin(), gene1Normal.end(), gene2Normal.begin(), gene2Normal.end(),
+                                  std::inserter(intersectNormal1, intersectNormal1.begin()));
+            std::set_intersection(gene3Normal.begin(), gene3Normal.end(), intersectNormal1.begin(), intersectNormal1.end(),
+                                  std::inserter(intersectNormal2, intersectNormal2.begin()));
 
-        double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
-        if (F >= maxF) {
-            maxF = F;
-            bestComb = {i, j, k};
+            // Calculating metrics
+            int TP = intersectTumor2.size();
+            int FP = intersectNormal2.size();
+            int TN = Nn - FP;
+            int FN = Nt - TP;
+
+            double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
+            if (F >= maxF_local) {
+                maxF_local = F;
+                bestComb_local = {i, j, k};
+            }
+        }
+
+        // Reduce thread-local maxima to the global maximum
+#pragma omp critical
+        {
+            if (maxF_local > maxF_global) {
+                maxF_global = maxF_local;
+                bestComb_global = bestComb_local;
+            }
         }
     }
 
-    return std::make_pair(maxF, bestComb);
+    return std::make_pair(maxF_global, bestComb_global);
 }
 
 std::string* read_data(
