@@ -53,6 +53,9 @@ int main(int argc, char *argv[]) {
 
   struct scored_triplet_t x;
   print_triplet(triplet);
+  // The sorcery of the following line is only required if you want to
+  // do in-place. You could just put &triplet as the first (sendbuf)
+  // and &x as the second (recvbuf) parameter.
   void *sendbuf = rank == 0 ? MPI_IN_PLACE : &triplet;
   MPI_Reduce(sendbuf, &triplet, 1, MPI_SCORED_TRIPLET, max_op, 0,
              MPI_COMM_WORLD);
