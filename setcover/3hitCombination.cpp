@@ -66,7 +66,7 @@ std::vector<std::string> read_lines_segment(const char* filename, int start_line
     return local_lines;
 }
 
-std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal, std::set<int>& tumorSamples, std::map<int, std::string>& geneIdMap) {
+std::string* read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal, std::set<int>& tumorSamples, std::vector<std::set<int>>& sparseTumorData, std::vector<std::set<int>>& sparseNormalData) {
     FILE* dataFile;
     dataFile = fopen(filename, "r");
 
@@ -85,11 +85,11 @@ std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(cons
         exit(1);
     }
 
-    std::vector<std::set<int>> sparseTumorData(numGenes);
-    std::vector<std::set<int>> sparseNormalData(numGenes);
+	sparseTumorData.resize(numGenes);
+	sparseNormalData.resize(numGenes);
 
     int fileRows = numGenes * numSamples;
-
+	std::string* geneIdArray = new std::string[numGenes];
     for (int i = 0; i < fileRows; i++){
         int gene, sample;
         if (fscanf(dataFile, "%d %d %d %s %s\n", &gene, &sample, &value, geneId, sampleId) != 5) {
@@ -99,7 +99,7 @@ std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(cons
             exit(1);
         }
 	
-		geneIdMap[gene] = geneId;
+		geneIdArray[gene] = geneId;
 
         if (value > 0){
             if (sample < numTumor){
@@ -113,7 +113,7 @@ std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(cons
     }
 
     fclose(dataFile);
-    return std::make_pair(sparseTumorData, sparseNormalData);
+    return geneIdArray;
 }
 
 std::pair<double, std::array<int, 3>> maxF(std::vector<std::set<int>>& tumorData, std::vector<std::set<int>>& normalData, int Nt,  int Nn, double alpha, const std::vector<std::string>& local_lines) {
@@ -177,10 +177,10 @@ int main(int argc, char** argv) {
 	auto read_data_start = std::chrono::high_resolution_clock::now();
 	int numGenes, numSamples, numTumor, numNormal;
 	std::set<int> tumorSamples;
-	std::map<int, std::string> geneIdMap;
-    std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> dataPair = read_data(argv[2], numGenes, numSamples, numTumor, numNormal, tumorSamples, geneIdMap);
-    std::vector<std::set<int>>& tumorData = dataPair.first;
-    std::vector<std::set<int>>& normalData = dataPair.second;	
+    std::vector<std::set<int>> tumorData;
+    std::vector<std::set<int>> normalData;	
+	std::string* geneIdArray = read_data(argv[2], numGenes, numSamples, numTumor, numNormal, tumorSamples, tumorData, normalData);
+			printf("HELLO\n");
 	auto read_data_end = std::chrono::high_resolution_clock::now();
 
 	auto get_line_count_start = std::chrono::high_resolution_clock::now();
@@ -250,7 +250,7 @@ int main(int argc, char** argv) {
 				}
 				outfile << numComb << "- (";
 				for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
-					outfile << geneIdMap[globalBestComb[idx]];
+					outfile << geneIdArray[globalBestComb[idx]];
 					if (idx != globalBestComb.size() - 1) {
 						outfile << ", ";
 					}
@@ -260,6 +260,7 @@ int main(int argc, char** argv) {
 				numComb++;
 			}
 	}
+	delete[] geneIdArray;
 	auto main_loop_end = std::chrono::high_resolution_clock::now();
 	MPI_Finalize();
 	auto mpi_finalize_end = std::chrono::high_resolution_clock::now(); 
