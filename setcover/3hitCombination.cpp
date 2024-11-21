@@ -116,7 +116,6 @@ std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(cons
 std::pair<double, std::array<int, 3>> maxF(std::vector<std::set<int>>& tumorData, std::vector<std::set<int>>& normalData, int Nt,  int Nn, double alpha, const std::vector<std::string>& local_lines) {
     double maxF = -1.0;
 	std::array<int, 3> bestComb = {-1, -1, -1};
-	
 	for (const auto& line : local_lines) {
         std::istringstream iss(line);
         int i, j, k;
@@ -149,7 +148,14 @@ std::pair<double, std::array<int, 3>> maxF(std::vector<std::set<int>>& tumorData
 		int FN = Nt - TP;
 
 		double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
-
+        //std::cout << "Combination: (" << i << ", " << j << ", " << k << ")\n";
+       // std::cout << "intersectTumor2 size: " << intersectTumor2.size() << "\n";
+        //std::cout << "F value: " << F << "\n";
+        //std::cout << "intersectTumor2 elements: { ";
+        //for (const int sample : intersectTumor2) {
+         //   std::cout << sample << " ";
+        //}
+        //std::cout << "}\n";
 		if (F >= maxF){
 			maxF = F;
 			bestComb = {i, j, k};
@@ -188,6 +194,8 @@ int main(int argc, char** argv) {
 
 	std::set<int> droppedSamples;
 	int numComb = 0;	
+	printf("YELLLO\n");
+	fflush(stdout);
 	while(tumorSamples != droppedSamples){
 			std::pair<double, std::array<int,3>> maxFOut = maxF(tumorData, normalData, numTumor, numNormal, alpha, local_lines);
 			double localMaxF = maxFOut.first;
@@ -209,11 +217,7 @@ int main(int argc, char** argv) {
 			}
 
 			MPI_Bcast(globalBestComb.data(), 3, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
-			
-			if (-1 == globalBestComb[0] && -1 == globalBestComb[1] && -1 == globalBestComb[2]){
-					break;
-			}
-
+			printf("Process %d: globalBestComb = (%d, %d, %d)\n", rank, globalBestComb[0], globalBestComb[1], globalBestComb[2]);
 			std::set<int> finalIntersect1;
     		std::set<int> sampleToCover;
     		std::set_intersection(tumorData[globalBestComb[0]].begin(), tumorData[globalBestComb[0]].end(),
@@ -226,28 +230,15 @@ int main(int argc, char** argv) {
 			droppedSamples.insert(sampleToCover.begin(), sampleToCover.end());
 			
             
-
-
 			for (auto& tumorSet : tumorData) {
 				for (const int sample : sampleToCover) {
 					tumorSet.erase(sample); 
 				}
-			}		
-			
-			for (auto it = local_lines.begin(); it != local_lines.end();) {
-					std::istringstream iss(*it);
-					int i, j, k;
-					iss >> i >> j >> k;
-
-					if (i == globalBestComb[0] && j == globalBestComb[1] && k == globalBestComb[2]) {
-						it = local_lines.erase(it);
-					} else {
-						++it;
-					}
-			}			
+			}	
+			numTumor -= sampleToCover.size();	
 
 			if (rank == 0) {
-				std::ofstream outfile("output.txt", std::ios::app);
+				std::ofstream outfile("output_coverset.txt", std::ios::app);
 				if (!outfile) {
 					std::cerr << "Error: Could not open output file." << std::endl;
 					MPI_Abort(MPI_COMM_WORLD, 1);
