@@ -49,8 +49,10 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long l
 }
 
 void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, const char* filename) {
-    std::ofstream timingFile(filename);
-    if (timingFile.is_open()) {
+    //std::ofstream timingFile(filename);
+    std::ostream& timingFile = std::cout;
+    //if (timingFile.is_open()) {
+		timingFile << "----------------------Timing Information for 3-hit sparsification----------------------" << std::endl;
         for (int stage = 0; stage < 3; ++stage) {
             double max_time = -1.0, min_time = 1e9, total_time = 0.0;
             int rank_max = 0, rank_min = 0;
@@ -74,16 +76,15 @@ void write_timings_to_file(const double all_times[][3], int size, long long int 
             } else {
                 timingFile << "Stage " << stage << " (Total Time):\n";
             }
-			timingFile << "----------------------Timing Information for 3-hit sparsification----------------------" << std::endl;
             timingFile << "Rank " << rank_max << " took the longest time: " << max_time << " seconds.\n";
             timingFile << "Rank " << rank_min << " took the shortest time: " << min_time << " seconds.\n";
             timingFile << "Average time: " << avg_time << " seconds.\n\n";
         }
         timingFile << "Total number of combinations: " << totalCount << "\n";
-        timingFile.close();
-    } else {
-        printf("Error opening timings output file\n");
-    }
+       // timingFile.close();
+    //} else {
+    //    printf("Error opening timings output file\n");
+    //}
 }
 
 std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal) {
@@ -196,44 +197,49 @@ void distribute_tasks(int rank, int size, int numGenes,
                       const std::vector<std::set<int>>& tumorData,
                       const std::vector<std::set<int>>& normalData, long long int& count,
                       int Nt, int Nn, const char* filename) {
-    int num_workers = size - 1;
-    long long int num_Comb = nCr(numGenes, 2); 
+    long long int num_Comb = nCr(numGenes, 2);
 
-    count = 0;
-	int* data_buffer;
-	size_t data_size = 0;
+    int* data_buffer = nullptr;
+    size_t data_size = 0;
+
     if (rank == 0) { // Master
-        master_process(num_workers, num_Comb);
-		data_size = sizeof(long long int);
+        master_process(size - 1, num_Comb);
+        data_size = 0; // No data buffer to write for rank 0
     } else { // Worker
-       int* data_buffer =  worker_process(rank, num_workers, num_Comb, tumorData, normalData,
-                       numGenes, count, Nt, Nn, data_size);
+        data_buffer = worker_process(rank, size - 1, num_Comb, tumorData, normalData,
+                                     numGenes, count, Nt, Nn, data_size);
     }
-printf("HELLO 1\n");
+
     long long int total_count = 0;
-	MPI_Reduce(&count, &total_count, 1, MPI_LONG_LONG_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-printf("Hello 2\n");
+    MPI_Reduce(&count, &total_count, 1, MPI_LONG_LONG_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+	count = total_count;
     MPI_File file;
     MPI_File_open(MPI_COMM_WORLD, filename,
-                                MPI_MODE_CREATE | MPI_MODE_WRONLY,
-                                MPI_INFO_NULL, &file);
-	MPI_Offset local_offset = 0;
-	MPI_Status write_status;
-    if (rank == 0) {
-		MPI_Exscan(&data_size, &local_offset, 1, MPI_OFFSET, MPI_SUM, MPI_COMM_WORLD);
-		MPI_File_write_at(file, local_offset, &total_count, sizeof(long long int), MPI_BYTE, &write_status);
-	}
-	else{
-		MPI_Exscan(&data_size, &local_offset, 1, MPI_OFFSET, MPI_SUM, MPI_COMM_WORLD);
-		MPI_File_write_at(file, local_offset, data_buffer, data_size, MPI_BYTE, &write_status);
-	}
-printf("Hello 3\n");
+                  MPI_MODE_CREATE | MPI_MODE_WRONLY,
+                  MPI_INFO_NULL, &file);
 
-    delete[] data_buffer;
+    MPI_Offset local_offset;
+    MPI_Offset total_data_size;
+
+    size_t write_data_size = (rank == 0) ? sizeof(long long int) : data_size;
+    MPI_Exscan(&write_data_size, &local_offset, 1, MPI_OFFSET, MPI_SUM, MPI_COMM_WORLD);
+    if (rank == 0) {
+        local_offset = 0; // For rank 0, start at the beginning
+    }
+
+    if (rank == 0) {
+        MPI_File_write_at(file, local_offset, &total_count, sizeof(long long int), MPI_BYTE, MPI_STATUS_IGNORE);
+    } else {
+        local_offset += sizeof(long long int); 
+        MPI_File_write_at(file, local_offset, data_buffer, data_size, MPI_BYTE, MPI_STATUS_IGNORE);
+    }
 
     MPI_File_close(&file);
-}
 
+    if (data_buffer != nullptr) {
+        delete[] data_buffer;
+    }
+}
 int main(int argc, char *argv[]){
     
     MPI_Init(&argc, &argv);

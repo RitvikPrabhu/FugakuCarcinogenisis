@@ -302,11 +302,12 @@ int main(int argc, char** argv) {
 
     // Only rank 0 writes to output.txt
     if (rank == 0) {
-        std::ofstream outfile(argv[3], std::ios::app);
-        if (!outfile) {
-            std::cerr << "Error: Could not open output file." << std::endl;
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
+        //std::ofstream outfile(argv[3], std::ios::app);
+		std::ostream& outfile = std::cout;
+        //if (!outfile) {
+        //    std::cerr << "Error: Could not open output file." << std::endl;
+        //    MPI_Abort(MPI_COMM_WORLD, 1);
+        //}
 
         outfile << "----------------------Timing Information for 3-hit set cover----------------------" << std::endl;
         outfile << "Total time: " << total_time.count() << " seconds" << std::endl;
@@ -316,7 +317,7 @@ int main(int argc, char** argv) {
         outfile << "Time for reading triplets segment: " << read_triplets_segment_time.count() << " seconds" << std::endl;
         outfile << "Time for main loop: " << main_loop_time.count() << " seconds" << std::endl;
         outfile << std::endl;
-        outfile.close();
+       // outfile.close();
     }
     return 0;
 }
