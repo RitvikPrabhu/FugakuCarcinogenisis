@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <iterator>
 #include <climits>
+#include <omp.h>
 
 void initialize_mpi(int argc, char** argv, int& size, int& rank) {
     MPI_Init(&argc, &argv);
@@ -86,15 +87,15 @@ std::pair<double, std::array<int32_t, 3>> maxF(
     double alpha,
     const std::vector<std::array<int32_t, 3>>& local_triplets
 ) {
-    double maxF_global = -1.0; // Global maximum F value
-    std::array<int32_t, 3> bestComb_global = {-1, -1, -1}; // Global best combination
+    double maxF_global = -1.0;
+    std::array<int32_t, 3> bestComb_global = {-1, -1, -1};
 
 #pragma omp parallel
     {
-        double maxF_local = -1.0; // Thread-local maximum F value
-        std::array<int32_t, 3> bestComb_local = {-1, -1, -1}; // Thread-local best combination
+        double maxF_local = -1.0;
+        std::array<int32_t, 3> bestComb_local = {-1, -1, -1};
 
-#pragma omp for nowait
+#pragma omp for schedule(dynamic) nowait
         for (size_t idx = 0; idx < local_triplets.size(); ++idx) {
             const auto& triplet = local_triplets[idx];
             int i = triplet[0];
@@ -132,13 +133,12 @@ std::pair<double, std::array<int32_t, 3>> maxF(
             int FN = Nt - TP;
 
             double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
-            if (F >= maxF_local) {
+            if (F > maxF_local) {
                 maxF_local = F;
                 bestComb_local = {i, j, k};
             }
         }
 
-        // Reduce thread-local maxima to the global maximum
 #pragma omp critical
         {
             if (maxF_local > maxF_global) {
