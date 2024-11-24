@@ -7,41 +7,17 @@
 #include <mpi.h>
 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 100000LL
+#define CHUNK_SIZE 5LL
 
-long long int nCr(int n, int r) {
-    if (r > n) return 0;
-    if (r == 0 || r == n) return 1;
-    if (r > n - r) r = n - r;  // Because C(n, r) == C(n, n-r)
 
-    long long int result = 1;
-    for (int i = 1; i <= r; ++i) {
-        result *= (n - r + i);
-        result /= i;
-    }
-    return result;
-}
+void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long long int startComb, long long int endComb, int totalGenes, long long int &count, int rank, std::vector<std::array<int, 4>>& bestCombinations, const std::vector<std::array<int32_t, 3>>& workload){
 
-void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long long int startComb, long long int endComb, int totalGenes, long long int &count, int rank, std::vector<std::array<int, 4>>& bestCombinations){
-
-    for (long long int lambda = startComb; lambda <= endComb; lambda++){
-		
-		if (lambda == 0) continue;
-
-		double q = std::pow(std::sqrt(729.0 * lambda * lambda - 3.0) + 27.0 * lambda, 1.0 / 3.0);
-
-        int k = static_cast<int>(std::floor(std::pow(q / 9.0, 1.0 / 3.0) + 1.0 / std::pow(3.0 * q, 1.0 / 3.0) - 1.0));
-
-        int Tz = (k * (k + 1) * (k + 2)) / 6;
-        int lambda_prime = lambda - Tz;
-
-        int j = static_cast<int>(std::floor(std::sqrt(0.25 + 2.0 * lambda_prime) - 0.5));
-
-        int i = lambda_prime - (j * (j + 1)) / 2;
-
+    for (const auto& triplet : workload){
+		int i = triplet[0];
+		int j = triplet[1];
+		int k = triplet[2];
 		const std::set<int>& gene1Tumor = tumorData[i];
         const std::set<int>& gene2Tumor = tumorData[j];
-
         std::set<int> intersectTumor1;
         std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(), gene2Tumor.begin(), gene2Tumor.end(), std::inserter(intersectTumor1, intersectTumor1.begin()));
 
@@ -155,6 +131,60 @@ std::pair<std::vector<std::set<int>>, std::vector<std::set<int>>> read_data(cons
     return std::make_pair(sparseTumorData, sparseNormalData);;
 }
 
+long long int get_triplet_count(const char* filename, int rank) {
+    long long int triplet_count = 0;
+    if (rank == 0) {
+        std::ifstream infile(filename, std::ios::binary);
+        if (!infile) {
+            std::cerr << "Error: Could not open binary file " << filename << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        infile.read(reinterpret_cast<char*>(&triplet_count), sizeof(long long int));
+        if (infile.fail()) {
+            std::cerr << "Error reading triplet count from binary file" << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        infile.close();
+    }
+    MPI_Bcast(&triplet_count, 1, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
+    return triplet_count;
+}
+
+std::vector<std::array<int32_t, 3>> read_triplets_segment(const char* filename, int64_t start_triplet, int64_t end_triplet) {
+    std::ifstream infile(filename, std::ios::binary);
+    if (!infile) {
+        std::cerr << "Error: Could not open binary file " << filename << std::endl;
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    // Skip the first 8 bytes (int64_t triplet count)
+    infile.seekg(8 + start_triplet * 12, std::ios::beg);
+    if (infile.fail()) {
+        std::cerr << "Error seeking in binary file" << std::endl;
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    int64_t num_triplets_to_read = end_triplet - start_triplet;
+    std::vector<std::array<int32_t, 3>> local_triplets(num_triplets_to_read);
+
+    for (int64_t i = 0; i < num_triplets_to_read; ++i) {
+        int32_t triplet[3];
+        infile.read(reinterpret_cast<char*>(triplet), sizeof(int32_t) * 3);
+        if (infile.fail()) {
+            std::cerr << "Error reading triplet from binary file" << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        local_triplets[i][0] = triplet[0];
+        local_triplets[i][1] = triplet[1];
+        local_triplets[i][2] = triplet[2];
+    }
+
+    infile.close();
+
+    return local_triplets;
+}
+
+
 void master_process(int num_workers, long long int num_Comb) {
     int next_idx = num_workers * CHUNK_SIZE;
     while (next_idx < num_Comb) {
@@ -181,15 +211,16 @@ void master_process(int num_workers, long long int num_Comb) {
 int* worker_process(int rank, int num_workers, long long int num_Comb,
                     const std::vector<std::set<int>>& tumorData,
                     const std::vector<std::set<int>>& normalData,
-                    int numGenes, long long int& count, int Nt, int Nn, size_t& data_size) {
+                    int numGenes, long long int& count, int Nt, int Nn, size_t& data_size, const char* hit3_file) {
     int begin = (rank - 1) * CHUNK_SIZE;
     int end = std::min(begin + CHUNK_SIZE, num_Comb);
     MPI_Status status;
     std::vector<std::array<int, 4>> localComb;
 
     while (end <= num_Comb) {
-        process_lambda_interval(tumorData, begin, end, numGenes, count, rank, localComb);
-	    char c = 'a';
+		std::vector<std::array<int32_t, 3>> workload = read_triplets_segment(hit3_file, begin, end);
+        process_lambda_interval(tumorData, begin, end, numGenes, count, rank, localComb, workload);
+		char c = 'a';
         MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
         int next_idx;
@@ -217,10 +248,10 @@ int* worker_process(int rank, int num_workers, long long int num_Comb,
 void distribute_tasks(int rank, int size, int numGenes,
                       const std::vector<std::set<int>>& tumorData,
                       const std::vector<std::set<int>>& normalData, long long int& count,
-                      int Nt, int Nn, const char* filename) {
-    
-	long long int num_Comb = nCr(numGenes, 3);
+                      int Nt, int Nn, const char* filename, const char* hit3_file) {
+   
 
+	long long int num_Comb = get_triplet_count(hit3_file, rank); 
     int* data_buffer = nullptr;
     size_t data_size = 0;
 
@@ -229,7 +260,7 @@ void distribute_tasks(int rank, int size, int numGenes,
         data_size = 0; // No data buffer to write for rank 0
     } else { // Worker
         data_buffer = worker_process(rank, size - 1, num_Comb, tumorData, normalData,
-                                     numGenes, count, Nt, Nn, data_size);
+                                     numGenes, count, Nt, Nn, data_size, hit3_file);
     }
 
     long long int total_count = 0;
@@ -269,8 +300,8 @@ int main(int argc, char *argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (argc != 4){
-        printf("Three argument expected: ./graphSparcity <dataFile> <outputMetricFile> <prunedDataOutputFile>");
+    if (argc != 5){
+        printf("Four argument expected: ./graphSparcity <dataFile> <outputMetricFile> <prunedDataOutputFile> <3hit Pruned File>");
         MPI_Finalize();
         return 1;
     }
@@ -291,11 +322,10 @@ int main(int argc, char *argv[]){
     end_time = MPI_Wtime();
     elapsed_time_loading = end_time - start_time;
 
-
-
-    start_time = MPI_Wtime();
+	start_time = MPI_Wtime();
+	
     long long int totalCount = 0;
-    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3]);
+    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3], argv[4]);
     double total_end_time = MPI_Wtime();
     elapsed_time_total = total_end_time - total_start_time;
     end_time = MPI_Wtime();

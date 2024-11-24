@@ -41,7 +41,8 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long l
 
                 if (!intersectTumor2.empty()){
 					bestCombinations.push_back({i, j, k});
-                    count++;
+                   	printf("i, j, k: %d, %d, %d\n", i, j, k);
+					 count++;
                 }
             }
         }
@@ -230,7 +231,7 @@ void distribute_tasks(int rank, int size, int numGenes,
     if (rank == 0) {
         MPI_File_write_at(file, local_offset, &total_count, sizeof(long long int), MPI_BYTE, MPI_STATUS_IGNORE);
     } else {
-        local_offset += sizeof(long long int); 
+        //local_offset += sizeof(long long int); 
         MPI_File_write_at(file, local_offset, data_buffer, data_size, MPI_BYTE, MPI_STATUS_IGNORE);
     }
 
