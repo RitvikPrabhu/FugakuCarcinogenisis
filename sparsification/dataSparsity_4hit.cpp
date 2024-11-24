@@ -7,7 +7,7 @@
 #include <mpi.h>
 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 5LL
+#define CHUNK_SIZE 100000LL
 
 
 void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long long int startComb, long long int endComb, int totalGenes, long long int &count, int rank, std::vector<std::array<int, 4>>& bestCombinations, const std::vector<std::array<int32_t, 3>>& workload){

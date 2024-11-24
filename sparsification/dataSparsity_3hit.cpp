@@ -41,8 +41,7 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, long l
 
                 if (!intersectTumor2.empty()){
 					bestCombinations.push_back({i, j, k});
-                   	printf("i, j, k: %d, %d, %d\n", i, j, k);
-					 count++;
+					count++;
                 }
             }
         }
