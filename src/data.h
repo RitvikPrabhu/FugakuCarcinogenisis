@@ -6,7 +6,7 @@ typedef uint64_t data_t;
 struct db_t {
   int num_rows;
   int num_cols;
-  int row_size;
+  int row_elems;
   data_t *data;
 };
 

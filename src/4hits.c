@@ -33,8 +33,8 @@ int main(int argc, char *argv[]) {
 
   MPI_Barrier(MPI_COMM_WORLD);
   struct db_t tumor, normal;
-  if (rank == 0)
-    get_db(DB_FILE, &tumor, &normal);
+  // if (rank == 0)
+  get_db(DB_FILE, &tumor, &normal);
   if (rank == 0)
     printf("Done\n");
   MPI_Finalize();
