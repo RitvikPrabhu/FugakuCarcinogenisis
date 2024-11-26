@@ -30,13 +30,35 @@ size_t get_num_triplets(const char *filename) {
   return num_triplets;
 }
 
-void master() {
-  printf("Hello\n");
+void master_process(int num_workers, long long int num_Comb) {
+  int workers_size;
+  MPI_Comm_size(workers, &workers_size);
   size_t num_triplets = serial_num_triplets(PRUNED_3HIT_TRIPLETS);
+  int next_idx = workers_size * CHUNK_SIZE;
+  while (next_idx < num_triplets) {
+    MPI_Status status;
+    int flag;
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status);
+    if (flag == 1) {
+      char c;
+      int workerRank = status.MPI_SOURCE;
+      MPI_Recv(&c, 1, MPI_CHAR, workerRank, 1, MPI_COMM_WORLD, &status);
+      MPI_Send(&next_idx, 1, MPI_INT, workerRank, 2, MPI_COMM_WORLD);
+      next_idx += CHUNK_SIZE;
+    }
+  }
+  for (int workerRank = 1; workerRank <= num_workers; ++workerRank) {
+    int term_signal = -1;
+    MPI_Send(&term_signal, 1, MPI_INT, workerRank, 2, MPI_COMM_WORLD);
+  }
+}
+
+void master(MPI_Comm workers) {
+  printf("Hello\n");
   printf("num_triplets: %lu\n", num_triplets);
 }
 
-void worker() {
+void worker(MPI_Comm workers) {
   struct db_t tumor, normal;
   // if (rank == 0)
   get_db(DB_FILE, &tumor, &normal);
@@ -47,10 +69,13 @@ int main(int argc, char *argv[]) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  MPI_Comm workers;
+  MPI_Comm_split(MPI_COMM_WORLD, rank == 0, rank, &workers);
+
   if (rank == 0)
-    master();
+    master(workers);
   else
-    worker();
+    worker(workers);
 
   MPI_Finalize();
   return 0;
