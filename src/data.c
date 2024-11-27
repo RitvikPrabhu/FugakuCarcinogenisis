@@ -29,7 +29,8 @@ void db_set(struct db_t *db, int row, int col) {
   db->data[idx] |= mask;
 }
 
-void get_db(const char *filename, struct db_t *tumor, struct db_t *normal) {
+void get_db(const char *filename, struct db_t *tumor, struct db_t *normal,
+            struct db_t *target) {
   FILE *file;
   int num_genes, gene;
   int num_samples, sample;
@@ -42,6 +43,7 @@ void get_db(const char *filename, struct db_t *tumor, struct db_t *normal) {
   /* printf("num_tumor: %d, num_normal: %d\n", num_tumor, num_normal); */
   db_alloc(tumor, num_genes, num_tumor);
   db_alloc(normal, num_genes, num_normal);
+  db_alloc(target, 1, num_tumor);
   size_t num_rows = num_genes * num_samples;
   for (int row = 0; row < num_rows; row++) {
     fscanf(file, "%d %d %d %s %s\n", &gene, &sample, &value, gene_id,

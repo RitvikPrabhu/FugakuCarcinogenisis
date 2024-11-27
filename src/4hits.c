@@ -56,9 +56,9 @@ void master_process(MPI_Comm workers) {
 void master(MPI_Comm workers) { printf("Hello\n"); }
 
 void worker(MPI_Comm workers) {
-  struct db_t tumor, normal;
+  struct db_t tumor, normal, target;
   // if (rank == 0)
-  get_db(DB_FILE, &tumor, &normal);
+  get_db(DB_FILE, &tumor, &normal, &target);
 }
 
 int main(int argc, char *argv[]) {
