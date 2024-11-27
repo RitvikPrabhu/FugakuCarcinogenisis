@@ -243,7 +243,7 @@ void worker_process(int rank, long long int num_Comb,
                     const std::vector<std::set<int>>& normalData,
                     int numGenes, long long int& count, int Nt, int Nn, const char* hit3_file, double& localBestMaxF, std::array<int, 4>& localComb) {
 
-			long long int begin = rank * CHUNK_SIZE;
+			long long int begin = (rank - 1) * CHUNK_SIZE;
 			long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
 			MPI_Status status;
 			while (end <= num_Comb) {
