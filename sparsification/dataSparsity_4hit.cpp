@@ -216,7 +216,7 @@ std::vector<std::array<int32_t, 3>> read_triplets_segment(const char* filename, 
 
 
 void master_process(int num_workers, long long int num_Comb) {
-    int next_idx = num_workers * CHUNK_SIZE;
+    long long int next_idx = num_workers * CHUNK_SIZE;
     while (next_idx < num_Comb) {
         MPI_Status status;
         int flag;
@@ -227,14 +227,14 @@ void master_process(int num_workers, long long int num_Comb) {
             int workerRank = status.MPI_SOURCE;
             MPI_Recv(&c, 1, MPI_CHAR, workerRank, 1, MPI_COMM_WORLD, &status);
             if (c == 'a') {
-                MPI_Send(&next_idx, 1, MPI_INT, workerRank, 2, MPI_COMM_WORLD);
+                MPI_Send(&next_idx, 1, MPI_LONG_LONG_INT, workerRank, 2, MPI_COMM_WORLD);
                 next_idx += CHUNK_SIZE;
             }
         }
     }
     for (int workerRank = 1; workerRank <= num_workers; ++workerRank) {
-        int term_signal = -1;
-        MPI_Send(&term_signal, 1, MPI_INT, workerRank, 2, MPI_COMM_WORLD);
+        long long int term_signal = -1;
+        MPI_Send(&term_signal, 1, MPI_LONG_LONG_INT, workerRank, 2, MPI_COMM_WORLD);
     }
 }
 
@@ -243,8 +243,8 @@ void worker_process(int rank, long long int num_Comb,
                     const std::vector<std::set<int>>& normalData,
                     int numGenes, long long int& count, int Nt, int Nn, const char* hit3_file, double& localBestMaxF, std::array<int, 4>& localComb) {
 
-			int begin = rank * CHUNK_SIZE;
-			int end = std::min(begin + CHUNK_SIZE, num_Comb);
+			long long int begin = rank * CHUNK_SIZE;
+			long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
 			MPI_Status status;
 			while (end <= num_Comb) {
 				std::vector<std::array<int32_t, 3>> workload = read_triplets_segment(hit3_file, begin, end);
@@ -252,8 +252,8 @@ void worker_process(int rank, long long int num_Comb,
 				char c = 'a';
 				MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
-				int next_idx;
-				MPI_Recv(&next_idx, 1, MPI_INT, 0, 2, MPI_COMM_WORLD, &status);
+				long long int next_idx;
+				MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, 0, 2, MPI_COMM_WORLD, &status);
 				if (next_idx == -1) break;
 
 				begin = next_idx;
@@ -289,22 +289,14 @@ void distribute_tasks(int rank, int size, int numGenes,
         localResult.value = localBestMaxF;
         localResult.rank = rank;
 		
-		if (rank == 0)printf("Before allreduce\n");
-		fflush(stdout);
 		MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
 		
-		if (rank == 0)printf("After allreduce\n");
-		fflush(stdout);
 		std::array<int, 4> globalBestComb;
         if (rank == globalResult.rank) {
             globalBestComb = localComb;
         }
 		
-		if (rank == 0)printf("Before Bcast\n");
-		fflush(stdout);
 		MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
-		if (rank == 0)printf("After Bcast\n");
-		fflush(stdout);
 		
 		std::set<int> finalIntersect1;
 		std::set<int> finalIntersect2;
@@ -326,7 +318,7 @@ void distribute_tasks(int rank, int size, int numGenes,
                 tumorSet.erase(sample);
             }
         }
-        Nt -= sampleToCover.size();		
+        //Nt -= sampleToCover.size();		
 
 		if (rank == 0) {
             std::ofstream outfile(outFilename, std::ios::app);
@@ -373,7 +365,7 @@ int main(int argc, char *argv[]){
 
 
     start_time = MPI_Wtime();
-    int numGenes, numSamples, numTumor, numNormal;
+4hit_500.out    int numGenes, numSamples, numTumor, numNormal;
 	std::set<int> tumorSamples;
 	std::vector<std::set<int>> tumorData;
     std::vector<std::set<int>> normalData;
