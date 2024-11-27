@@ -270,10 +270,10 @@ void distribute_tasks(int rank, int size, int numGenes,
    
 
 	long long int num_Comb = get_triplet_count(hit3_file, rank); 
-	double localBestMaxF = -1.0;
-	std::array<int, 4> localComb = {-1, -1, -1, -1};
 	std::set<int> droppedSamples;
 	while(tumorSamples != droppedSamples){
+			std::array<int, 4> localComb = {-1, -1, -1, -1};
+			double localBestMaxF = -1.0;
 			if (rank == 0) { // Master
 				master_process(size - 1, num_Comb);
 			} else { // Worker
@@ -365,7 +365,7 @@ int main(int argc, char *argv[]){
 
 
     start_time = MPI_Wtime();
-4hit_500.out    int numGenes, numSamples, numTumor, numNormal;
+    int numGenes, numSamples, numTumor, numNormal;
 	std::set<int> tumorSamples;
 	std::vector<std::set<int>> tumorData;
     std::vector<std::set<int>> normalData;
