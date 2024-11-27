@@ -6,8 +6,8 @@
 
 #include "data.h"
 
-const char *PRUNED_3HIT_TRIPLETS = "/home/vatai/3hit_pruned_ACC_data_400.bin";
-const char *DB_FILE = "/home/vatai/ACC.combinedData.txt";
+const char *PRUNED_3HIT_TRIPLETS = "3hit_pruned_ACC_data_400.bin";
+const char *DB_FILE = "ACC.combinedData.txt";
 const size_t CHUNK_SIZE = 1 << 15;
 
 size_t serial_num_triplets(const char *filename) {
@@ -30,7 +30,7 @@ size_t get_num_triplets(const char *filename) {
   return num_triplets;
 }
 
-void master_process(int num_workers, long long int num_Comb) {
+void master_process(MPI_Comm workers) {
   int workers_size;
   MPI_Comm_size(workers, &workers_size);
   size_t num_triplets = serial_num_triplets(PRUNED_3HIT_TRIPLETS);
@@ -47,16 +47,13 @@ void master_process(int num_workers, long long int num_Comb) {
       next_idx += CHUNK_SIZE;
     }
   }
-  for (int workerRank = 1; workerRank <= num_workers; ++workerRank) {
+  for (int workerRank = 1; workerRank <= workers_size; ++workerRank) {
     int term_signal = -1;
     MPI_Send(&term_signal, 1, MPI_INT, workerRank, 2, MPI_COMM_WORLD);
   }
 }
 
-void master(MPI_Comm workers) {
-  printf("Hello\n");
-  printf("num_triplets: %lu\n", num_triplets);
-}
+void master(MPI_Comm workers) { printf("Hello\n"); }
 
 void worker(MPI_Comm workers) {
   struct db_t tumor, normal;
