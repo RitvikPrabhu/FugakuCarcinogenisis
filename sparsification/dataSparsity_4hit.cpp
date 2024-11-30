@@ -237,7 +237,7 @@ void distribute_tasks(int rank, int size, int numGenes,
                       int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray) {
 
 
-        long long int num_Comb = get_triplet_count(hit3_file, rank);
+        long long int num_Comb = nCr(numGenes, 3);
         std::set<int> droppedSamples;
         while(tumorSamples != droppedSamples){
                         std::array<int, 4> localComb = {-1, -1, -1, -1};
