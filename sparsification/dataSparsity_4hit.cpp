@@ -22,7 +22,7 @@ long long int nCr(int n, int r) {
     return result;
 }
 
-void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int startComb, long long int endComb, int totalGenes, long long int &count, std::array<int, 4>& bestCombination, const std::vector<std::array<int32_t, 3>>& workload, int Nt, int Nn, double& maxF){
+void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int startComb, long long int endComb, int totalGenes, long long int &count, std::array<int, 4>& bestCombination, int Nt, int Nn, double& maxF){
     double alpha = 1;
     for (long long int lambda = startComb; lambda <= endComb; lambda++){
 		
@@ -214,8 +214,7 @@ void worker_process(int rank, long long int num_Comb,
                         long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
                         MPI_Status status;
                         while (end <= num_Comb) {
-                                std::vector<std::array<int32_t, 3>> workload = read_triplets_segment(hit3_file, begin, end);
-                                process_lambda_interval(tumorData, normalData, begin, end, numGenes, count, localComb, workload, Nt, Nn, localBestMaxF);
+                                process_lambda_interval(tumorData, normalData, begin, end, numGenes, count, localComb, Nt, Nn, localBestMaxF);
                                 char c = 'a';
                                 MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
