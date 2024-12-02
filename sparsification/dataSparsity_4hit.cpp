@@ -51,6 +51,7 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const 
 
         int i = static_cast<int>(LambdaP - T2Dy);
 		if (i >= j || j >=k || i >= k) continue;
+
 		const std::set<int>& gene1Tumor = tumorData[i];
         const std::set<int>& gene2Tumor = tumorData[j];
 
@@ -140,7 +141,7 @@ void write_timings_to_file(const double all_times[][3], int size, long long int 
         timingFile << "Total number of combinations: " << totalCount << "\n";
 		fflush(stdout);
        // timingFile.close();
-    //} else {
+    //} else {run_400.sh.35466921.out
     //    printf("Error opening timings output file\n");
     //}
 }
@@ -164,7 +165,9 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
         exit(1);
     }
 
+
         sparseTumorData.resize(numGenes);
+
     sparseNormalData.resize(numGenes);
 
     int fileRows = numGenes * numSamples;
@@ -181,6 +184,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
 
                 geneIdArray[gene] = geneId;
 
+
         if (value > 0){
             if (sample < numTumor){
                 sparseTumorData[gene].insert(sample);
@@ -189,6 +193,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
                         else{
                                 sparseNormalData[gene].insert(sample);
                         }
+
         }
     }
 
@@ -239,6 +244,7 @@ void worker_process(int rank, long long int num_Comb,
                                 begin = next_idx;
                                 end = std::min(next_idx + CHUNK_SIZE, num_Comb);
                         }
+
 }
 
 
@@ -247,7 +253,6 @@ void distribute_tasks(int rank, int size, int numGenes,
                       std::vector<std::set<int>>& tumorData,
                       const std::vector<std::set<int>>& normalData, long long int& count,
                       int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray) {
-
 
         long long int num_Comb = nCr(numGenes, 3);
         std::set<int> droppedSamples;
@@ -334,10 +339,15 @@ int main(int argc, char *argv[]){
 
     if (argc != 4){
         printf("Three argument expected: ./graphSparcity <dataFile> <outputMetricFile> <prunedDataOutputFile>");
+
         MPI_Finalize();
         return 1;
     }
-    
+   if (rank < 5){
+
+	printf("Hello\n");
+	
+} 
     double total_start_time = MPI_Wtime();
 
 
@@ -350,6 +360,7 @@ int main(int argc, char *argv[]){
     int numGenes, numSamples, numTumor, numNormal;
     std::set<int> tumorSamples;
     std::vector<std::set<int>> tumorData;
+
     std::vector<std::set<int>> normalData;
     std::string* geneIdArray = read_data(argv[1], numGenes, numSamples, numTumor, numNormal, tumorSamples, tumorData, normalData);
     end_time = MPI_Wtime();
@@ -377,6 +388,11 @@ int main(int argc, char *argv[]){
         write_timings_to_file(all_times, size, totalCount, argv[2]);
     }
 
+   if (rank < 5){
+
+	printf("Goodbye\n");
+	fflush(stdout);
+} 
     MPI_Finalize();
     return 0;
 }
