@@ -146,58 +146,88 @@ void write_timings_to_file(const double all_times[][3], int size, long long int 
     //}
 }
 
-std::string* read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal, std::set<int>& tumorSamples, std::vector<std::set<int>>& sparseTumorData, std::vector<std::set<int>>& sparseNormalData) {
-    FILE* dataFile;
-    dataFile = fopen(filename, "r");
 
-    if (dataFile == NULL) {
-        perror("Error opening file");
-        MPI_Finalize();
-        exit(1);
+std::string* read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal,
+                       std::set<int>& tumorSamples, std::vector<std::set<int>>& sparseTumorData,
+                       std::vector<std::set<int>>& sparseNormalData, int rank) {
+
+    MPI_File dataFile;
+    MPI_Status status;
+
+    int rc = MPI_File_open(MPI_COMM_SELF, const_cast<char*>(filename), MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
+    if (rc != MPI_SUCCESS) {
+        char error_string[BUFSIZ];
+        int length_of_error_string;
+        MPI_Error_string(rc, error_string, &length_of_error_string);
+        fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
+        MPI_Abort(comm, rc);
     }
 
-    char geneId[MAX_BUF_SIZE], sampleId[MAX_BUF_SIZE];
+    char header_line[MAX_BUF_SIZE];
+    int header_len = 0;
+    char ch;
+    MPI_Offset offset = 0;
+    while (true) {
+        MPI_File_read_at(dataFile, offset, &ch, 1, MPI_CHAR, &status);
+        if (ch == '\n' || header_len >= MAX_BUF_SIZE - 1) {
+            header_line[header_len] = '\0';
+            offset++;  // Move past the newline
+            break;
+        } else {
+            header_line[header_len++] = ch;
+            offset++;
+        }
+    }
+
     int value;
-    if (fscanf(dataFile, "%d %d %d %d %d\n", &numGenes, &numSamples, &value, &numTumor, &numNormal) != 5) {
-        printf("Error reading the first line numbers\n");
-        fclose(dataFile);
-        MPI_Finalize();
-        exit(1);
+    if (sscanf(header_line, "%d %d %d %d %d", &numGenes, &numSamples, &value, &numTumor, &numNormal) != 5) {
+        fprintf(stderr, "Rank %d: Error reading the first line numbers\n", rank);
+        MPI_File_close(&dataFile);
+        MPI_Abort(comm, 1);
     }
 
-
-        sparseTumorData.resize(numGenes);
-
+    sparseTumorData.resize(numGenes);
     sparseNormalData.resize(numGenes);
-
-    int fileRows = numGenes * numSamples;
     std::string* geneIdArray = new std::string[numGenes];
 
-    for (int i = 0; i < fileRows; i++){
-        int gene, sample;
-        if (fscanf(dataFile, "%d %d %d %s %s\n", &gene, &sample, &value, geneId, sampleId) != 5) {
-            printf("Error reading the line numbers\n");
-            fclose(dataFile);
-            MPI_Finalize();
-            exit(1);
+    MPI_Offset file_size;
+    MPI_File_get_size(dataFile, &file_size);
+
+    MPI_Offset data_size = file_size - offset;
+
+    char* file_buffer = new char[data_size + 1]; // +1 for null terminator
+    file_buffer[data_size] = '\0';
+
+    MPI_File_read_at_all(dataFile, offset, file_buffer, data_size, MPI_CHAR, &status);
+
+    MPI_File_close(&dataFile);
+
+    char* line = strtok(file_buffer, "\n");
+    while (line != NULL) {
+
+        int gene, sample, value;
+        char geneId[MAX_BUF_SIZE], sampleId[MAX_BUF_SIZE];
+
+        if (sscanf(line, "%d %d %d %s %s", &gene, &sample, &value, geneId, sampleId) != 5) {
+            fprintf(stderr, "Rank %d: Error reading data line: %s\n", rank, line);
+            delete[] file_buffer;
+            MPI_Abort(comm, 1);
         }
 
-                geneIdArray[gene] = geneId;
+        geneIdArray[gene] = geneId;
 
-
-        if (value > 0){
-            if (sample < numTumor){
+        if (value > 0) {
+            if (sample < numTumor) {
                 sparseTumorData[gene].insert(sample);
-                                tumorSamples.insert(sample);
+                tumorSamples.insert(sample);
+            } else {
+                sparseNormalData[gene].insert(sample);
             }
-                        else{
-                                sparseNormalData[gene].insert(sample);
-                        }
-
         }
-    }
 
-    fclose(dataFile);
+        line = strtok(NULL, "\n");
+    }
+    delete[] file_buffer;
     return geneIdArray;
 }
 
@@ -362,7 +392,7 @@ int main(int argc, char *argv[]){
     std::vector<std::set<int>> tumorData;
 
     std::vector<std::set<int>> normalData;
-    std::string* geneIdArray = read_data(argv[1], numGenes, numSamples, numTumor, numNormal, tumorSamples, tumorData, normalData);
+    std::string* geneIdArray = read_data(argv[1], numGenes, numSamples, numTumor, numNormal, tumorSamples, tumorData, normalData, rank);
     end_time = MPI_Wtime();
     elapsed_time_loading = end_time - start_time;
 
