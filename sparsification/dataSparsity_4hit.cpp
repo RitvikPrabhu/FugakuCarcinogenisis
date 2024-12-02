@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <fstream>
 #include <mpi.h>
-
+#include <limits>
 #define MAX_BUF_SIZE 1024
 #define CHUNK_SIZE 100000LL
 
@@ -26,20 +26,32 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const 
     double alpha = 1;
     for (long long int lambda = startComb; lambda <= endComb; lambda++){
 		
-	if (lambda == 0) continue;
+		if (lambda <= 0) continue; // Avoid division by zero and negative values
 
-	double q = std::pow(std::sqrt(729.0 * lambda * lambda - 3.0) + 27.0 * lambda, 1.0 / 3.0);
+        double term1 = 243.0 * lambda - 1.0 / lambda;
 
-        int k = static_cast<int>(std::floor(std::pow(q / 9.0, 1.0 / 3.0) + 1.0 / std::pow(3.0 * q, 1.0 / 3.0) - 1.0));
+        double rhs = (log(3.0 * lambda) + log(term1)) / 2.0;
+        double A = exp(rhs);
 
-        int Tz = (k * (k + 1) * (k + 2)) / 6;
-        int lambda_prime = lambda - Tz;
+        double common_numerator = pow(A + 27.0 * lambda, 1.0 / 3.0);
+        double common_denominator = pow(3.0, 2.0 / 3.0);
 
-        int j = static_cast<int>(std::floor(std::sqrt(0.25 + 2.0 * lambda_prime) - 0.5));
+        double v = (common_numerator / common_denominator) +
+                   (1.0 / (common_numerator * pow(3.0, 1.0 / 3.0))) - 1.0;
 
-        int i = lambda_prime - (j * (j + 1)) / 2;
+        unsigned long long int k_long = static_cast<unsigned long long int>(v);
+        unsigned long long int Tz = k_long * (k_long + 1) * (k_long + 2) / 6;
 
-	const std::set<int>& gene1Tumor = tumorData[i];
+        unsigned long long int LambdaP = lambda - Tz;
+
+        int k = static_cast<int>(k_long);
+        int j = static_cast<int>(sqrt(0.25 + 2.0 * LambdaP) - 0.5);
+
+        unsigned long long int T2Dy = j * (j + 1) / 2;
+
+        int i = static_cast<int>(LambdaP - T2Dy);
+		if (i >= j || j >=k || i >= k) continue;
+		const std::set<int>& gene1Tumor = tumorData[i];
         const std::set<int>& gene2Tumor = tumorData[j];
 
         std::set<int> intersectTumor1;
@@ -57,20 +69,22 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const 
 					const std::set<int>& gene4Tumor = tumorData[l];
 					std::set<int> intersectTumor3;
 					std::set_intersection(gene4Tumor.begin(), gene4Tumor.end(), intersectTumor2.begin(), intersectTumor2.end(), std::inserter(intersectTumor3, intersectTumor3.begin()));
-					if (!intersectTumor3.empty()){
-						                                                const std::set<int>& gene1Normal = normalData[i];
-                                        const std::set<int>& gene2Normal = normalData[j];
-                                                const std::set<int>& gene3Normal = normalData[k];
-                                        const std::set<int>& gene4Normal = normalData[l];
 
-                                        std::set<int> intersectNormal1;
-                                        std::set<int> intersectNormal2;
-                                        std::set<int> intersectNormal3;
+				const std::set<int>& gene1Normal = normalData[i];
+				const std::set<int>& gene2Normal = normalData[j];
+				const std::set<int>& gene3Normal = normalData[k];
+				const std::set<int>& gene4Normal = normalData[l];
+
+				std::set<int> intersectNormal1;
+				std::set<int> intersectNormal2;
+				std::set<int> intersectNormal3;
 
 
-                                        std::set_intersection(gene1Normal.begin(), gene1Normal.end(), gene2Normal.begin(), gene2Normal.end(), std::inserter(intersectNormal1, intersectNormal1.begin()));
-                                                std::set_intersection(gene3Normal.begin(), gene3Normal.end(), intersectNormal1.begin(), intersectNormal1.end(), std::inserter(intersectNormal2, intersectNormal2.begin()));
-                                                std::set_intersection(gene4Normal.begin(), gene4Normal.end(), intersectNormal2.begin(), intersectNormal2.end(), std::inserter(intersectNormal3, intersectNormal3.begin()));
+				std::set_intersection(gene1Normal.begin(), gene1Normal.end(), gene2Normal.begin(), gene2Normal.end(), std::inserter(intersectNormal1, intersectNormal1.begin()));
+				std::set_intersection(gene3Normal.begin(), gene3Normal.end(), intersectNormal1.begin(), intersectNormal1.end(), std::inserter(intersectNormal2, intersectNormal2.begin()));
+				std::set_intersection(gene4Normal.begin(), gene4Normal.end(), intersectNormal2.begin(), intersectNormal2.end(), std::inserter(intersectNormal3, intersectNormal3.begin()));
+
+					if (!intersectTumor3.empty() && intersectNormal3.empty()){
 
                                                 int TP = intersectTumor3.size();
                                                 int TN = intersectNormal3.size();
@@ -215,7 +229,7 @@ void worker_process(int rank, long long int num_Comb,
                         MPI_Status status;
                         while (end <= num_Comb) {
                                 process_lambda_interval(tumorData, normalData, begin, end, numGenes, count, localComb, Nt, Nn, localBestMaxF);
-                                char c = 'a';
+								char c = 'a';
                                 MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
                                 long long int next_idx;
@@ -225,7 +239,6 @@ void worker_process(int rank, long long int num_Comb,
                                 begin = next_idx;
                                 end = std::min(next_idx + CHUNK_SIZE, num_Comb);
                         }
-
 }
 
 
@@ -239,6 +252,8 @@ void distribute_tasks(int rank, int size, int numGenes,
         long long int num_Comb = nCr(numGenes, 3);
         std::set<int> droppedSamples;
         while(tumorSamples != droppedSamples){
+		printf("Tumor samples size: %zu dropped samples: %zu\n", tumorSamples.size(), droppedSamples.size());
+		fflush(stdout);
                         std::array<int, 4> localComb = {-1, -1, -1, -1};
                         double localBestMaxF = -1.0;
                         if (rank == 0) { // Master
@@ -288,21 +303,22 @@ void distribute_tasks(int rank, int size, int numGenes,
 	//Nt -= sampleToCover.size();
 
                 if (rank == 0) {
-		    std::ofstream outfile(outFilename, std::ios::app);
-		    if (!outfile) {
-			std::cerr << "Error: Could not open output file." << std::endl;
-			MPI_Abort(MPI_COMM_WORLD, 1);
-		    }
-		    outfile << "(";
-		    for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
-			outfile << geneIdArray[globalBestComb[idx]];
-			if (idx != globalBestComb.size() - 1) {
-			    outfile << ", ";
-			}
-		    }
-		    outfile << ")  F-max = " << globalResult.value << std::endl;
-		    outfile.close();
-		}
+					std::ofstream outfile(outFilename, std::ios::app);
+					if (!outfile) {
+							std::cerr << "Error: Could not open output file." << std::endl;
+							MPI_Abort(MPI_COMM_WORLD, 1);
+					}
+					outfile << "(";
+					for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
+							outfile << geneIdArray[globalBestComb[idx]];
+							if (idx != globalBestComb.size() - 1) {
+								outfile << ", ";
+							}
+					}
+					outfile << ")  F-max = " << globalResult.value << std::endl;
+					outfile.close();
+				}
+
         }
 
 }
