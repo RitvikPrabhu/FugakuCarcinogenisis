@@ -160,7 +160,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
         int length_of_error_string;
         MPI_Error_string(rc, error_string, &length_of_error_string);
         fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
-        MPI_Abort(comm, rc);
+        MPI_Abort(MPI_COMM_WORLD, rc);
     }
 
     char header_line[MAX_BUF_SIZE];
@@ -183,7 +183,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
     if (sscanf(header_line, "%d %d %d %d %d", &numGenes, &numSamples, &value, &numTumor, &numNormal) != 5) {
         fprintf(stderr, "Rank %d: Error reading the first line numbers\n", rank);
         MPI_File_close(&dataFile);
-        MPI_Abort(comm, 1);
+        MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     sparseTumorData.resize(numGenes);
@@ -211,7 +211,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
         if (sscanf(line, "%d %d %d %s %s", &gene, &sample, &value, geneId, sampleId) != 5) {
             fprintf(stderr, "Rank %d: Error reading data line: %s\n", rank, line);
             delete[] file_buffer;
-            MPI_Abort(comm, 1);
+            MPI_Abort(MPI_COMM_WORLD, 1);
         }
 
         geneIdArray[gene] = geneId;
