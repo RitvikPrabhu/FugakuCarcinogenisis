@@ -5,22 +5,56 @@
 #include <algorithm>
 #include <fstream>
 #include <mpi.h>
-
+#include <limits>
 #define MAX_BUF_SIZE 1024
 #define CHUNK_SIZE 100000LL
 
-//TODO: 1) Add Normal samples information
-//2) Add TP and TN
-//3) While loop on the outside
-void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int startComb, long long int endComb, int totalGenes, long long int &count, std::array<int, 4>& bestCombination, const std::vector<std::array<int32_t, 3>>& workload, int Nt, int Nn, double& maxF){
-	
-	double alpha = 0.1;
-    for (const auto& triplet : workload){
-		int i = triplet[0];
-		int j = triplet[1];
-		int k = triplet[2];
+long long int nCr(int n, int r) {
+    if (r > n) return 0;
+    if (r == 0 || r == n) return 1;
+    if (r > n - r) r = n - r;  // Because C(n, r) == C(n, n-r)
+
+    long long int result = 1;
+    for (int i = 1; i <= r; ++i) {
+        result *= (n - r + i);
+        result /= i;
+    }
+    return result;
+}
+
+void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int startComb, long long int endComb, int totalGenes, long long int &count, std::array<int, 4>& bestCombination, int Nt, int Nn, double& maxF){
+    double alpha = 1;
+    for (long long int lambda = startComb; lambda <= endComb; lambda++){
+		
+		if (lambda <= 0) continue; // Avoid division by zero and negative values
+
+        double term1 = 243.0 * lambda - 1.0 / lambda;
+
+        double rhs = (log(3.0 * lambda) + log(term1)) / 2.0;
+        double A = exp(rhs);
+
+        double common_numerator = pow(A + 27.0 * lambda, 1.0 / 3.0);
+        double common_denominator = pow(3.0, 2.0 / 3.0);
+
+        double v = (common_numerator / common_denominator) +
+                   (1.0 / (common_numerator * pow(3.0, 1.0 / 3.0))) - 1.0;
+
+        unsigned long long int k_long = static_cast<unsigned long long int>(v);
+        unsigned long long int Tz = k_long * (k_long + 1) * (k_long + 2) / 6;
+
+        unsigned long long int LambdaP = lambda - Tz;
+
+        int k = static_cast<int>(k_long);
+        int j = static_cast<int>(sqrt(0.25 + 2.0 * LambdaP) - 0.5);
+
+        unsigned long long int T2Dy = j * (j + 1) / 2;
+
+        int i = static_cast<int>(LambdaP - T2Dy);
+		if (i >= j || j >=k || i >= k) continue;
+
 		const std::set<int>& gene1Tumor = tumorData[i];
         const std::set<int>& gene2Tumor = tumorData[j];
+
         std::set<int> intersectTumor1;
         std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(), gene2Tumor.begin(), gene2Tumor.end(), std::inserter(intersectTumor1, intersectTumor1.begin()));
 
@@ -36,32 +70,34 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const 
 					const std::set<int>& gene4Tumor = tumorData[l];
 					std::set<int> intersectTumor3;
 					std::set_intersection(gene4Tumor.begin(), gene4Tumor.end(), intersectTumor2.begin(), intersectTumor2.end(), std::inserter(intersectTumor3, intersectTumor3.begin()));
-					if (!intersectTumor3.empty()){
-						
-						const std::set<int>& gene1Normal = normalData[i];
-        				const std::set<int>& gene2Normal = normalData[j];
-						const std::set<int>& gene3Normal = normalData[k];
-        				const std::set<int>& gene4Normal = normalData[l];
-						
-        				std::set<int> intersectNormal1;
-        				std::set<int> intersectNormal2;
-        				std::set<int> intersectNormal3;
-						
-						
-        				std::set_intersection(gene1Normal.begin(), gene1Normal.end(), gene2Normal.begin(), gene2Normal.end(), std::inserter(intersectNormal1, intersectNormal1.begin()));
-						std::set_intersection(gene3Normal.begin(), gene3Normal.end(), intersectNormal1.begin(), intersectNormal1.end(), std::inserter(intersectNormal2, intersectNormal2.begin()));
-						std::set_intersection(gene4Normal.begin(), gene4Normal.end(), intersectNormal2.begin(), intersectNormal2.end(), std::inserter(intersectNormal3, intersectNormal3.begin()));
-						
-						int TP = intersectTumor3.size();
-						int TN = intersectNormal3.size();
 
-						double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
+				const std::set<int>& gene1Normal = normalData[i];
+				const std::set<int>& gene2Normal = normalData[j];
+				const std::set<int>& gene3Normal = normalData[k];
+				const std::set<int>& gene4Normal = normalData[l];
 
-						if (F >= maxF){
-							maxF = F;
-							bestCombination = {i, j, k, l};
-							
-						}
+				std::set<int> intersectNormal1;
+				std::set<int> intersectNormal2;
+				std::set<int> intersectNormal3;
+
+
+				std::set_intersection(gene1Normal.begin(), gene1Normal.end(), gene2Normal.begin(), gene2Normal.end(), std::inserter(intersectNormal1, intersectNormal1.begin()));
+				std::set_intersection(gene3Normal.begin(), gene3Normal.end(), intersectNormal1.begin(), intersectNormal1.end(), std::inserter(intersectNormal2, intersectNormal2.begin()));
+				std::set_intersection(gene4Normal.begin(), gene4Normal.end(), intersectNormal2.begin(), intersectNormal2.end(), std::inserter(intersectNormal3, intersectNormal3.begin()));
+
+					if (!intersectTumor3.empty() && intersectNormal3.empty()){
+
+                                                int TP = intersectTumor3.size();
+                                                int TN = intersectNormal3.size();
+
+                                                double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
+
+                                                if (F >= maxF){
+                                                        maxF = F;
+                                                        bestCombination = {i, j, k, l};
+
+                                                }				
+
 					}
 
 				}
@@ -128,8 +164,10 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
         MPI_Finalize();
         exit(1);
     }
-	
-	sparseTumorData.resize(numGenes);
+
+
+        sparseTumorData.resize(numGenes);
+
     sparseNormalData.resize(numGenes);
 
     int fileRows = numGenes * numSamples;
@@ -144,76 +182,24 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
             exit(1);
         }
 
-		geneIdArray[gene] = geneId;
+                geneIdArray[gene] = geneId;
+
 
         if (value > 0){
             if (sample < numTumor){
                 sparseTumorData[gene].insert(sample);
-				tumorSamples.insert(sample);
-            } 
-			else{
-				sparseNormalData[gene].insert(sample);
-			}
+                                tumorSamples.insert(sample);
+            }
+                        else{
+                                sparseNormalData[gene].insert(sample);
+                        }
+
         }
     }
 
     fclose(dataFile);
     return geneIdArray;
 }
-
-long long int get_triplet_count(const char* filename, int rank) {
-    long long int triplet_count = 0;
-    if (rank == 0) {
-        std::ifstream infile(filename, std::ios::binary);
-        if (!infile) {
-            std::cerr << "Error: Could not open binary file " << filename << std::endl;
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-        infile.read(reinterpret_cast<char*>(&triplet_count), sizeof(long long int));
-        if (infile.fail()) {
-            std::cerr << "Error reading triplet count from binary file" << std::endl;
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-        infile.close();
-    }
-    MPI_Bcast(&triplet_count, 1, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
-    return triplet_count;
-}
-
-std::vector<std::array<int32_t, 3>> read_triplets_segment(const char* filename, int64_t start_triplet, int64_t end_triplet) {
-    std::ifstream infile(filename, std::ios::binary);
-    if (!infile) {
-        std::cerr << "Error: Could not open binary file " << filename << std::endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
-    // Skip the first 8 bytes (int64_t triplet count)
-    infile.seekg(8 + start_triplet * 12, std::ios::beg);
-    if (infile.fail()) {
-        std::cerr << "Error seeking in binary file" << std::endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
-    int64_t num_triplets_to_read = end_triplet - start_triplet;
-    std::vector<std::array<int32_t, 3>> local_triplets(num_triplets_to_read);
-
-    for (int64_t i = 0; i < num_triplets_to_read; ++i) {
-        int32_t triplet[3];
-        infile.read(reinterpret_cast<char*>(triplet), sizeof(int32_t) * 3);
-        if (infile.fail()) {
-            std::cerr << "Error reading triplet from binary file" << std::endl;
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-        local_triplets[i][0] = triplet[0];
-        local_triplets[i][1] = triplet[1];
-        local_triplets[i][2] = triplet[2];
-    }
-
-    infile.close();
-
-    return local_triplets;
-}
-
 
 void master_process(int num_workers, long long int num_Comb) {
     long long int next_idx = num_workers * CHUNK_SIZE;
@@ -243,63 +229,64 @@ void worker_process(int rank, long long int num_Comb,
                     const std::vector<std::set<int>>& normalData,
                     int numGenes, long long int& count, int Nt, int Nn, const char* hit3_file, double& localBestMaxF, std::array<int, 4>& localComb) {
 
-			long long int begin = (rank - 1) * CHUNK_SIZE;
-			long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
-			MPI_Status status;
-			while (end <= num_Comb) {
-				std::vector<std::array<int32_t, 3>> workload = read_triplets_segment(hit3_file, begin, end);
-				process_lambda_interval(tumorData, normalData, begin, end, numGenes, count, localComb, workload, Nt, Nn, localBestMaxF);
-				char c = 'a';
-				MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
+                        long long int begin = (rank - 1) * CHUNK_SIZE;
+                        long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
+                        MPI_Status status;
+                        while (end <= num_Comb) {
+                                process_lambda_interval(tumorData, normalData, begin, end, numGenes, count, localComb, Nt, Nn, localBestMaxF);
+								char c = 'a';
+                                MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
-				long long int next_idx;
-				MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, 0, 2, MPI_COMM_WORLD, &status);
-				if (next_idx == -1) break;
+                                long long int next_idx;
+                                MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, 0, 2, MPI_COMM_WORLD, &status);
+                                if (next_idx == -1) break;
 
-				begin = next_idx;
-				end = std::min(next_idx + CHUNK_SIZE, num_Comb);
-			}
+                                begin = next_idx;
+                                end = std::min(next_idx + CHUNK_SIZE, num_Comb);
+                        }
 
 }
+
 
 
 void distribute_tasks(int rank, int size, int numGenes,
                       std::vector<std::set<int>>& tumorData,
                       const std::vector<std::set<int>>& normalData, long long int& count,
                       int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray) {
-   
 
-	long long int num_Comb = get_triplet_count(hit3_file, rank); 
-	std::set<int> droppedSamples;
-	while(tumorSamples != droppedSamples){
-			std::array<int, 4> localComb = {-1, -1, -1, -1};
-			double localBestMaxF = -1.0;
-			if (rank == 0) { // Master
-				master_process(size - 1, num_Comb);
-			} else { // Worker
-				worker_process(rank, num_Comb, tumorData, normalData,
-											 numGenes, count, Nt, Nn, hit3_file, localBestMaxF, localComb);
-			}
+        long long int num_Comb = nCr(numGenes, 3);
+        std::set<int> droppedSamples;
+        while(tumorSamples != droppedSamples){
+		printf("Tumor samples size: %zu dropped samples: %zu\n", tumorSamples.size(), droppedSamples.size());
+		fflush(stdout);
+                        std::array<int, 4> localComb = {-1, -1, -1, -1};
+                        double localBestMaxF = -1.0;
+                        if (rank == 0) { // Master
+                                master_process(size - 1, num_Comb);
+                        } else { // Worker
+                                worker_process(rank, num_Comb, tumorData, normalData,
+                                                                                         numGenes, count, Nt, Nn, hit3_file, localBestMaxF, localComb);
+                        }
 
-		struct {
+                struct {
             double value;
             int rank;
         } localResult, globalResult;
 
         localResult.value = localBestMaxF;
         localResult.rank = rank;
-		
-		MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
-		
-		std::array<int, 4> globalBestComb;
+
+                MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+
+                std::array<int, 4> globalBestComb;
         if (rank == globalResult.rank) {
             globalBestComb = localComb;
         }
-		
-		MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
-		
-		std::set<int> finalIntersect1;
-		std::set<int> finalIntersect2;
+
+                MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
+
+                std::set<int> finalIntersect1;
+                std::set<int> finalIntersect2;
         std::set<int> sampleToCover;
         std::set_intersection(tumorData[globalBestComb[0]].begin(), tumorData[globalBestComb[0]].end(),
                               tumorData[globalBestComb[1]].begin(), tumorData[globalBestComb[1]].end(),
@@ -307,7 +294,7 @@ void distribute_tasks(int rank, int size, int numGenes,
         std::set_intersection(finalIntersect1.begin(), finalIntersect1.end(),
                               tumorData[globalBestComb[2]].begin(), tumorData[globalBestComb[2]].end(),
                               std::inserter(finalIntersect2, finalIntersect2.begin()));
-		std::set_intersection(finalIntersect2.begin(), finalIntersect2.end(),
+                std::set_intersection(finalIntersect2.begin(), finalIntersect2.end(),
                               tumorData[globalBestComb[3]].begin(), tumorData[globalBestComb[3]].end(),
                               std::inserter(sampleToCover, sampleToCover.begin()));
 
@@ -318,27 +305,31 @@ void distribute_tasks(int rank, int size, int numGenes,
                 tumorSet.erase(sample);
             }
         }
-        //Nt -= sampleToCover.size();		
+	//Nt -= sampleToCover.size();
 
-		if (rank == 0) {
-            std::ofstream outfile(outFilename, std::ios::app);
-            if (!outfile) {
-                std::cerr << "Error: Could not open output file." << std::endl;
-                MPI_Abort(MPI_COMM_WORLD, 1);
-            }
-            outfile << "(";
-            for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
-                outfile << geneIdArray[globalBestComb[idx]];
-                if (idx != globalBestComb.size() - 1) {
-                    outfile << ", ";
-                }
-            }
-            outfile << ")  F-max = " << globalResult.value << std::endl;
-            outfile.close();
+                if (rank == 0) {
+					std::ofstream outfile(outFilename, std::ios::app);
+					if (!outfile) {
+							std::cerr << "Error: Could not open output file." << std::endl;
+							MPI_Abort(MPI_COMM_WORLD, 1);
+					}
+					outfile << "(";
+					for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
+							outfile << geneIdArray[globalBestComb[idx]];
+							if (idx != globalBestComb.size() - 1) {
+								outfile << ", ";
+							}
+					}
+					outfile << ")  F-max = " << globalResult.value << std::endl;
+					outfile.close();
+				}
+
         }
-	}
 
 }
+
+
+
 int main(int argc, char *argv[]){
     
     MPI_Init(&argc, &argv);
@@ -347,7 +338,8 @@ int main(int argc, char *argv[]){
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     if (argc != 4){
-        printf("Four argument expected: ./graphSparcity_4hit <dataFile>  <3hit Pruned File> <outputFile>");
+        printf("Three argument expected: ./graphSparcity <dataFile> <outputMetricFile> <prunedDataOutputFile>");
+
         MPI_Finalize();
         return 1;
     }
@@ -366,15 +358,17 @@ int main(int argc, char *argv[]){
 
     start_time = MPI_Wtime();
     int numGenes, numSamples, numTumor, numNormal;
-	std::set<int> tumorSamples;
-	std::vector<std::set<int>> tumorData;
+    std::set<int> tumorSamples;
+    std::vector<std::set<int>> tumorData;
+
     std::vector<std::set<int>> normalData;
     std::string* geneIdArray = read_data(argv[1], numGenes, numSamples, numTumor, numNormal, tumorSamples, tumorData, normalData);
     end_time = MPI_Wtime();
     elapsed_time_loading = end_time - start_time;
 
-	start_time = MPI_Wtime();
-	
+
+
+    start_time = MPI_Wtime();
     long long int totalCount = 0;
     distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3], argv[2], tumorSamples, geneIdArray);
     double total_end_time = MPI_Wtime();
