@@ -151,38 +151,52 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
                        std::set<int>& tumorSamples, std::vector<std::set<int>>& sparseTumorData,
                        std::vector<std::set<int>>& sparseNormalData, int rank) {
 
-    MPI_File dataFile;
-    MPI_Status status;
+	MPI_Status status;
+    char *file_buffer = nullptr;
+    MPI_Offset file_size = 0;
 
-    int rc = MPI_File_open(MPI_COMM_SELF, const_cast<char*>(filename), MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
-    if (rc != MPI_SUCCESS) {
-        char error_string[BUFSIZ];
-        int length_of_error_string;
-        MPI_Error_string(rc, error_string, &length_of_error_string);
-        fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
-        MPI_Abort(MPI_COMM_WORLD, rc);
+    if (rank == 0) {
+        MPI_File dataFile;
+        int rc = MPI_File_open(MPI_COMM_WORLD, const_cast<char*>(filename), MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
+        if (rc != MPI_SUCCESS) {
+            char error_string[BUFSIZ];
+            int length_of_error_string;
+            MPI_Error_string(rc, error_string, &length_of_error_string);
+            fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
+            MPI_Abort(MPI_COMM_WORLD, rc);
+        }
+
+        MPI_File_get_size(dataFile, &file_size);
+
+        file_buffer = new char[file_size + 1];
+        file_buffer[file_size] = '\0';
+
+        MPI_File_read_at_all(dataFile, 0, file_buffer, file_size, MPI_CHAR, &status);
+
+        MPI_File_close(&dataFile);
     }
 
-    char header_line[MAX_BUF_SIZE];
-    int header_len = 0;
-    char ch;
-    MPI_Offset offset = 0;
-    while (true) {
-        MPI_File_read_at(dataFile, offset, &ch, 1, MPI_CHAR, &status);
-        if (ch == '\n' || header_len >= MAX_BUF_SIZE - 1) {
-            header_line[header_len] = '\0';
-            offset++;  // Move past the newline
-            break;
-        } else {
-            header_line[header_len++] = ch;
-            offset++;
-        }
+    // Broadcast file size to all ranks
+    MPI_Bcast(&file_size, 1, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
+
+    if (rank != 0) {
+        // Other ranks allocate buffer based on file_size
+        file_buffer = new char[file_size + 1];
+        file_buffer[file_size] = '\0';
+    }
+
+    // Broadcast the entire file buffer to all ranks
+    MPI_Bcast(file_buffer, file_size, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+    char *line = strtok(file_buffer, "\n");
+    if (line == NULL) {
+        fprintf(stderr, "Rank %d: No lines in file\n", rank);
+        MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     int value;
-    if (sscanf(header_line, "%d %d %d %d %d", &numGenes, &numSamples, &value, &numTumor, &numNormal) != 5) {
+    if (sscanf(line, "%d %d %d %d %d", &numGenes, &numSamples, &value, &numTumor, &numNormal) != 5) {
         fprintf(stderr, "Rank %d: Error reading the first line numbers\n", rank);
-        MPI_File_close(&dataFile);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
@@ -190,25 +204,12 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
     sparseNormalData.resize(numGenes);
     std::string* geneIdArray = new std::string[numGenes];
 
-    MPI_Offset file_size;
-    MPI_File_get_size(dataFile, &file_size);
-
-    MPI_Offset data_size = file_size - offset;
-
-    char* file_buffer = new char[data_size + 1]; // +1 for null terminator
-    file_buffer[data_size] = '\0';
-
-    MPI_File_read_at_all(dataFile, offset, file_buffer, data_size, MPI_CHAR, &status);
-
-    MPI_File_close(&dataFile);
-
-    char* line = strtok(file_buffer, "\n");
+    line = strtok(NULL, "\n");
     while (line != NULL) {
-
-        int gene, sample, value;
+        int gene, sample, val;
         char geneId[MAX_BUF_SIZE], sampleId[MAX_BUF_SIZE];
 
-        if (sscanf(line, "%d %d %d %s %s", &gene, &sample, &value, geneId, sampleId) != 5) {
+        if (sscanf(line, "%d %d %d %s %s", &gene, &sample, &val, geneId, sampleId) != 5) {
             fprintf(stderr, "Rank %d: Error reading data line: %s\n", rank, line);
             delete[] file_buffer;
             MPI_Abort(MPI_COMM_WORLD, 1);
@@ -216,7 +217,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
 
         geneIdArray[gene] = geneId;
 
-        if (value > 0) {
+        if (val > 0) {
             if (sample < numTumor) {
                 sparseTumorData[gene].insert(sample);
                 tumorSamples.insert(sample);
@@ -227,8 +228,10 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
 
         line = strtok(NULL, "\n");
     }
+
     delete[] file_buffer;
     return geneIdArray;
+
 }
 
 void master_process(int num_workers, long long int num_Comb) {
@@ -281,14 +284,12 @@ void worker_process(int rank, long long int num_Comb,
 
 void distribute_tasks(int rank, int size, int numGenes,
                       std::vector<std::set<int>>& tumorData,
-                      const std::vector<std::set<int>>& normalData, long long int& count,
+                      std::vector<std::set<int>>& normalData, long long int& count,
                       int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray) {
 
         long long int num_Comb = nCr(numGenes, 3);
         std::set<int> droppedSamples;
         while(tumorSamples != droppedSamples){
-		printf("Tumor samples size: %zu dropped samples: %zu\n", tumorSamples.size(), droppedSamples.size());
-		fflush(stdout);
                         std::array<int, 4> localComb = {-1, -1, -1, -1};
                         double localBestMaxF = -1.0;
                         if (rank == 0) { // Master
@@ -335,7 +336,28 @@ void distribute_tasks(int rank, int size, int numGenes,
                 tumorSet.erase(sample);
             }
         }
-	//Nt -= sampleToCover.size();
+
+            /*    std::set<int> finalIntersectNormal1;
+                std::set<int> finalIntersectNormal2;
+        std::set<int> normalSampleToCover;
+        std::set_intersection(normalData[globalBestComb[0]].begin(), normalData[globalBestComb[0]].end(),
+                              normalData[globalBestComb[1]].begin(), normalData[globalBestComb[1]].end(),
+                              std::inserter(finalIntersectNormal1, finalIntersectNormal1.begin()));
+        std::set_intersection(finalIntersectNormal1.begin(), finalIntersectNormal1.end(),
+                              normalData[globalBestComb[2]].begin(), normalData[globalBestComb[2]].end(),
+                              std::inserter(finalIntersectNormal2, finalIntersectNormal2.begin()));
+                std::set_intersection(finalIntersectNormal2.begin(), finalIntersectNormal2.end(),
+                              normalData[globalBestComb[3]].begin(), normalData[globalBestComb[3]].end(),
+                              std::inserter(normalSampleToCover, normalSampleToCover.begin()));
+
+        droppedSamples.insert(normalSampleToCover.begin(), normalSampleToCover.end());
+
+        for (auto& normalSet : normalData) {
+            for (const int sample : normalSampleToCover) {
+                normalSet.erase(sample);
+            }
+        }*/
+//	Nt -= sampleToCover.size();
 
                 if (rank == 0) {
 					std::ofstream outfile(outFilename, std::ios::app);
@@ -373,11 +395,7 @@ int main(int argc, char *argv[]){
         MPI_Finalize();
         return 1;
     }
-   if (rank < 5){
-
-	printf("Hello\n");
 	
-} 
     double total_start_time = MPI_Wtime();
 
 
@@ -392,7 +410,15 @@ int main(int argc, char *argv[]){
     std::vector<std::set<int>> tumorData;
 
     std::vector<std::set<int>> normalData;
+if (rank == 0){
+printf("Normal data size: %zu, Tumor Data side: %zu\n", normalData.size(), tumorData.size());
+fflush(stdout);
+}
     std::string* geneIdArray = read_data(argv[1], numGenes, numSamples, numTumor, numNormal, tumorSamples, tumorData, normalData, rank);
+if (rank == 0){
+printf("Normal data size: %zu, Tumor Data side: %zu\n", normalData.size(), tumorData.size());
+fflush(stdout);
+}
     end_time = MPI_Wtime();
     elapsed_time_loading = end_time - start_time;
 
@@ -418,11 +444,7 @@ int main(int argc, char *argv[]){
         write_timings_to_file(all_times, size, totalCount, argv[2]);
     }
 
-   if (rank < 5){
 
-	printf("Goodbye\n");
-	fflush(stdout);
-} 
     MPI_Finalize();
     return 0;
 }
