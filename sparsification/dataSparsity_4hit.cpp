@@ -257,7 +257,7 @@ void master_process(int num_workers, long long int num_Comb) {
     }
 }
 
-void worker_process(int rank, long long int num_Comb,
+double worker_process(int rank, long long int num_Comb,
                     std::vector<std::set<int>>& tumorData,
                     const std::vector<std::set<int>>& normalData,
                     int numGenes, long long int& count, int Nt, int Nn, const char* hit3_file, double& localBestMaxF, std::array<int, 4>& localComb) {
@@ -265,8 +265,13 @@ void worker_process(int rank, long long int num_Comb,
                         long long int begin = (rank - 1) * CHUNK_SIZE;
                         long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
                         MPI_Status status;
+						double process_lambda_time = 0.0;
                         while (end <= num_Comb) {
+								double process_start_time = MPI_Wtime();
                                 process_lambda_interval(tumorData, normalData, begin, end, numGenes, count, localComb, Nt, Nn, localBestMaxF);
+								double process_end_time = MPI_Wtime();
+								process_lambda_time += (process_end_time - process_start_time);
+
 								char c = 'a';
                                 MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
@@ -277,7 +282,7 @@ void worker_process(int rank, long long int num_Comb,
                                 begin = next_idx;
                                 end = std::min(next_idx + CHUNK_SIZE, num_Comb);
                         }
-
+					return process_lambda_time;
 }
 
 
@@ -286,20 +291,40 @@ void distribute_tasks(int rank, int size, int numGenes,
                       std::vector<std::set<int>>& tumorData,
                       std::vector<std::set<int>>& normalData, long long int& count,
                       int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray) {
+	double start_time, end_time;
+    double time_calculate_combinations = 0.0;
+    double time_master_process = 0.0;
+    double time_worker_process = 0.0;
+    double time_allreduce = 0.0;
+    double time_broadcast = 0.0;
+    double time_intersections = 0.0;
+    double time_output_write = 0.0;
+	double local_process_lambda_time = 0.0;
 
-        long long int num_Comb = nCr(numGenes, 3);
-        std::set<int> droppedSamples;
-        while(tumorSamples != droppedSamples){
-                        std::array<int, 4> localComb = {-1, -1, -1, -1};
-                        double localBestMaxF = -1.0;
-                        if (rank == 0) { // Master
-                                master_process(size - 1, num_Comb);
-                        } else { // Worker
-                                worker_process(rank, num_Comb, tumorData, normalData,
-                                                                                         numGenes, count, Nt, Nn, hit3_file, localBestMaxF, localComb);
-                        }
+    start_time = MPI_Wtime();
+    long long int num_Comb = nCr(numGenes, 3);
+    end_time = MPI_Wtime();
+    time_calculate_combinations += end_time - start_time;
 
-                struct {
+    std::set<int> droppedSamples;
+    while (tumorSamples != droppedSamples) {
+        std::array<int, 4> localComb = {-1, -1, -1, -1};
+        double localBestMaxF = -1.0;
+
+        if (rank == 0) { // Master
+            start_time = MPI_Wtime();
+            master_process(size - 1, num_Comb);
+            end_time = MPI_Wtime();
+            time_master_process += end_time - start_time;
+        } else { // Worker
+            start_time = MPI_Wtime();
+            local_process_lambda_time += worker_process(rank, num_Comb, tumorData, normalData,
+                           numGenes, count, Nt, Nn, hit3_file, localBestMaxF, localComb);
+            end_time = MPI_Wtime();
+            time_worker_process += end_time - start_time;
+        }
+
+        struct {
             double value;
             int rank;
         } localResult, globalResult;
@@ -307,17 +332,24 @@ void distribute_tasks(int rank, int size, int numGenes,
         localResult.value = localBestMaxF;
         localResult.rank = rank;
 
-                MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+        start_time = MPI_Wtime();
+        MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+        end_time = MPI_Wtime();
+        time_allreduce += end_time - start_time;
 
-                std::array<int, 4> globalBestComb;
+        std::array<int, 4> globalBestComb;
         if (rank == globalResult.rank) {
             globalBestComb = localComb;
         }
 
-                MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
+        start_time = MPI_Wtime();
+        MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
+        end_time = MPI_Wtime();
+        time_broadcast += end_time - start_time;
 
-                std::set<int> finalIntersect1;
-                std::set<int> finalIntersect2;
+        start_time = MPI_Wtime();
+        std::set<int> finalIntersect1;
+        std::set<int> finalIntersect2;
         std::set<int> sampleToCover;
         std::set_intersection(tumorData[globalBestComb[0]].begin(), tumorData[globalBestComb[0]].end(),
                               tumorData[globalBestComb[1]].begin(), tumorData[globalBestComb[1]].end(),
@@ -325,7 +357,7 @@ void distribute_tasks(int rank, int size, int numGenes,
         std::set_intersection(finalIntersect1.begin(), finalIntersect1.end(),
                               tumorData[globalBestComb[2]].begin(), tumorData[globalBestComb[2]].end(),
                               std::inserter(finalIntersect2, finalIntersect2.begin()));
-                std::set_intersection(finalIntersect2.begin(), finalIntersect2.end(),
+        std::set_intersection(finalIntersect2.begin(), finalIntersect2.end(),
                               tumorData[globalBestComb[3]].begin(), tumorData[globalBestComb[3]].end(),
                               std::inserter(sampleToCover, sampleToCover.begin()));
 
@@ -336,47 +368,90 @@ void distribute_tasks(int rank, int size, int numGenes,
                 tumorSet.erase(sample);
             }
         }
+        end_time = MPI_Wtime();
+        time_intersections += end_time - start_time;
 
-            /*    std::set<int> finalIntersectNormal1;
-                std::set<int> finalIntersectNormal2;
-        std::set<int> normalSampleToCover;
-        std::set_intersection(normalData[globalBestComb[0]].begin(), normalData[globalBestComb[0]].end(),
-                              normalData[globalBestComb[1]].begin(), normalData[globalBestComb[1]].end(),
-                              std::inserter(finalIntersectNormal1, finalIntersectNormal1.begin()));
-        std::set_intersection(finalIntersectNormal1.begin(), finalIntersectNormal1.end(),
-                              normalData[globalBestComb[2]].begin(), normalData[globalBestComb[2]].end(),
-                              std::inserter(finalIntersectNormal2, finalIntersectNormal2.begin()));
-                std::set_intersection(finalIntersectNormal2.begin(), finalIntersectNormal2.end(),
-                              normalData[globalBestComb[3]].begin(), normalData[globalBestComb[3]].end(),
-                              std::inserter(normalSampleToCover, normalSampleToCover.begin()));
-
-        droppedSamples.insert(normalSampleToCover.begin(), normalSampleToCover.end());
-
-        for (auto& normalSet : normalData) {
-            for (const int sample : normalSampleToCover) {
-                normalSet.erase(sample);
+        if (rank == 0) {
+            start_time = MPI_Wtime();
+            std::ofstream outfile(outFilename, std::ios::app);
+            if (!outfile) {
+                std::cerr << "Error: Could not open output file." << std::endl;
+                MPI_Abort(MPI_COMM_WORLD, 1);
             }
-        }*/
-//	Nt -= sampleToCover.size();
-
-                if (rank == 0) {
-					std::ofstream outfile(outFilename, std::ios::app);
-					if (!outfile) {
-							std::cerr << "Error: Could not open output file." << std::endl;
-							MPI_Abort(MPI_COMM_WORLD, 1);
-					}
-					outfile << "(";
-					for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
-							outfile << geneIdArray[globalBestComb[idx]];
-							if (idx != globalBestComb.size() - 1) {
-								outfile << ", ";
-							}
-					}
-					outfile << ")  F-max = " << globalResult.value << std::endl;
-					outfile.close();
-				}
-
+            outfile << "(";
+            for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
+                outfile << geneIdArray[globalBestComb[idx]];
+                if (idx != globalBestComb.size() - 1) {
+                    outfile << ", ";
+                }
+            }
+            outfile << ")  F-max = " << globalResult.value << std::endl;
+            outfile.close();
+            end_time = MPI_Wtime();
+            time_output_write += end_time - start_time;
         }
+    }
+
+    // Gather timing data
+    double local_times[8] = {
+        time_calculate_combinations,
+        time_master_process,
+        time_worker_process,
+		local_process_lambda_time,
+        time_allreduce,
+        time_broadcast,
+        time_intersections,
+        time_output_write
+    };
+
+    double all_times[size][8];
+    MPI_Gather(local_times, 8, MPI_DOUBLE, all_times, 8, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        std::cout << "Granular Timing Information for distribute_tasks:\n";
+		int longest_worker = -1;
+		int shortest_worker = -1;
+        for (int i = 0; i < 8; ++i) {
+            double max_time = -1.0, min_time = 1e9, total_time = 0.0;
+            int rank_max = 0, rank_min = 0;
+            for (int j = 0; j < size; ++j) {
+				double time = all_times[j][i];
+				if (i == 3)
+				{
+					max_time = all_times[longest_worker][i];	
+					min_time = all_times[shortest_worker][i];	
+				}
+				else{
+						if (time > max_time) {
+							max_time = time;
+							rank_max = j;
+							if (i == 2) longest_worker = j;
+						}
+						if (time < min_time) {
+							min_time = time;
+							rank_min = j;
+							if (i == 2) shortest_worker = j;
+						}
+				}
+                total_time += time;
+            }
+            double avg_time = total_time / size;
+
+            switch (i) {
+                case 0: std::cout << "Calculating combinations:\n"; break;
+                case 1: std::cout << "Master process:\n"; break;
+                case 2: std::cout << "Process Summary process from longest worker:\n"; break;
+                case 3: std::cout << "Worker process:\n"; break;
+                case 4: std::cout << "Allreduce:\n"; break;
+                case 5: std::cout << "Broadcast:\n"; break;
+                case 6: std::cout << "Intersections:\n"; break;
+                case 7: std::cout << "Output writing:\n"; break;
+            }
+            std::cout << "    Rank " << rank_max << " took the longest time in Process Worker: " << max_time << " seconds.\n";
+            std::cout << "    Rank " << rank_min << " took the shortest time in Process Worker: " << min_time << " seconds.\n";
+            std::cout << "    Average time in Process Worker: " << avg_time << " seconds.\n";
+        }
+    }
 
 }
 
