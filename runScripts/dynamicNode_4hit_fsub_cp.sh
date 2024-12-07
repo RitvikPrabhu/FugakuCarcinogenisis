@@ -1,7 +1,7 @@
 #!/bin/bash
 # Dynamic node counts for multiple jobs
 
-NODE_COUNTS=( 8000 )
+NODE_COUNTS=( 500 )
 
 for NODE_COUNT in "${NODE_COUNTS[@]}"; do
     RUN_SCRIPT="run_${NODE_COUNT}.sh"
