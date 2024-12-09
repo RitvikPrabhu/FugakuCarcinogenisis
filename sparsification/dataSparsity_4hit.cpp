@@ -109,7 +109,6 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const 
 void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, const char* filename) {
     //std::ofstream timingFile(filename);
     std::ostream& timingFile = std::cout;
-    //if (timingFile.is_open()) {
 		timingFile << "----------------------Timing Information for 4-hit sparsification----------------------" << std::endl;
         for (int stage = 0; stage < 3; ++stage) {
             double max_time = -1.0, min_time = 1e9, total_time = 0.0;
@@ -151,7 +150,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
                        std::set<int>& tumorSamples, std::vector<std::set<int>>& sparseTumorData,
                        std::vector<std::set<int>>& sparseNormalData, int rank) {
 
-	MPI_Status status;
+    MPI_Status status;
     char *file_buffer = nullptr;
     MPI_Offset file_size = 0;
 
@@ -173,12 +172,6 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
     MPI_File_read_all(dataFile, file_buffer, file_size, MPI_CHAR, &status);
 
     MPI_File_close(&dataFile);
-
-    if (rank != 0) {
-        // Other ranks allocate buffer based on file_size
-        file_buffer = new char[file_size + 1];
-        file_buffer[file_size] = '\0';
-    }
 
     char *line = strtok(file_buffer, "\n");
     if (line == NULL) {
