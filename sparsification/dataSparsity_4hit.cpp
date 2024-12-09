@@ -109,7 +109,6 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const 
 void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, const char* filename) {
     //std::ofstream timingFile(filename);
     std::ostream& timingFile = std::cout;
-    //if (timingFile.is_open()) {
 		timingFile << "----------------------Timing Information for 4-hit sparsification----------------------" << std::endl;
         for (int stage = 0; stage < 3; ++stage) {
             double max_time = -1.0, min_time = 1e9, total_time = 0.0;
@@ -151,42 +150,28 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
                        std::set<int>& tumorSamples, std::vector<std::set<int>>& sparseTumorData,
                        std::vector<std::set<int>>& sparseNormalData, int rank) {
 
-	MPI_Status status;
+    MPI_Status status;
     char *file_buffer = nullptr;
     MPI_Offset file_size = 0;
 
-    if (rank == 0) {
-        MPI_File dataFile;
-        int rc = MPI_File_open(MPI_COMM_WORLD, const_cast<char*>(filename), MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
-        if (rc != MPI_SUCCESS) {
-            char error_string[BUFSIZ];
-            int length_of_error_string;
-            MPI_Error_string(rc, error_string, &length_of_error_string);
-            fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
-            MPI_Abort(MPI_COMM_WORLD, rc);
-        }
-
-        MPI_File_get_size(dataFile, &file_size);
-
-        file_buffer = new char[file_size + 1];
-        file_buffer[file_size] = '\0';
-
-        MPI_File_read_at_all(dataFile, 0, file_buffer, file_size, MPI_CHAR, &status);
-
-        MPI_File_close(&dataFile);
+    MPI_File dataFile;
+    int rc = MPI_File_open(MPI_COMM_WORLD, const_cast<char*>(filename), MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
+    if (rc != MPI_SUCCESS) {
+        char error_string[BUFSIZ];
+        int length_of_error_string;
+        MPI_Error_string(rc, error_string, &length_of_error_string);
+        fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
+        MPI_Abort(MPI_COMM_WORLD, rc);
     }
 
-    // Broadcast file size to all ranks
-    MPI_Bcast(&file_size, 1, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
+    MPI_File_get_size(dataFile, &file_size);
 
-    if (rank != 0) {
-        // Other ranks allocate buffer based on file_size
-        file_buffer = new char[file_size + 1];
-        file_buffer[file_size] = '\0';
-    }
+    file_buffer = new char[file_size + 1];
+    file_buffer[file_size] = '\0';
 
-    // Broadcast the entire file buffer to all ranks
-    MPI_Bcast(file_buffer, file_size, MPI_CHAR, 0, MPI_COMM_WORLD);
+    MPI_File_read_all(dataFile, file_buffer, file_size, MPI_CHAR, &status);
+
+    MPI_File_close(&dataFile);
 
     char *line = strtok(file_buffer, "\n");
     if (line == NULL) {

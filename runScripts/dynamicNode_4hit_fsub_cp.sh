@@ -15,7 +15,6 @@ for NODE_COUNT in "${NODE_COUNTS[@]}"; do
 #PJM --mpi proc=${NODE_COUNT}
 #PJM -x PJM_LLIO_GFSCACHE=/vol0004
 #PJM -L "rscgrp=large"
-llio_transfer ../data/ACC.combinedData.txt 
 ./submit_4hit.sh ACC.combinedData.txt metrics_${NODE_COUNT}.txt results_${NODE_COUNT}.txt ${NODE_COUNT}
 EOF
     chmod +x "$RUN_SCRIPT"
