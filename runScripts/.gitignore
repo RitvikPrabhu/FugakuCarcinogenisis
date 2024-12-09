@@ -1,0 +1,5 @@
+output.*
+*.out
+*.err
+bin_*
+run_*
