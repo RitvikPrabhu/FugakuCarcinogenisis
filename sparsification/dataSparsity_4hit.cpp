@@ -155,38 +155,30 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
     char *file_buffer = nullptr;
     MPI_Offset file_size = 0;
 
-    if (rank == 0) {
-        MPI_File dataFile;
-        int rc = MPI_File_open(MPI_COMM_WORLD, const_cast<char*>(filename), MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
-        if (rc != MPI_SUCCESS) {
-            char error_string[BUFSIZ];
-            int length_of_error_string;
-            MPI_Error_string(rc, error_string, &length_of_error_string);
-            fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
-            MPI_Abort(MPI_COMM_WORLD, rc);
-        }
-
-        MPI_File_get_size(dataFile, &file_size);
-
-        file_buffer = new char[file_size + 1];
-        file_buffer[file_size] = '\0';
-
-        MPI_File_read_at_all(dataFile, 0, file_buffer, file_size, MPI_CHAR, &status);
-
-        MPI_File_close(&dataFile);
+    MPI_File dataFile;
+    int rc = MPI_File_open(MPI_COMM_WORLD, const_cast<char*>(filename), MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
+    if (rc != MPI_SUCCESS) {
+        char error_string[BUFSIZ];
+        int length_of_error_string;
+        MPI_Error_string(rc, error_string, &length_of_error_string);
+        fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
+        MPI_Abort(MPI_COMM_WORLD, rc);
     }
 
-    // Broadcast file size to all ranks
-    MPI_Bcast(&file_size, 1, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
+    MPI_File_get_size(dataFile, &file_size);
+
+    file_buffer = new char[file_size + 1];
+    file_buffer[file_size] = '\0';
+
+    MPI_File_read_all(dataFile, file_buffer, file_size, MPI_CHAR, &status);
+
+    MPI_File_close(&dataFile);
 
     if (rank != 0) {
         // Other ranks allocate buffer based on file_size
         file_buffer = new char[file_size + 1];
         file_buffer[file_size] = '\0';
     }
-
-    // Broadcast the entire file buffer to all ranks
-    MPI_Bcast(file_buffer, file_size, MPI_CHAR, 0, MPI_COMM_WORLD);
 
     char *line = strtok(file_buffer, "\n");
     if (line == NULL) {

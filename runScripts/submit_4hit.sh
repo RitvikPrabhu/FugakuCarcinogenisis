@@ -18,7 +18,7 @@ BIN_DIR="bin_${NODE_COUNT}"
 mkdir -p "$BIN_DIR"
 
 mpiFCC -Nclang -std=c++11 -Ofast -o "$BIN_DIR/dataSparsity_4hit" ../sparsification/dataSparsity_4hit.cpp
-
+llio_transfer "$BIN_DIR/dataSparsity_4hit" 
 mpirun "$BIN_DIR/dataSparsity_4hit" "../data/${COMBINED_DATA_FILE}" "../data/${PRUNED_3HIT_FILE}" "4hit_${NODE_COUNT}.out"
 
 # Clean up binaries for this node count
