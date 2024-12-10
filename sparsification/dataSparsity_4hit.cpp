@@ -1,3 +1,4 @@
+#include <omp.h>
 #include <utility>
 #include <vector>
 #include <set>
@@ -24,90 +25,118 @@ long long int nCr(int n, int r) {
 		return result;
 }
 
-void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int startComb, long long int endComb, int totalGenes, long long int &count, std::array<int, 4>& bestCombination, int Nt, int Nn, double& maxF){
-		double alpha = 1;
-		for (long long int lambda = startComb; lambda <= endComb; lambda++){
+void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData,
+                             long long int startComb, long long int endComb, int totalGenes, long long int &count,
+                             std::array<int, 4>& bestCombination, int Nt, int Nn, double& maxF) {
+    double alpha = 0.1;
 
-				if (lambda <= 0) continue; // Avoid division by zero and negative values
+    // Initialize thread-local variables for maxF and bestCombination
+    double globalMaxF = -std::numeric_limits<double>::infinity();
+    std::array<int, 4> globalBestCombination = {-1, -1, -1, -1};
 
-				double term1 = 243.0 * lambda - 1.0 / lambda;
+    #pragma omp parallel
+    {
+        double localMaxF = -std::numeric_limits<double>::infinity();
+        std::array<int, 4> localBestCombination = {-1, -1, -1, -1};
 
-				double rhs = (log(3.0 * lambda) + log(term1)) / 2.0;
-				double A = exp(rhs);
+        #pragma omp for schedule(dynamic) nowait
+        for (long long int lambda = startComb; lambda <= endComb; lambda++) {
+            if (lambda <= 0) continue; // Avoid division by zero and negative values
 
-				double common_numerator = pow(A + 27.0 * lambda, 1.0 / 3.0);
-				double common_denominator = pow(3.0, 2.0 / 3.0);
+            double term1 = 243.0 * lambda - 1.0 / lambda;
+            double rhs = (log(3.0 * lambda) + log(term1)) / 2.0;
+            double A = exp(rhs);
 
-				double v = (common_numerator / common_denominator) +
-						(1.0 / (common_numerator * pow(3.0, 1.0 / 3.0))) - 1.0;
+            double common_numerator = pow(A + 27.0 * lambda, 1.0 / 3.0);
+            double common_denominator = pow(3.0, 2.0 / 3.0);
 
-				unsigned long long int k_long = static_cast<unsigned long long int>(v);
-				unsigned long long int Tz = k_long * (k_long + 1) * (k_long + 2) / 6;
+            double v = (common_numerator / common_denominator) +
+                       (1.0 / (common_numerator * pow(3.0, 1.0 / 3.0))) - 1.0;
 
-				unsigned long long int LambdaP = lambda - Tz;
+            unsigned long long int k_long = static_cast<unsigned long long int>(v);
+            unsigned long long int Tz = k_long * (k_long + 1) * (k_long + 2) / 6;
 
-				int k = static_cast<int>(k_long);
-				int j = static_cast<int>(sqrt(0.25 + 2.0 * LambdaP) - 0.5);
+            unsigned long long int LambdaP = lambda - Tz;
 
-				unsigned long long int T2Dy = j * (j + 1) / 2;
+            int k = static_cast<int>(k_long);
+            int j = static_cast<int>(sqrt(0.25 + 2.0 * LambdaP) - 0.5);
 
-				int i = static_cast<int>(LambdaP - T2Dy);
-				if (i >= j || j >=k || i >= k) continue;
+            unsigned long long int T2Dy = j * (j + 1) / 2;
 
-				const std::set<int>& gene1Tumor = tumorData[i];
-				const std::set<int>& gene2Tumor = tumorData[j];
+            int i = static_cast<int>(LambdaP - T2Dy);
+            if (i >= j || j >= k || i >= k) continue;
 
-				std::set<int> intersectTumor1;
-				std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(), gene2Tumor.begin(), gene2Tumor.end(), std::inserter(intersectTumor1, intersectTumor1.begin()));
+            const std::set<int>& gene1Tumor = tumorData[i];
+            const std::set<int>& gene2Tumor = tumorData[j];
 
-				if (!intersectTumor1.empty()) {
-						const std::set<int>& gene3Tumor = tumorData[k];
-						std::set<int> intersectTumor2;
-						std::set_intersection(gene3Tumor.begin(), gene3Tumor.end(), intersectTumor1.begin(), intersectTumor1.end(), std::inserter(intersectTumor2, intersectTumor2.begin()));
+            std::set<int> intersectTumor1;
+            std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(),
+                                  gene2Tumor.begin(), gene2Tumor.end(),
+                                  std::inserter(intersectTumor1, intersectTumor1.begin()));
 
-						if (!intersectTumor2.empty()){
+            if (!intersectTumor1.empty()) {
+                const std::set<int>& gene3Tumor = tumorData[k];
+                std::set<int> intersectTumor2;
+                std::set_intersection(gene3Tumor.begin(), gene3Tumor.end(),
+                                      intersectTumor1.begin(), intersectTumor1.end(),
+                                      std::inserter(intersectTumor2, intersectTumor2.begin()));
 
-								for (int l = k + 1; l < totalGenes; l++){
+                if (!intersectTumor2.empty()) {
+                    for (int l = k + 1; l < totalGenes; l++) {
+                        const std::set<int>& gene4Tumor = tumorData[l];
+                        std::set<int> intersectTumor3;
+                        std::set_intersection(gene4Tumor.begin(), gene4Tumor.end(),
+                                              intersectTumor2.begin(), intersectTumor2.end(),
+                                              std::inserter(intersectTumor3, intersectTumor3.begin()));
 
-										const std::set<int>& gene4Tumor = tumorData[l];
-										std::set<int> intersectTumor3;
-										std::set_intersection(gene4Tumor.begin(), gene4Tumor.end(), intersectTumor2.begin(), intersectTumor2.end(), std::inserter(intersectTumor3, intersectTumor3.begin()));
+                        const std::set<int>& gene1Normal = normalData[i];
+                        const std::set<int>& gene2Normal = normalData[j];
+                        const std::set<int>& gene3Normal = normalData[k];
+                        const std::set<int>& gene4Normal = normalData[l];
 
-										const std::set<int>& gene1Normal = normalData[i];
-										const std::set<int>& gene2Normal = normalData[j];
-										const std::set<int>& gene3Normal = normalData[k];
-										const std::set<int>& gene4Normal = normalData[l];
+                        std::set<int> intersectNormal1;
+                        std::set<int> intersectNormal2;
+                        std::set<int> intersectNormal3;
 
-										std::set<int> intersectNormal1;
-										std::set<int> intersectNormal2;
-										std::set<int> intersectNormal3;
+                        std::set_intersection(gene1Normal.begin(), gene1Normal.end(),
+                                              gene2Normal.begin(), gene2Normal.end(),
+                                              std::inserter(intersectNormal1, intersectNormal1.begin()));
+                        std::set_intersection(gene3Normal.begin(), gene3Normal.end(),
+                                              intersectNormal1.begin(), intersectNormal1.end(),
+                                              std::inserter(intersectNormal2, intersectNormal2.begin()));
+                        std::set_intersection(gene4Normal.begin(), gene4Normal.end(),
+                                              intersectNormal2.begin(), intersectNormal2.end(),
+                                              std::inserter(intersectNormal3, intersectNormal3.begin()));
 
+                        if (!intersectTumor3.empty()) {
+                            int TP = intersectTumor3.size();
+                            int TN = Nn - intersectNormal3.size();
 
-										std::set_intersection(gene1Normal.begin(), gene1Normal.end(), gene2Normal.begin(), gene2Normal.end(), std::inserter(intersectNormal1, intersectNormal1.begin()));
-										std::set_intersection(gene3Normal.begin(), gene3Normal.end(), intersectNormal1.begin(), intersectNormal1.end(), std::inserter(intersectNormal2, intersectNormal2.begin()));
-										std::set_intersection(gene4Normal.begin(), gene4Normal.end(), intersectNormal2.begin(), intersectNormal2.end(), std::inserter(intersectNormal3, intersectNormal3.begin()));
+                            double F = static_cast<double>(alpha * TP + TN);
 
-										if (!intersectTumor3.empty()){
+                            if (F >= localMaxF) {
+                                localMaxF = F;
+                                localBestCombination = {i, j, k, l};
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-												int TP = intersectTumor3.size();
-												int TN = Nn - intersectNormal3.size();
+        #pragma omp critical
+        {
+            if (localMaxF > globalMaxF) {
+                globalMaxF = localMaxF;
+                globalBestCombination = localBestCombination;
+            }
+        }
+    }
 
-												//double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
-												double F = static_cast<double>(alpha * TP + TN);
-
-												if (F >= maxF){
-														maxF = F;
-														bestCombination = {i, j, k, l};
-
-												}				
-
-										}
-
-								}
-						}
-				}
-		}
+    maxF = globalMaxF;
+    bestCombination = globalBestCombination;
 }
+
 
 void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, const char* filename) {
 		//std::ofstream timingFile(filename);
