@@ -25,7 +25,7 @@ long long int nCr(int n, int r) {
 }
 
 void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const std::vector<std::set<int>>& normalData, long long int startComb, long long int endComb, int totalGenes, long long int &count, std::array<int, 4>& bestCombination, int Nt, int Nn, double& maxF){
-		double alpha = 1;
+		double alpha = 0.1;
 		for (long long int lambda = startComb; lambda <= endComb; lambda++){
 
 				if (lambda <= 0) continue; // Avoid division by zero and negative values
