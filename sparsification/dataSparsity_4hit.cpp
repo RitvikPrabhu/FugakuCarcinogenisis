@@ -472,7 +472,8 @@ int main(int argc, char *argv[]){
 	for (int i = 4; i < argc; ++i) {
         if (strcmp(argv[i], "--timing") == 0) {
             enable_timing = true;
-        } else if (strcmp(argv[i], "--progress") == 0) {
+        } 
+		else if (strcmp(argv[i], "--progress") == 0) {
             enable_progress = true;
         }
     }
