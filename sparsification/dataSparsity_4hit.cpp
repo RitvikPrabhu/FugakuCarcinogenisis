@@ -31,7 +31,7 @@ enum TimingStage {
 
 #define MAX_BUF_SIZE 1024
 #define CHUNK_SIZE 100000LL
-
+double program_start_time;
 // Function to calculate combinations (n choose r)
 long long int nCr(int n, int r) {
     if (r > n) return 0;
@@ -265,6 +265,11 @@ void master_process(int num_workers, long long int num_Comb) {
             MPI_Recv(&c, 1, MPI_CHAR, workerRank, 1, MPI_COMM_WORLD, &status);
             if (c == 'a') {
                 MPI_Send(&next_idx, 1, MPI_LONG_LONG_INT, workerRank, 2, MPI_COMM_WORLD);
+                double elapsed_time = MPI_Wtime() - program_start_time;
+                double progress_fraction = static_cast<double>(next_idx) / static_cast<double>(num_Comb);
+                std::cout << "[Elapsed time: " << elapsed_time << " seconds] "
+                          << "Progress: " << progress_fraction * 100.0 
+                          << "% (" << next_idx << "/" << num_Comb << ")\n";
                 next_idx += CHUNK_SIZE;
             }
         }
@@ -444,6 +449,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 int main(int argc, char *argv[]){
 
     MPI_Init(&argc, &argv);
+	program_start_time = MPI_Wtime();
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
