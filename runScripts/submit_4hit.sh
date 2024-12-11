@@ -20,7 +20,7 @@ mkdir -p "$BIN_DIR"
 mpiFCC -Nclang -std=c++11 -Ofast -fopenmp -o "$BIN_DIR/dataSparsity_4hit" ../sparsification/dataSparsity_4hit.cpp
 llio_transfer "$BIN_DIR/dataSparsity_4hit" 
 export OMP_NUM_THREADS=48
-mpirun "$BIN_DIR/dataSparsity_4hit" "../data/${COMBINED_DATA_FILE}" "../data/${PRUNED_3HIT_FILE}" "4hit_${NODE_COUNT}.out"
+mpirun "$BIN_DIR/dataSparsity_4hit" "../data/${COMBINED_DATA_FILE}" "../data/${PRUNED_3HIT_FILE}" "4hit_${NODE_COUNT}.out" --timing
 
 # Clean up binaries for this node count
 rm -r "$BIN_DIR"
