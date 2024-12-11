@@ -9,7 +9,7 @@
 #include <chrono>
 #include <ctime> 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 1000000LL
+#define CHUNK_SIZE 100000LL
 
 long long int nCr(int n, int r) {
 		if (r > n) return 0;
@@ -92,8 +92,8 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData, const 
 												int TP = intersectTumor3.size();
 												int TN = Nn - intersectNormal3.size();
 
-												//double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
-												double F = static_cast<double>(alpha * TP + TN);
+												double F = (alpha * TP + TN) / static_cast<double>(Nt + Nn);
+												//double F = static_cast<double>(alpha * TP + TN);
 
 												if (F >= maxF){
 														maxF = F;
@@ -226,7 +226,8 @@ void master_process(int num_workers, long long int num_Comb) {
 		long long int next_idx = num_workers * CHUNK_SIZE;
 		while (next_idx < num_Comb) {
 				auto now = std::chrono::system_clock::now();
-				printf("Master currently holding next_idx: %lld out of num_Comb: %lld at time: %zu\n", next_idx, num_Comb, std::ctime(&now));
+				time_t now_time = std::chrono::system_clock::to_time_t(now);
+				printf("Master currently holding next_idx: %lld out of num_Comb: %lld at time: %s\n", next_idx, num_Comb, std::ctime(&now_time));
 				fflush(stdout);
 				MPI_Status status;
 				int flag;
