@@ -252,7 +252,7 @@ std::string* read_data(const char* filename, int& numGenes, int& numSamples, int
 }
 
 // Master process to distribute tasks to workers
-void master_process(int num_workers, long long int num_Comb) {
+void master_process(int num_workers, long long int num_Comb, bool enable_progress) {
     long long int next_idx = num_workers * CHUNK_SIZE;
     while (next_idx < num_Comb) {
         MPI_Status status;
@@ -265,11 +265,13 @@ void master_process(int num_workers, long long int num_Comb) {
             MPI_Recv(&c, 1, MPI_CHAR, workerRank, 1, MPI_COMM_WORLD, &status);
             if (c == 'a') {
                 MPI_Send(&next_idx, 1, MPI_LONG_LONG_INT, workerRank, 2, MPI_COMM_WORLD);
-                double elapsed_time = MPI_Wtime() - program_start_time;
-                double progress_fraction = static_cast<double>(next_idx) / static_cast<double>(num_Comb);
-                std::cout << "[Elapsed time: " << elapsed_time << " seconds] "
-                          << "Progress: " << progress_fraction * 100.0 
-                          << "% (" << next_idx << "/" << num_Comb << ")\n";
+				if (enable_progress){
+						double elapsed_time = MPI_Wtime() - program_start_time;
+						double progress_fraction = static_cast<double>(next_idx) / static_cast<double>(num_Comb);
+						std::cout << "[Elapsed time: " << elapsed_time << " seconds] "
+								<< "Progress: " << progress_fraction * 100.0 
+								<< "% (" << next_idx << "/" << num_Comb << ")\n";
+				}
                 next_idx += CHUNK_SIZE;
             }
         }
@@ -314,7 +316,7 @@ void distribute_tasks(int rank, int size, int numGenes,
                 std::vector<std::set<int>>& tumorData,
                 std::vector<std::set<int>>& normalData, long long int& count,
                 int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray,
-                double* timings, bool enable_timing) {
+                double* timings, bool enable_timing, bool enable_progress) {
     double start_time, end_time;
 
     if(enable_timing){
@@ -342,7 +344,7 @@ void distribute_tasks(int rank, int size, int numGenes,
             if(enable_timing){
                 start_time = MPI_Wtime();
             }
-            master_process(size - 1, num_Comb);
+            master_process(size - 1, num_Comb, enable_progress);
             if(enable_timing){
                 end_time = MPI_Wtime();
                 timings[MASTER_PROCESS] += end_time - start_time;
@@ -456,18 +458,22 @@ int main(int argc, char *argv[]){
 
     // Check for timing flag
     bool enable_timing = false;
+    bool enable_progress = false;
     // To capcture --timing info use --timing
+    // To capture progress info use --progress
     if (argc < 4){
         if(rank ==0){
-            printf("Usage: %s <dataFile> <outputMetricFile> <prunedDataOutputFile> [--timing]\n", argv[0]);
+            printf("Usage: %s <dataFile> <outputMetricFile> <prunedDataOutputFile> [--timing] [--progress]\n", argv[0]);
         }
         MPI_Finalize();
         return 1;
     }
 
-    if(argc == 5){
-        if(strcmp(argv[4], "--timing") == 0){
+	for (int i = 4; i < argc; ++i) {
+        if (strcmp(argv[i], "--timing") == 0) {
             enable_timing = true;
+        } else if (strcmp(argv[i], "--progress") == 0) {
+            enable_progress = true;
         }
     }
 
@@ -500,7 +506,7 @@ int main(int argc, char *argv[]){
         start_time = MPI_Wtime();
     }
     long long int totalCount = 0;
-    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3], argv[2], tumorSamples, geneIdArray, local_timings, enable_timing);
+    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3], argv[2], tumorSamples, geneIdArray, local_timings, enable_timing, enable_progress);
     if(enable_timing){
         end_time = MPI_Wtime();
         elapsed_time_func = end_time - start_time;
