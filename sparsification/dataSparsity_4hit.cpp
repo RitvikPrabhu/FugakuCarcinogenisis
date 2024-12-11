@@ -409,6 +409,7 @@ void distribute_tasks(int rank, int size, int numGenes,
                 tumorSet.erase(sample);
             }
         }
+		Nt -= sampleToCover.size();
         if(enable_timing){
             end_time = MPI_Wtime();
             timings[INTERSECTIONS] += end_time - start_time;
