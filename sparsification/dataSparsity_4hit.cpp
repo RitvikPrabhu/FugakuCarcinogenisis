@@ -388,19 +388,6 @@ void distribute_tasks(int rank, int size, int numGenes,
 						start_time = MPI_Wtime();
 				}
 				MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
-				if (globalBestComb[0] < 0 || globalBestComb[1] < 0 ||
-								globalBestComb[2] < 0 || globalBestComb[3] < 0) {
-						if (rank == 0) {
-								std::cerr << "[DEBUG] globalBestComb is invalid: ("
-										<< globalBestComb[0] << ", "
-										<< globalBestComb[1] << ", "
-										<< globalBestComb[2] << ", "
-										<< globalBestComb[3] << ")\n";
-								fflush(stderr);
-								fflush(stdout);
-						}
-						break;
-				}
 				if(enable_timing){
 						end_time = MPI_Wtime();
 						timings[BROADCAST] += end_time - start_time;
@@ -536,27 +523,7 @@ int main(int argc, char *argv[]){
 				if(rank ==0){
 						all_timings = new double[size * NUM_TIMING_STAGES];
 				}
-				if (rank == 0) {
-						std::cerr << "[DEBUG] Preparing to gather timings. size=" << size
-								<< ", NUM_TIMING_STAGES=" << NUM_TIMING_STAGES << "\n";
-						fflush(stderr);
-						fflush(stdout);
-				}
 				MPI_Gather(local_timings, NUM_TIMING_STAGES, MPI_DOUBLE, all_timings, NUM_TIMING_STAGES, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-				if (rank == 0) {
-						std::cerr << "[DEBUG] Gather complete. all_timings array size should be: "
-								<< (size * NUM_TIMING_STAGES) << " elements.\n";
-				}
-				for (int i = 0; i < size; ++i) {
-						std::cerr << "[DEBUG] Process " << i << " timings: ";
-						for (int j = 0; j < NUM_TIMING_STAGES; ++j) {
-								std::cerr << all_timings[i * NUM_TIMING_STAGES + j] << " ";
-						}
-						std::cerr << "\n";
-				}
-				fflush(stderr);
-				fflush(stdout);
 		}
 
 		if (enable_timing && rank == 0) {
