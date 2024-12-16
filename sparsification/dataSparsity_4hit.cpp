@@ -1,4 +1,3 @@
-#include <omp.h>
 #include <utility>
 #include <vector>
 #include <set>
@@ -7,7 +6,7 @@
 #include <fstream>
 #include <mpi.h>
 #include <limits>
-
+#include <array>
 #define MAX_BUF_SIZE 1024
 #define CHUNK_SIZE 1000000LL
 
@@ -35,14 +34,8 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
                              int Nn, 
                              double& maxF) 
 {
-    double alpha = 0.1;
-    
-    #pragma omp parallel
-    {
-        double localMaxF = maxF; 
-        std::array<int,4> localBestCombination = bestCombination;
+    	double alpha = 0.1;
 
-        #pragma omp for schedule(dynamic)
         for (long long int lambda = startComb; lambda <= endComb; lambda++) {
 
             if (lambda <= 0) continue; // Avoid invalid lambda values
@@ -117,25 +110,15 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
                             int TN = static_cast<int>(Nn - intersectNormal3.size());
 
                             double F = static_cast<double>(alpha * TP + TN);
-                            if (F >= localMaxF) {
-                                localMaxF = F;
-                                localBestCombination = {i, j, k, l};
+                            if (F >= maxF) {
+                                maxF = F;
+                                bestCombination = std::array<int, 4>{i, j, k, l};
                             }
                         }
                     }
                 }
             }
         }
-
-        // Now reduce local best into the global best
-        #pragma omp critical
-        {
-            if (localMaxF >= maxF) {
-                maxF = localMaxF;
-                bestCombination = localBestCombination;
-            }
-        }
-    }
 }
 
 void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, const char* filename) {
