@@ -132,44 +132,26 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
 }
 
 void write_timings_to_file(const double all_times[][6], int size, long long int totalCount, const char* filename) {
-    //std::ofstream timingFile(filename);
-    std::ostream& timingFile = std::cout;
-		timingFile << "----------------------Timing Information for 4-hit sparsification----------------------" << std::endl;
-        for (int stage = 0; stage < 3; ++stage) {
-            double max_time = -1.0, min_time = 1e9, total_time = 0.0;
-            int rank_max = 0, rank_min = 0;
-            for (int i = 0; i < size; ++i) {
-                double time = all_times[i][stage];
-                if (time > max_time) {
-                    max_time = time;
-                    rank_max = i;
-                }
-                if (time < min_time) {
-                    min_time = time;
-                    rank_min = i;
-                }
-                total_time += time;
-            }
-            double avg_time = total_time / size;
-            if (stage == 0) {
-                timingFile << "Stage " << stage << " (Loading Data):\n";
-            } else if (stage == 1) {
-                timingFile << "Stage " << stage << " (Computation):\n";
-            } else {
-                timingFile << "Stage " << stage << " (Total Time):\n";
-            }
-            timingFile << "Rank " << rank_max << " took the longest time: " << max_time << " seconds.\n";
-            timingFile << "Rank " << rank_min << " took the shortest time: " << min_time << " seconds.\n";
-            timingFile << "Average time: " << avg_time << " seconds.\n\n";
-        }
-        timingFile << "Total number of combinations: " << totalCount << "\n";
-		fflush(stdout);
-       // timingFile.close();
-    //} else {run_400.sh.35466921.out
-    //    printf("Error opening timings output file\n");
-    //}
-}
+    std::ofstream timingFile(filename);
+    if (!timingFile.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << " for writing.\n";
+        return;
+    }
 
+    // CSV header
+    timingFile << "RANK,MASTER_WORKER,ALL_REDUCE,BCAST,OVERALL_FILE_LOAD,OVERALL_DISTRIBUTE_FUNCTION,OVERALL_TOTAL\n";
+
+    // Write each rank's data
+    for (int rank = 0; rank < size; ++rank) {
+        timingFile << rank;
+        for (int stage = 0; stage < 6; ++stage) {
+            timingFile << "," << all_times[rank][stage];
+        }
+        timingFile << "\n";
+    }
+
+    timingFile.close();
+}
 
 std::string* read_data(const char* filename, int& numGenes, int& numSamples, int& numTumor, int& numNormal,
 				std::set<int>& tumorSamples, std::vector<std::set<int>>& sparseTumorData,
