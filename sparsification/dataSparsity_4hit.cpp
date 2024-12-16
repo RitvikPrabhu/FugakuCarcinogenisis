@@ -10,6 +10,16 @@
 #define MAX_BUF_SIZE 1024
 #define CHUNK_SIZE 1000000LL
 
+enum time_stages {
+MASTER_WORKER,
+ALL_REDUCE,
+BCAST,
+OVERALL_FILE_LOAD,
+OVERALL_DISTRIBUTE_FUNCTION,
+OVERALL_TOTAL
+};
+
+
 long long int nCr(int n, int r) {
     if (r > n) return 0;
     if (r == 0 || r == n) return 1;
@@ -121,7 +131,7 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
         }
 }
 
-void write_timings_to_file(const double all_times[][3], int size, long long int totalCount, const char* filename) {
+void write_timings_to_file(const double all_times[][6], int size, long long int totalCount, const char* filename) {
     //std::ofstream timingFile(filename);
     std::ostream& timingFile = std::cout;
 		timingFile << "----------------------Timing Information for 4-hit sparsification----------------------" << std::endl;
@@ -284,7 +294,7 @@ void worker_process(int rank, long long int num_Comb,
 void distribute_tasks(int rank, int size, int numGenes,
 				std::vector<std::set<int>>& tumorData,
 				std::vector<std::set<int>>& normalData, long long int& count,
-				int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray) {
+				int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray, double elapsed_times[]) {
 
 		long long int num_Comb = nCr(numGenes, 3);
 
@@ -379,7 +389,7 @@ int main(int argc, char *argv[]){
 
     double start_time, end_time;
     double elapsed_time_loading, elapsed_time_func, elapsed_time_total;
-
+	double elapsed_times[6] = {0.0};
 
     start_time = MPI_Wtime();
     int numGenes, numSamples, numTumor, numNormal;
@@ -403,7 +413,7 @@ int main(int argc, char *argv[]){
 
     start_time = MPI_Wtime();
     long long int totalCount = 0;
-    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3], argv[2], tumorSamples, geneIdArray);
+    distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount, numTumor, numNormal, argv[3], argv[2], tumorSamples, geneIdArray, elapsed_times);
     double total_end_time = MPI_Wtime();
     elapsed_time_total = total_end_time - total_start_time;
     end_time = MPI_Wtime();
@@ -411,9 +421,11 @@ int main(int argc, char *argv[]){
 
 
 
-    double elapsed_times[3] = {elapsed_time_loading, elapsed_time_func, elapsed_time_total};
-    double all_times[size][3];
-    MPI_Gather(elapsed_times, 3, MPI_DOUBLE, all_times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	elapsed_times[OVERALL_FILE_LOAD] = elapsed_time_loading;
+	elapsed_times[OVERALL_DISTRIBUTE_FUNCTION] = elapsed_time_func;
+	elapsed_times[OVERALL_TOTAL] = elapsed_time_total;
+    double all_times[size][6];
+    MPI_Gather(elapsed_times, 6, MPI_DOUBLE, all_times, 6, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
 
 
