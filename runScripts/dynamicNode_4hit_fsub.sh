@@ -1,7 +1,7 @@
 #!/bin/bash
 # Dynamic node counts for multiple jobs
 
-NODE_COUNTS=( 12288 )
+NODE_COUNTS=( 5000 8000 10000 )
 
 for NODE_COUNT in "${NODE_COUNTS[@]}"; do
     RUN_SCRIPT="run_${NODE_COUNT}.sh"
@@ -11,12 +11,17 @@ for NODE_COUNT in "${NODE_COUNTS[@]}"; do
 #PJM -g ra000012
 #PJM -N ${JOB_NAME}
 #PJM -L node=${NODE_COUNT}
-#PJM -L elapse=03:00:00
+#PJM -L elapse=02:00:00
 #PJM --mpi proc=${NODE_COUNT}
 #PJM -x PJM_LLIO_GFSCACHE=/vol0004
 #PJM -L "rscgrp=large"
+#PJM -m b,e
+#PJM --mail-list ritvikp@vt.edu
+
 llio_transfer ../data/ACC.combinedData.txt
-./submit_4hit.sh ACC.combinedData.txt metrics_${NODE_COUNT}.txt results_${NODE_COUNT}.txt ${NODE_COUNT}
+llio_transfer "bin/dataSparsity_4hit"
+mpirun "bin/dataSparsity_4hit" ../data/ACC.combinedData.txt metrics_${NODE_COUNT}.txt 4hit_${NODE_COUNT}.out
+
 EOF
     chmod +x "$RUN_SCRIPT"
     pjsub "$RUN_SCRIPT"
