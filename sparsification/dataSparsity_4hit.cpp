@@ -11,12 +11,12 @@
 #define CHUNK_SIZE 1000000LL
 
 enum time_stages {
-MASTER_WORKER,
-ALL_REDUCE,
-BCAST,
-OVERALL_FILE_LOAD,
-OVERALL_DISTRIBUTE_FUNCTION,
-OVERALL_TOTAL
+		MASTER_WORKER,
+		ALL_REDUCE,
+		BCAST,
+		OVERALL_FILE_LOAD,
+		OVERALL_DISTRIBUTE_FUNCTION,
+		OVERALL_TOTAL
 };
 
 
@@ -297,19 +297,20 @@ void distribute_tasks(int rank, int size, int numGenes,
 				int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray, double elapsed_times[]) {
 
 		long long int num_Comb = nCr(numGenes, 3);
-
+		double start_time, end_time; 
 		std::set<int> droppedSamples;
 		while (tumorSamples != droppedSamples) {
 				std::array<int, 4> localComb = {-1, -1, -1, -1};
 				double localBestMaxF = -1.0;
-
+				start_time = MPI_Wtime();
 				if (rank == 0) { // Master
 						master_process(size - 1, num_Comb);
 				} else { // Worker
 						worker_process(rank, num_Comb, tumorData, normalData,
 										numGenes, count, Nt, Nn, hit3_file, localBestMaxF, localComb);
 				}
-
+				end_time = MPI_Wtime();
+				elapsed_times[MASTER_WORKER] = end_time - start_time;	
 				struct {
 						double value;
 						int rank;
@@ -317,15 +318,21 @@ void distribute_tasks(int rank, int size, int numGenes,
 
 				localResult.value = localBestMaxF;
 				localResult.rank = rank;
-
+				
+				start_time = MPI_Wtime();
 				MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+				end_time = MPI_Wtime();
+				elapsed_times[ALL_REDUCE] = end_time - start_time;
 
 				std::array<int, 4> globalBestComb;
 				if (rank == globalResult.rank) {
 						globalBestComb = localComb;
 				}
-
+				
+				start_time = MPI_Wtime();
 				MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
+				end_time = MPI_Wtime();
+				elapsed_times[BCAST] = end_time - start_time;
 
 				std::set<int> finalIntersect1;
 				std::set<int> finalIntersect2;
