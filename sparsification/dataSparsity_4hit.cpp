@@ -279,7 +279,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 				int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray, double elapsed_times[]) {
 
 		long long int num_Comb = nCr(numGenes, 3);
-		double start_time, end_time; 
+		double start_time, end_time, master_worker_time, all_reduce_time, broadcast_time; 
 		std::set<int> droppedSamples;
 		while (tumorSamples != droppedSamples) {
 				std::array<int, 4> localComb = {-1, -1, -1, -1};
@@ -292,7 +292,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 										numGenes, count, Nt, Nn, hit3_file, localBestMaxF, localComb);
 				}
 				end_time = MPI_Wtime();
-				elapsed_times[MASTER_WORKER] = end_time - start_time;	
+				master_worker_time += end_time - start_time;	
 				struct {
 						double value;
 						int rank;
@@ -304,7 +304,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 				start_time = MPI_Wtime();
 				MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
 				end_time = MPI_Wtime();
-				elapsed_times[ALL_REDUCE] = end_time - start_time;
+				all_reduce_time += end_time - start_time;
 
 				std::array<int, 4> globalBestComb;
 				if (rank == globalResult.rank) {
@@ -314,7 +314,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 				start_time = MPI_Wtime();
 				MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
 				end_time = MPI_Wtime();
-				elapsed_times[BCAST] = end_time - start_time;
+				broadcast_time += end_time - start_time;
 
 				std::set<int> finalIntersect1;
 				std::set<int> finalIntersect2;
@@ -354,6 +354,10 @@ void distribute_tasks(int rank, int size, int numGenes,
 						outfile.close();
 				}
 		}
+		
+		elapsed_times[MASTER_WORKER] = master_worker_time;	
+		elapsed_times[ALL_REDUCE] = all_reduce_time;
+		elapsed_times[BCAST] = broadcast_time;
 }
 
 
