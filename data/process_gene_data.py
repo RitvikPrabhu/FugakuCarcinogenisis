@@ -79,7 +79,8 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
         id_vars="gene", var_name="sample", value_name="mutation"
     )
 
-    result = result.sort_values(["gene", "sample"]).reset_index(drop=True)
+    # RITVIK, probably the line below needed to be removed
+    # result = result.sort_values(["gene", "sample"]).reset_index(drop=True)
     result["row"] = result.index // len(result["sample"].unique())
     result["column"] = result.index % len(result["sample"].unique())
     final_result = result[["row", "column", "mutation", "gene", "sample"]]
