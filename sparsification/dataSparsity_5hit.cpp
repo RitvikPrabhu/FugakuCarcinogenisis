@@ -291,7 +291,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 				std::vector<std::set<int>>& normalData, long long int& count,
 				int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray, double elapsed_times[]) {
 
-		long long int num_Comb = nCr(numGenes, 4);
+		long long int num_Comb = nCr(numGenes, 3);
 		double start_time, end_time; 
 		double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
 		std::set<int> droppedSamples;
