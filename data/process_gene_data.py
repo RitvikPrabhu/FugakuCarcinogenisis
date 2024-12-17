@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-import os
+import argparse
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -60,7 +61,7 @@ def sort_data(gene_sample_pivot):
     gene_sample_pivot = gene_sample_pivot.sort_values(by="tcga_count", ascending=True)
 
     # Drop the 'tcga_count' column
-    gene_sample_pivot = gene_sample_pivot.drop(columns=["tcga_count"])
+    return gene_sample_pivot.drop(columns=["tcga_count"])
 
 
 def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
@@ -94,19 +95,27 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
         print(f"Error writing file: {e}")
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("gene_sample_file", type=Path)
+    parser.add_argument("normal_gene_list_file", type=Path)
+    parser.add_argument("output_file", type=Path)
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print(
             "Usage: python process_gene_data.py <gene_sample_file> <normal_gene_list_file> <output_file>"
         )
         sys.exit(1)
-    gene_sample_file = sys.argv[1]
-    normal_gene_list_file = sys.argv[2]
-    output_file = sys.argv[3]
-    if not os.path.exists(gene_sample_file):
-        print(f"Gene sample file not found: {gene_sample_file}")
+    args = get_args()
+    if not args.gene_sample_file:
+        print(f"Gene sample file not found: {args.gene_sample_file}")
         sys.exit(1)
-    if not os.path.exists(normal_gene_list_file):
-        print(f"Normal gene list file not found: {normal_gene_list_file}")
+    if not args.normal_gene_list_file:
+        print(f"Normal gene list file not found: {args.normal_gene_list_file}")
         sys.exit(1)
-    process_gene_data(gene_sample_file, normal_gene_list_file, output_file)
+    process_gene_data(
+        args.gene_sample_file, args.normal_gene_list_file, args.output_file
+    )
