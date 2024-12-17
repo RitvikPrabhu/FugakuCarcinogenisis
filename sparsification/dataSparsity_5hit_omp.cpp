@@ -136,7 +136,7 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
 																		int TN = static_cast<int>(Nn - intersectNormal4.size());
 
 																		double F = static_cast<double>(alpha * TP + TN);
-																		if (F >= maxF) {
+																		if (F >= localMaxF) {
 																				localMaxF = F;
 																				localBestCombination = std::array<int, 5>{i, j, k, l, m};
 																		}
