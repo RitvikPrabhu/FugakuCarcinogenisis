@@ -81,8 +81,16 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
 
     # RITVIK, probably the line below needed to be removed
     # result = result.sort_values(["gene", "sample"]).reset_index(drop=True)
-    result["row"] = result.index // len(result["sample"].unique())
-    result["column"] = result.index % len(result["sample"].unique())
+    # result["row"] = result.index // len(result["sample"].unique())
+    # result["column"] = result.index % len(result["sample"].unique())
+    sorted_genes = gene_sample_pivot.index.tolist()
+    gene_to_row = {gene: idx for idx, gene in enumerate(sorted_genes)}
+    result["row"] = result["gene"].map(gene_to_row)
+    sorted_samples = gene_sample_pivot.columns.tolist()
+    sample_to_col = {sample: idx for idx, sample in enumerate(sorted_samples)}
+    result["column"] = result["sample"].map(sample_to_col)
+    result = result.sort_values(["row", "column"]).reset_index(drop=True)
+    
     final_result = result[["row", "column", "mutation", "gene", "sample"]]
 
     try:
