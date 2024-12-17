@@ -4,8 +4,8 @@
 NODE_COUNTS=( 5000 8000 10000 )
 
 for NODE_COUNT in "${NODE_COUNTS[@]}"; do
-    RUN_SCRIPT="run_${NODE_COUNT}.sh"
-	JOB_NAME="job_check_${NODE_COUNT}_1ppn"
+    RUN_SCRIPT="5hit_run_${NODE_COUNT}.sh"
+	JOB_NAME="5hit_job_${NODE_COUNT}"
     cat <<EOF > "$RUN_SCRIPT"
 #!/bin/bash
 #PJM -g ra000012
@@ -20,7 +20,7 @@ for NODE_COUNT in "${NODE_COUNTS[@]}"; do
 
 llio_transfer ../data/ACC.combinedData.txt
 llio_transfer "bin/dataSparsity_5hit"
-mpirun "bin/dataSparsity_5hit" ../data/ACC.combinedData.txt metrics_${NODE_COUNT}.txt 4hit_${NODE_COUNT}.out
+mpirun "bin/dataSparsity_5hit" ../data/ACC.combinedData.txt metrics_${NODE_COUNT}.txt 5hit_${NODE_COUNT}.out
 
 EOF
     chmod +x "$RUN_SCRIPT"

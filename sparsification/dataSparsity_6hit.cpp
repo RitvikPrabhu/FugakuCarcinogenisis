@@ -38,7 +38,7 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
 				long long int endComb, 
 				int totalGenes, 
 				long long int &count, 
-				std::array<int, 5>& bestCombination, 
+				std::array<int, 6>& bestCombination, 
 				int Nt, 
 				int Nn, 
 				double& maxF) 
@@ -104,36 +104,51 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
 																		intersectTumor3.begin(), intersectTumor3.end(), 
 																		std::inserter(intersectTumor4, intersectTumor4.begin()));
 														if (!intersectTumor4.empty()) {
-																const std::set<int>& gene1Normal = normalData[i];
-																const std::set<int>& gene2Normal = normalData[j];
-																const std::set<int>& gene3Normal = normalData[k];
-																const std::set<int>& gene4Normal = normalData[l];
-																const std::set<int>& gene5Normal = normalData[m];
+																for (int n = m + 1; n < totalGenes; n++){
+																		const std::set<int>& gene6Tumor = tumorData[n];
+																		std::set<int> intersectTumor5;
+																		std::set_intersection(gene6Tumor.begin(), gene6Tumor.end(), 
+																						intersectTumor4.begin(), intersectTumor4.end(), 
+																						std::inserter(intersectTumor5, intersectTumor5.begin()));
 
-																std::set<int> intersectNormal1;
-																std::set<int> intersectNormal2;
-																std::set<int> intersectNormal3;
-																std::set<int> intersectNormal4;
+																		if (!intersectTumor5.empty()){
+																				const std::set<int>& gene1Normal = normalData[i];
+																				const std::set<int>& gene2Normal = normalData[j];
+																				const std::set<int>& gene3Normal = normalData[k];
+																				const std::set<int>& gene4Normal = normalData[l];
+																				const std::set<int>& gene5Normal = normalData[m];
+																				const std::set<int>& gene6Normal = normalData[n];
 
-																std::set_intersection(gene1Normal.begin(), gene1Normal.end(), 
-																				gene2Normal.begin(), gene2Normal.end(), 
-																				std::inserter(intersectNormal1, intersectNormal1.begin()));
-																std::set_intersection(gene3Normal.begin(), gene3Normal.end(), 
-																				intersectNormal1.begin(), intersectNormal1.end(), 
-																				std::inserter(intersectNormal2, intersectNormal2.begin()));
-																std::set_intersection(gene4Normal.begin(), gene4Normal.end(), 
-																				intersectNormal2.begin(), intersectNormal2.end(), 
-																				std::inserter(intersectNormal3, intersectNormal3.begin()));
-																std::set_intersection(gene5Normal.begin(), gene5Normal.end(), 
-																				intersectNormal3.begin(), intersectNormal3.end(), 
-																				std::inserter(intersectNormal4, intersectNormal4.begin()));
-																int TP = static_cast<int>(intersectTumor4.size());
-																int TN = static_cast<int>(Nn - intersectNormal4.size());
+																				std::set<int> intersectNormal1;
+																				std::set<int> intersectNormal2;
+																				std::set<int> intersectNormal3;
+																				std::set<int> intersectNormal4;
+																				std::set<int> intersectNormal5;
 
-																double F = static_cast<double>(alpha * TP + TN);
-																if (F >= maxF) {
-																		maxF = F;
-																		bestCombination = std::array<int, 5>{i, j, k, l, m};
+																				std::set_intersection(gene1Normal.begin(), gene1Normal.end(), 
+																								gene2Normal.begin(), gene2Normal.end(), 
+																								std::inserter(intersectNormal1, intersectNormal1.begin()));
+																				std::set_intersection(gene3Normal.begin(), gene3Normal.end(), 
+																								intersectNormal1.begin(), intersectNormal1.end(), 
+																								std::inserter(intersectNormal2, intersectNormal2.begin()));
+																				std::set_intersection(gene4Normal.begin(), gene4Normal.end(), 
+																								intersectNormal2.begin(), intersectNormal2.end(), 
+																								std::inserter(intersectNormal3, intersectNormal3.begin()));
+																				std::set_intersection(gene5Normal.begin(), gene5Normal.end(), 
+																								intersectNormal3.begin(), intersectNormal3.end(), 
+																								std::inserter(intersectNormal4, intersectNormal4.begin()));
+																				std::set_intersection(gene6Normal.begin(), gene6Normal.end(), 
+																								intersectNormal4.begin(), intersectNormal4.end(), 
+																								std::inserter(intersectNormal5, intersectNormal5.begin()));
+																				int TP = static_cast<int>(intersectTumor5.size());
+																				int TN = static_cast<int>(Nn - intersectNormal5.size());
+
+																				double F = static_cast<double>(alpha * TP + TN);
+																				if (F >= maxF) {
+																						maxF = F;
+																						bestCombination = std::array<int, 6>{i, j, k, l, m, n};
+																				}
+																		}
 																}
 														}
 												}
@@ -265,7 +280,7 @@ void master_process(int num_workers, long long int num_Comb) {
 void worker_process(int rank, long long int num_Comb,
                     std::vector<std::set<int>>& tumorData,
                     const std::vector<std::set<int>>& normalData,
-                    int numGenes, long long int& count, int Nt, int Nn, const char* hit3_file, double& localBestMaxF, std::array<int, 5>& localComb) {
+                    int numGenes, long long int& count, int Nt, int Nn, const char* hit3_file, double& localBestMaxF, std::array<int, 6>& localComb) {
 
                         long long int begin = (rank - 1) * CHUNK_SIZE;
                         long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
@@ -296,7 +311,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 		double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
 		std::set<int> droppedSamples;
 		while (tumorSamples != droppedSamples) {
-				std::array<int, 5> localComb = {-1, -1, -1, -1, -1};
+				std::array<int, 6> localComb = {-1, -1, -1, -1, -1, -1};
 				double localBestMaxF = -1.0;
 				start_time = MPI_Wtime();
 				if (rank == 0) { // Master
@@ -320,19 +335,20 @@ void distribute_tasks(int rank, int size, int numGenes,
 				end_time = MPI_Wtime();
 				all_reduce_time += end_time - start_time;
 
-				std::array<int, 5> globalBestComb;
+				std::array<int, 6> globalBestComb;
 				if (rank == globalResult.rank) {
 						globalBestComb = localComb;
 				}
 				
 				start_time = MPI_Wtime();
-				MPI_Bcast(globalBestComb.data(), 5, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
+				MPI_Bcast(globalBestComb.data(), 6, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
 				end_time = MPI_Wtime();
 				broadcast_time += end_time - start_time;
 
 				std::set<int> finalIntersect1;
 				std::set<int> finalIntersect2;
 				std::set<int> finalIntersect3;
+				std::set<int> finalIntersect4;
 				std::set<int> sampleToCover;
 				std::set_intersection(tumorData[globalBestComb[0]].begin(), tumorData[globalBestComb[0]].end(),
 								tumorData[globalBestComb[1]].begin(), tumorData[globalBestComb[1]].end(),
@@ -345,6 +361,9 @@ void distribute_tasks(int rank, int size, int numGenes,
 								std::inserter(finalIntersect3, finalIntersect3.begin()));
 				std::set_intersection(finalIntersect3.begin(), finalIntersect3.end(),
 								tumorData[globalBestComb[4]].begin(), tumorData[globalBestComb[4]].end(),
+								std::inserter(finalIntersect4, finalIntersect4.begin()));
+				std::set_intersection(finalIntersect4.begin(), finalIntersect4.end(),
+								tumorData[globalBestComb[5]].begin(), tumorData[globalBestComb[5]].end(),
 								std::inserter(sampleToCover, sampleToCover.begin()));
 
 				droppedSamples.insert(sampleToCover.begin(), sampleToCover.end());

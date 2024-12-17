@@ -4,8 +4,8 @@
 NODE_COUNTS=( 5000 8000 10000 )
 
 for NODE_COUNT in "${NODE_COUNTS[@]}"; do
-    RUN_SCRIPT="4hit_run_${NODE_COUNT}.sh"
-	JOB_NAME="4hit_job_${NODE_COUNT}"
+    RUN_SCRIPT="6hit_run_${NODE_COUNT}.sh"
+	JOB_NAME="6hit_job_${NODE_COUNT}"
     cat <<EOF > "$RUN_SCRIPT"
 #!/bin/bash
 #PJM -g ra000012
@@ -19,8 +19,8 @@ for NODE_COUNT in "${NODE_COUNTS[@]}"; do
 #PJM --mail-list ritvikp@vt.edu
 
 llio_transfer ../data/ACC.combinedData.txt
-llio_transfer "bin/dataSparsity_4hit"
-mpirun "bin/dataSparsity_4hit" ../data/ACC.combinedData.txt metrics_${NODE_COUNT}.txt 4hit_${NODE_COUNT}.out
+llio_transfer "bin/dataSparsity_6hit"
+mpirun "bin/dataSparsity_6hit" ../data/ACC.combinedData.txt metrics_${NODE_COUNT}.txt 6hit_${NODE_COUNT}.out
 
 EOF
     chmod +x "$RUN_SCRIPT"
