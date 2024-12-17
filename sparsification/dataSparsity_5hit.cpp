@@ -9,7 +9,7 @@
 #include <array>
 #define MAX_BUF_SIZE 1024
 #define CHUNK_SIZE 1000000LL
-
+//test
 enum time_stages {
 		MASTER_WORKER,
 		ALL_REDUCE,
