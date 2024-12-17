@@ -4,8 +4,8 @@
 NODE_COUNTS=( 5000 8000 10000 )
 
 for NODE_COUNT in "${NODE_COUNTS[@]}"; do
-    RUN_SCRIPT="run_${NODE_COUNT}.sh"
-	JOB_NAME="job_check_${NODE_COUNT}_1ppn"
+    RUN_SCRIPT="4hit_run_${NODE_COUNT}.sh"
+	JOB_NAME="4hit_job_${NODE_COUNT}"
     cat <<EOF > "$RUN_SCRIPT"
 #!/bin/bash
 #PJM -g ra000012
