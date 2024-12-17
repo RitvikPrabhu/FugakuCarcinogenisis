@@ -66,12 +66,12 @@ def sort_data(gene_sample_pivot):
 
 def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
     gene_sample_pivot, normal_data = get_data(gene_sample_file, normal_gene_list_file)
-    num_tumor_samples = gene_sample_pivot.shape[1]
-    num_cancer_samples = normal_data.shape[1]
 
     gene_sample_pivot = sort_data(gene_sample_pivot)
 
     num_rows, num_cols = gene_sample_pivot.shape
+    num_normal_samples = normal_data.shape[1]
+    num_tumor_samples = num_cols - num_normal_samples
     print("Number of rows (genes):", num_rows)
     print("Number of columns (samples):", num_cols)
 
@@ -86,9 +86,10 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
 
     try:
         with open(output_file, "w") as f:
-            f.write(
-                f"{num_rows} {num_cols} -1 {num_tumor_samples} {num_cancer_samples}\n"
+            header = (
+                f"{num_rows} {num_cols} -1 {num_tumor_samples} {num_normal_samples}\n"
             )
+            f.write(header)
             final_result.to_csv(f, sep=" ", index=False, header=False)
         print(f"File successfully written to {output_file}")
     except Exception as e:
@@ -110,10 +111,10 @@ if __name__ == "__main__":
         )
         sys.exit(1)
     args = get_args()
-    if not args.gene_sample_file:
+    if not args.gene_sample_file.exists():
         print(f"Gene sample file not found: {args.gene_sample_file}")
         sys.exit(1)
-    if not args.normal_gene_list_file:
+    if not args.normal_gene_list_file.exists():
         print(f"Normal gene list file not found: {args.normal_gene_list_file}")
         sys.exit(1)
     process_gene_data(
