@@ -23,8 +23,26 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
     num_cancer_samples = normal_data.shape[1]
 
     gene_sample_pivot = pd.concat([gene_sample_pivot, normal_data], axis=1).fillna(0).astype(int)
-    gene_sample_pivot = gene_sample_pivot.sample(frac=1).drop(gene_sample_pivot.sample(n=gene_sample_pivot.shape[0] - 5, random_state=42).index)
     
+    # ---- Sorting Step Starts Here ----
+    
+    # Identify columns that start with 'TCGA'
+    tcga_columns = [col for col in gene_sample_pivot.columns if col.startswith('TCGA')]
+    
+    if tcga_columns:
+        # Count the number of 1's in TCGA columns for each gene
+        gene_sample_pivot['tcga_count'] = gene_sample_pivot[tcga_columns].sum(axis=1)
+        
+        # Sort the DataFrame based on 'tcga_count'
+        gene_sample_pivot = gene_sample_pivot.sort_values(by='tcga_count', ascending=True)
+        
+        # Drop the 'tcga_count' column
+        gene_sample_pivot = gene_sample_pivot.drop(columns=['tcga_count'])
+    else:
+        print("No TCGA columns found. Skipping sorting step.")
+    
+    # ---- Sorting Step Ends Here ----    
+
     num_rows, num_cols = gene_sample_pivot.shape
     print("Number of rows (genes):", num_rows)
     print("Number of columns (samples):", num_cols)
