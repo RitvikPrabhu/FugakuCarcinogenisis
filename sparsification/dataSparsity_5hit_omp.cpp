@@ -1,3 +1,4 @@
+#include <omp.h>
 #include <utility>
 #include <vector>
 #include <set>
