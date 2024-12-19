@@ -38,21 +38,21 @@ long long int nCr(int n, int r) {
     return result;
 }
 
-void process_lambda_interval(const std::vector<std::set<int>>& tumorData, 
-				const std::vector<std::set<int>>& normalData, 
-				long long int startComb, 
-				long long int endComb, 
-				int totalGenes, 
-				long long int &count, 
-				std::array<int, 4>& bestCombination, 
-				int Nt, 
-				int Nn, 
-				double& maxF) 
+void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
+				const std::vector<std::set<int>>& normalData,
+				long long int startComb,
+				long long int endComb,
+				int totalGenes,
+				long long int &count,
+				std::array<int, 4>& bestCombination,
+				int Nt,
+				int Nn,
+				double& maxF)
 {
 		double alpha = 0.1;
 		#pragma omp parallel
 		{
-				double localMaxF = maxF; 
+				double localMaxF = maxF;
 				std::array<int,4> localBestCombination = bestCombination;
 
 				#pragma omp for nowait schedule(dynamic)
@@ -87,23 +87,23 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
 						const std::set<int>& gene2Tumor = tumorData[j];
 
 						std::set<int> intersectTumor1;
-						std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(), 
-										gene2Tumor.begin(), gene2Tumor.end(), 
+						std::set_intersection(gene1Tumor.begin(), gene1Tumor.end(),
+										gene2Tumor.begin(), gene2Tumor.end(),
 										std::inserter(intersectTumor1, intersectTumor1.begin()));
 
 						if (!intersectTumor1.empty()) {
 								const std::set<int>& gene3Tumor = tumorData[k];
 								std::set<int> intersectTumor2;
-								std::set_intersection(gene3Tumor.begin(), gene3Tumor.end(), 
-												intersectTumor1.begin(), intersectTumor1.end(), 
+								std::set_intersection(gene3Tumor.begin(), gene3Tumor.end(),
+												intersectTumor1.begin(), intersectTumor1.end(),
 												std::inserter(intersectTumor2, intersectTumor2.begin()));
 
 								if (!intersectTumor2.empty()) {
 										for (int l = k + 1; l < totalGenes; l++) {
 												const std::set<int>& gene4Tumor = tumorData[l];
 												std::set<int> intersectTumor3;
-												std::set_intersection(gene4Tumor.begin(), gene4Tumor.end(), 
-																intersectTumor2.begin(), intersectTumor2.end(), 
+												std::set_intersection(gene4Tumor.begin(), gene4Tumor.end(),
+																intersectTumor2.begin(), intersectTumor2.end(),
 																std::inserter(intersectTumor3, intersectTumor3.begin()));
 
 												const std::set<int>& gene1Normal = normalData[i];
@@ -115,14 +115,14 @@ void process_lambda_interval(const std::vector<std::set<int>>& tumorData,
 												std::set<int> intersectNormal2;
 												std::set<int> intersectNormal3;
 
-												std::set_intersection(gene1Normal.begin(), gene1Normal.end(), 
-																gene2Normal.begin(), gene2Normal.end(), 
+												std::set_intersection(gene1Normal.begin(), gene1Normal.end(),
+																gene2Normal.begin(), gene2Normal.end(),
 																std::inserter(intersectNormal1, intersectNormal1.begin()));
-												std::set_intersection(gene3Normal.begin(), gene3Normal.end(), 
-																intersectNormal1.begin(), intersectNormal1.end(), 
+												std::set_intersection(gene3Normal.begin(), gene3Normal.end(),
+																intersectNormal1.begin(), intersectNormal1.end(),
 																std::inserter(intersectNormal2, intersectNormal2.begin()));
-												std::set_intersection(gene4Normal.begin(), gene4Normal.end(), 
-																intersectNormal2.begin(), intersectNormal2.end(), 
+												std::set_intersection(gene4Normal.begin(), gene4Normal.end(),
+																intersectNormal2.begin(), intersectNormal2.end(),
 																std::inserter(intersectNormal3, intersectNormal3.begin()));
 
 												if (!intersectTumor3.empty()) {
@@ -298,7 +298,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 				int Nt, int Nn, const char* outFilename, const char* hit3_file, const std::set<int>& tumorSamples, std::string* geneIdArray, double elapsed_times[]) {
 
 		long long int num_Comb = nCr(numGenes, 3);
-		double start_time, end_time; 
+		double start_time, end_time;
 		double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
 		std::set<int> droppedSamples;
 		while (tumorSamples != droppedSamples) {
@@ -312,7 +312,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 										numGenes, count, Nt, Nn, hit3_file, localBestMaxF, localComb);
 				}
 				end_time = MPI_Wtime();
-				master_worker_time += end_time - start_time;	
+				master_worker_time += end_time - start_time;
 				struct {
 						double value;
 						int rank;
@@ -320,7 +320,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 
 				localResult.value = localBestMaxF;
 				localResult.rank = rank;
-				
+
 				start_time = MPI_Wtime();
 				MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
 				end_time = MPI_Wtime();
@@ -330,7 +330,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 				if (rank == globalResult.rank) {
 						globalBestComb = localComb;
 				}
-				
+
 				start_time = MPI_Wtime();
 				MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank, MPI_COMM_WORLD);
 				end_time = MPI_Wtime();
@@ -374,8 +374,8 @@ void distribute_tasks(int rank, int size, int numGenes,
 						outfile.close();
 				}
 		}
-		
-		elapsed_times[MASTER_WORKER] = master_worker_time;	
+
+		elapsed_times[MASTER_WORKER] = master_worker_time;
 		elapsed_times[ALL_REDUCE] = all_reduce_time;
 		elapsed_times[BCAST] = broadcast_time;
 }
@@ -383,7 +383,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 
 
 int main(int argc, char *argv[]){
-    
+
     MPI_Init(&argc, &argv);
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -395,7 +395,7 @@ int main(int argc, char *argv[]){
         MPI_Finalize();
         return 1;
     }
-	
+
     double total_start_time = MPI_Wtime();
 
 
