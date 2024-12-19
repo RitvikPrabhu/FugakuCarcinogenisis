@@ -1,13 +1,17 @@
-#include <omp.h>
+#include <iostream>
 #include <utility>
+#include <string.h>
 #include <vector>
 #include <set>
 #include <cmath>
 #include <algorithm>
 #include <fstream>
-#include <mpi.h>
 #include <limits>
 #include <array>
+
+#include <omp.h>
+#include <mpi.h>
+
 #define MAX_BUF_SIZE 1024
 #define CHUNK_SIZE 1000000LL
 
