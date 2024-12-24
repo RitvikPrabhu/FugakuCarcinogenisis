@@ -12,6 +12,9 @@
 #include <string>
 #include <vector>
 
+// #ifdef ENABLE_TIMING
+// #endif
+
 void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
                              const std::vector<std::set<int>> &normalData,
                              long long int startComb, long long int endComb,
