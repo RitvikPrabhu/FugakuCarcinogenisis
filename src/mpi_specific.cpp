@@ -1,6 +1,5 @@
 #include "mpi_specific.h"
 #include "constants.h"
-#include <iostream>
 #include <mpi.h>
 
 void master_process(int num_workers, long long int num_Comb) {

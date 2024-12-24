@@ -34,15 +34,14 @@ set(SOURCES
     src/four_hit.cpp
 )
 
-# Create executable
-add_executable(graphSparsity ${SOURCES})
+add_executable(run ${SOURCES})
 
 # Link MPI libraries
-target_link_libraries(graphSparsity ${MPI_LIBRARIES})
+target_link_libraries(run ${MPI_LIBRARIES})
 
 # Link OpenMP if found
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(graphSparsity OpenMP::OpenMP_CXX)
+    target_link_libraries(run OpenMP::OpenMP_CXX)
 endif()
 
 # Set build type to Release by default

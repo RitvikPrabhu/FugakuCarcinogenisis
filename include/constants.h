@@ -2,7 +2,7 @@
 #define CONSTANTS_H
 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 1000000LL
+#define CHUNK_SIZE 100LL
 
 enum time_stages {
   MASTER_WORKER,

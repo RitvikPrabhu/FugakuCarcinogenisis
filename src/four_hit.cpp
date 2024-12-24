@@ -1,5 +1,6 @@
 #include "four_hit.h"
 #include "constants.h"
+#include "mpi_specific.h"
 #include "utils.h"
 #include <algorithm>
 #include <array>
@@ -9,9 +10,7 @@
 #include <mpi.h>
 #include <omp.h>
 #include <set>
-#include <string>
 #include <vector>
-
 // #ifdef ENABLE_TIMING
 // #endif
 

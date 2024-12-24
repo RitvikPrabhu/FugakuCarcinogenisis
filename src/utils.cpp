@@ -1,7 +1,5 @@
 #include "utils.h"
 #include "constants.h"
-#include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <iostream>

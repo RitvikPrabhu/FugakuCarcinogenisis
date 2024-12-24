@@ -3,6 +3,7 @@
 
 #include <array>
 #include <set>
+#include <string>
 #include <vector>
 
 void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
