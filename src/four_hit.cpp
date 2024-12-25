@@ -25,9 +25,13 @@ struct MPIResult {
   int rank;
 };
 
-LambdaComputed compute_lambda_variables(long long int lambda) {
+LambdaComputed compute_lambda_variables(long long int lambda, int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
+  if (computed.j > totalGenes - (NUMHITS - 2)) {
+    computed.j = -1;
+    return computed;
+  }
   computed.i = lambda - (computed.j * (computed.j - 1)) / 2;
   return computed;
 }
@@ -179,7 +183,9 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
 
 #pragma omp for nowait schedule(dynamic)
     for (long long int lambda = startComb; lambda <= endComb; lambda++) {
-      LambdaComputed computed = compute_lambda_variables(lambda);
+      LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
+      if (computed.j == -1)
+        continue;
 
       const std::set<int> &gene1Tumor = tumorData[computed.i];
       const std::set<int> &gene2Tumor = tumorData[computed.j];
@@ -188,7 +194,7 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
       if (is_empty(intersectTumor1))
         continue;
 
-      for (int k = computed.j + 1; k < totalGenes; k++) {
+      for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
         const std::set<int> &gene3Tumor = tumorData[k];
         std::set<int> intersectTumor2 =
             get_intersection(gene3Tumor, intersectTumor1);
@@ -196,7 +202,7 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
         if (is_empty(intersectTumor2))
           continue;
 
-        for (int l = k + 1; l < totalGenes; l++) {
+        for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
           const std::set<int> &gene4Tumor = tumorData[l];
           std::set<int> intersectTumor3 =
               get_intersection(gene4Tumor, intersectTumor2);
