@@ -117,25 +117,25 @@ void update_tumor_data(std::vector<std::set<int>> &tumorData,
   }
 }
 
-void write_output(int rank, const char *outFilename,
+void outputFileWriteError(std::ofstream &outfile) {
+
+  if (!outfile) {
+    std::cerr << "Error: Could not open output file." << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+}
+
+void write_output(int rank, std::ofstream &outfile,
                   const std::array<int, 4> &globalBestComb,
                   const std::string *geneIdArray, double F_max) {
-  if (rank == 0) {
-    std::ofstream outfile(outFilename, std::ios::app);
-    if (!outfile) {
-      std::cerr << "Error: Could not open output file." << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, 1);
+  outfile << "(";
+  for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
+    outfile << geneIdArray[globalBestComb[idx]];
+    if (idx != globalBestComb.size() - 1) {
+      outfile << ", ";
     }
-    outfile << "(";
-    for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
-      outfile << geneIdArray[globalBestComb[idx]];
-      if (idx != globalBestComb.size() - 1) {
-        outfile << ", ";
-      }
-    }
-    outfile << ")  F-max = " << F_max << std::endl;
-    outfile.close();
   }
+  outfile << ")  F-max = " << F_max << std::endl;
 }
 
 void notify_master_chunk_processed(int master_rank = 0, int tag = 1) {
@@ -284,6 +284,12 @@ void distribute_tasks(int rank, int size, int numGenes,
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
   std::set<int> droppedSamples;
 
+  std::ofstream outfile;
+  if (rank == 0) {
+    outfile.open(outFilename);
+    outputFileWriteError(outfile);
+  }
+
   while (tumorSamples != droppedSamples) {
     std::array<int, 4> localComb = {-1, -1, -1, -1};
     double localBestMaxF = -1.0;
@@ -316,9 +322,13 @@ void distribute_tasks(int rank, int size, int numGenes,
     droppedSamples.insert(sampleToCover.begin(), sampleToCover.end());
 
     update_tumor_data(tumorData, sampleToCover);
-
-    write_output(rank, outFilename, globalBestComb, geneIdArray,
-                 globalResult.value);
+    if (rank == 0) {
+      write_output(rank, outfile, globalBestComb, geneIdArray,
+                   globalResult.value);
+    }
+  }
+  if (rank == 0) {
+    outfile.close();
   }
 
   elapsed_times[MASTER_WORKER] = master_worker_time;
