@@ -18,10 +18,7 @@
 
 // ############HELPER FUNCTIONS####################
 struct LambdaComputed {
-  double A;
-  unsigned long long int k_long;
-  unsigned long long int Tz;
-  int i, j, k;
+  int i, j;
 };
 
 struct MPIResult {
@@ -31,25 +28,8 @@ struct MPIResult {
 
 LambdaComputed compute_lambda_variables(long long int lambda) {
   LambdaComputed computed;
-  double term1 = 243.0 * lambda - 1.0 / lambda;
-  double rhs = (std::log(3.0 * lambda) + std::log(term1)) / 2.0;
-  computed.A = std::exp(rhs);
-
-  double common_numerator = std::pow(computed.A + 27.0 * lambda, 1.0 / 3.0);
-  double common_denominator = std::pow(3.0, 2.0 / 3.0);
-  double v = (common_numerator / common_denominator) +
-             (1.0 / (common_numerator * std::pow(3.0, 1.0 / 3.0))) - 1.0;
-
-  computed.k_long = static_cast<unsigned long long int>(v);
-  computed.Tz =
-      computed.k_long * (computed.k_long + 1) * (computed.k_long + 2) / 6;
-  long long int LambdaP = lambda - computed.Tz;
-
-  computed.k = static_cast<int>(computed.k_long);
-  computed.j = static_cast<int>(std::sqrt(0.25 + 2.0 * LambdaP) - 0.5);
-  unsigned long long int T2Dy = computed.j * (computed.j + 1) / 2;
-  computed.i = static_cast<int>(LambdaP - T2Dy);
-
+  computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
+  computed.i = lambda - (computed.j * (computed.j - 1)) / 2;
   return computed;
 }
 
@@ -200,14 +180,7 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
 
 #pragma omp for nowait schedule(dynamic)
     for (long long int lambda = startComb; lambda <= endComb; lambda++) {
-      if (lambda <= 0)
-        continue;
-
       LambdaComputed computed = compute_lambda_variables(lambda);
-
-      if (computed.i >= computed.j || computed.j >= computed.k ||
-          computed.i >= computed.k)
-        continue;
 
       const std::set<int> &gene1Tumor = tumorData[computed.i];
       const std::set<int> &gene2Tumor = tumorData[computed.j];
@@ -216,31 +189,33 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
       if (is_empty(intersectTumor1))
         continue;
 
-      const std::set<int> &gene3Tumor = tumorData[computed.k];
-      std::set<int> intersectTumor2 =
-          get_intersection(gene3Tumor, intersectTumor1);
+      for (int k = computed.j + 1; k < totalGenes; k++) {
+        const std::set<int> &gene3Tumor = tumorData[k];
+        std::set<int> intersectTumor2 =
+            get_intersection(gene3Tumor, intersectTumor1);
 
-      if (is_empty(intersectTumor2))
-        continue;
-
-      for (int l = computed.k + 1; l < totalGenes; l++) {
-        const std::set<int> &gene4Tumor = tumorData[l];
-        std::set<int> intersectTumor3 =
-            get_intersection(gene4Tumor, intersectTumor2);
-
-        if (is_empty(intersectTumor3))
+        if (is_empty(intersectTumor2))
           continue;
 
-        std::set<int> intersectNormal = compute_intersection_four_sets(
-            normalData, computed.i, computed.j, computed.k, l);
+        for (int l = k + 1; l < totalGenes; l++) {
+          const std::set<int> &gene4Tumor = tumorData[l];
+          std::set<int> intersectTumor3 =
+              get_intersection(gene4Tumor, intersectTumor2);
 
-        int TP = static_cast<int>(intersectTumor3.size());
-        int TN = static_cast<int>(Nn - intersectNormal.size());
+          if (is_empty(intersectTumor3))
+            continue;
 
-        double F = compute_F(TP, TN, alpha);
-        if (F >= localMaxF) {
-          localMaxF = F;
-          localBestCombination = {computed.i, computed.j, computed.k, l};
+          std::set<int> intersectNormal = compute_intersection_four_sets(
+              normalData, computed.i, computed.j, k, l);
+
+          int TP = static_cast<int>(intersectTumor3.size());
+          int TN = static_cast<int>(Nn - intersectNormal.size());
+
+          double F = compute_F(TP, TN, alpha);
+          if (F >= localMaxF) {
+            localMaxF = F;
+            localBestCombination = {computed.i, computed.j, k, l};
+          }
         }
       }
     }
@@ -280,7 +255,7 @@ void distribute_tasks(int rank, int size, int numGenes,
                       const std::set<int> &tumorSamples,
                       std::string *geneIdArray, double elapsed_times[]) {
 
-  long long int num_Comb = nCr(numGenes, 3);
+  long long int num_Comb = nCr(numGenes, 2);
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
   std::set<int> droppedSamples;
 
@@ -326,6 +301,7 @@ void distribute_tasks(int rank, int size, int numGenes,
       write_output(rank, outfile, globalBestComb, geneIdArray,
                    globalResult.value);
     }
+    break;
   }
   if (rank == 0) {
     outfile.close();
