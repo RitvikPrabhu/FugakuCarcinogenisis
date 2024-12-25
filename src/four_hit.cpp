@@ -173,7 +173,6 @@ bool process_and_communicate(
 
   // Receive the next chunk index from the master
   long long int next_idx = receive_next_chunk_index(status);
-
   // Check if there are more chunks to process
   if (next_idx == -1)
     return false;
@@ -264,7 +263,6 @@ void worker_process(int rank, long long int num_Comb,
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
   long long int begin = chunk_indices.first;
   long long int end = chunk_indices.second;
-
   MPI_Status status;
   while (end <= num_Comb) {
     bool has_next = process_and_communicate(
@@ -323,7 +321,7 @@ void distribute_tasks(int rank, int size, int numGenes,
                  globalResult.value);
   }
 
-  elapsed_times[0] = master_worker_time;
-  elapsed_times[1] = all_reduce_time;
-  elapsed_times[2] = broadcast_time;
+  elapsed_times[MASTER_WORKER] = master_worker_time;
+  elapsed_times[ALL_REDUCE] = all_reduce_time;
+  elapsed_times[BCAST] = broadcast_time;
 }
