@@ -1,7 +1,7 @@
 # CMakeLists.txt
 cmake_minimum_required(VERSION 3.10)
-project(GraphSparsity)
-
+project(run)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
@@ -16,15 +16,9 @@ include_directories(include)
 
 # Find MPI
 find_package(MPI REQUIRED)
-if(MPI_FOUND)
-    include_directories(${MPI_INCLUDE_PATH})
-endif()
 
 # Find OpenMP
-find_package(OpenMP)
-if(OpenMP_CXX_FOUND)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
+find_package(OpenMP REQUIRED)
 
 # Add source files
 set(SOURCES
@@ -37,15 +31,6 @@ set(SOURCES
 add_executable(run ${SOURCES})
 
 # Link MPI libraries
-target_link_libraries(run ${MPI_LIBRARIES})
+target_link_libraries(run PUBLIC OpenMP::OpenMP_CXX MPI::MPI_CXX)
 
-# Link OpenMP if found
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(run OpenMP::OpenMP_CXX)
-endif()
-
-# Set build type to Release by default
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
 
