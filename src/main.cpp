@@ -1,11 +1,12 @@
-#include "constants.h"
-#include "four_hit.h"
-#include "utils.h"
 #include <cstring>
 #include <mpi.h>
 #include <omp.h>
 #include <set>
 #include <vector>
+
+#include "constants.h"
+#include "four_hit.h"
+#include "utils.h"
 
 int main(int argc, char *argv[]) {
 
@@ -53,8 +54,8 @@ int main(int argc, char *argv[]) {
   start_time = MPI_Wtime();
   long long int totalCount = 0;
   distribute_tasks(rank, size, numGenes, tumorData, normalData, totalCount,
-                   numTumor, numNormal, argv[3], argv[2], tumorSamples,
-                   geneIdArray, elapsed_times);
+                   numTumor, numNormal, argv[3], tumorSamples, geneIdArray,
+                   elapsed_times);
   double total_end_time = MPI_Wtime();
   elapsed_time_total = total_end_time - total_start_time;
   end_time = MPI_Wtime();

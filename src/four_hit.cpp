@@ -16,11 +16,17 @@
 // #ifdef ENABLE_TIMING
 // #endif
 
+// ############HELPER FUNCTIONS####################
 struct LambdaComputed {
   double A;
   unsigned long long int k_long;
   unsigned long long int Tz;
   int i, j, k;
+};
+
+struct MPIResult {
+  double value;
+  int rank;
 };
 
 LambdaComputed compute_lambda_variables(long long int lambda) {
@@ -55,6 +61,15 @@ std::set<int> get_intersection(const std::set<int> &set1,
   return result;
 }
 
+std::set<int>
+compute_intersection_four_sets(const std::vector<std::set<int>> &data, int i,
+                               int j, int k, int l) {
+  std::set<int> intersect1 = get_intersection(data[i], data[j]);
+  std::set<int> intersect2 = get_intersection(intersect1, data[k]);
+  std::set<int> sampleToCover = get_intersection(intersect2, data[l]);
+  return sampleToCover;
+}
+
 bool is_empty(const std::set<int> &set) { return set.empty(); }
 
 double compute_F(int TP, int TN, double alpha) { return alpha * TP + TN; }
@@ -68,6 +83,62 @@ void update_best_combination(double &globalMaxF,
     globalBestCombination = localBestCombination;
   }
 }
+
+void execute_role(int rank, int size_minus_one, long long int num_Comb,
+                  std::vector<std::set<int>> &tumorData,
+                  const std::vector<std::set<int>> &normalData, int numGenes,
+                  long long int &count, int Nt, int Nn, double &localBestMaxF,
+                  std::array<int, 4> &localComb) {
+  if (rank == 0) {
+    master_process(size_minus_one, num_Comb);
+  } else {
+    worker_process(rank, num_Comb, tumorData, normalData, numGenes, count, Nt,
+                   Nn, localBestMaxF, localComb);
+  }
+}
+
+MPIResult perform_MPI_allreduce(const MPIResult &localResult) {
+  MPIResult globalResult;
+  MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
+                MPI_COMM_WORLD);
+  return globalResult;
+}
+
+void perform_MPI_bcast(std::array<int, 4> &globalBestComb, int root_rank) {
+  MPI_Bcast(globalBestComb.data(), 4, MPI_INT, root_rank, MPI_COMM_WORLD);
+}
+
+void update_tumor_data(std::vector<std::set<int>> &tumorData,
+                       const std::set<int> &sampleToCover) {
+  for (auto &tumorSet : tumorData) {
+    for (const int sample : sampleToCover) {
+      tumorSet.erase(sample);
+    }
+  }
+}
+
+void write_output(int rank, const char *outFilename,
+                  const std::array<int, 4> &globalBestComb,
+                  const std::string *geneIdArray, double F_max) {
+  if (rank == 0) {
+    std::ofstream outfile(outFilename, std::ios::app);
+    if (!outfile) {
+      std::cerr << "Error: Could not open output file." << std::endl;
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    outfile << "(";
+    for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
+      outfile << geneIdArray[globalBestComb[idx]];
+      if (idx != globalBestComb.size() - 1) {
+        outfile << ", ";
+      }
+    }
+    outfile << ")  F-max = " << F_max << std::endl;
+    outfile.close();
+  }
+}
+
+// ############MAIN FUNCTIONS####################
 
 void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
                              const std::vector<std::set<int>> &normalData,
@@ -115,20 +186,11 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
         if (is_empty(intersectTumor3))
           continue;
 
-        const std::set<int> &gene1Normal = normalData[computed.i];
-        const std::set<int> &gene2Normal = normalData[computed.j];
-        const std::set<int> &gene3Normal = normalData[computed.k];
-        const std::set<int> &gene4Normal = normalData[l];
-
-        std::set<int> intersectNormal1 =
-            get_intersection(gene1Normal, gene2Normal);
-        std::set<int> intersectNormal2 =
-            get_intersection(gene3Normal, intersectNormal1);
-        std::set<int> intersectNormal3 =
-            get_intersection(gene4Normal, intersectNormal2);
+        std::set<int> intersectNormal = compute_intersection_four_sets(
+            normalData, computed.i, computed.j, computed.k, l);
 
         int TP = static_cast<int>(intersectTumor3.size());
-        int TN = static_cast<int>(Nn - intersectNormal3.size());
+        int TN = static_cast<int>(Nn - intersectNormal.size());
 
         double F = compute_F(TP, TN, alpha);
         if (F >= localMaxF) {
@@ -148,8 +210,8 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
 void worker_process(int rank, long long int num_Comb,
                     std::vector<std::set<int>> &tumorData,
                     const std::vector<std::set<int>> &normalData, int numGenes,
-                    long long int &count, int Nt, int Nn, const char *hit3_file,
-                    double &localBestMaxF, std::array<int, 4> &localComb) {
+                    long long int &count, int Nt, int Nn, double &localBestMaxF,
+                    std::array<int, 4> &localComb) {
 
   long long int begin = (rank - 1) * CHUNK_SIZE;
   long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
@@ -174,97 +236,52 @@ void distribute_tasks(int rank, int size, int numGenes,
                       std::vector<std::set<int>> &tumorData,
                       std::vector<std::set<int>> &normalData,
                       long long int &count, int Nt, int Nn,
-                      const char *outFilename, const char *hit3_file,
+                      const char *outFilename,
                       const std::set<int> &tumorSamples,
                       std::string *geneIdArray, double elapsed_times[]) {
 
   long long int num_Comb = nCr(numGenes, 3);
-  double start_time, end_time;
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
   std::set<int> droppedSamples;
+
   while (tumorSamples != droppedSamples) {
     std::array<int, 4> localComb = {-1, -1, -1, -1};
     double localBestMaxF = -1.0;
-    start_time = MPI_Wtime();
-    if (rank == 0) { // Master
-      master_process(size - 1, num_Comb);
-    } else { // Worker
-      worker_process(rank, num_Comb, tumorData, normalData, numGenes, count, Nt,
-                     Nn, hit3_file, localBestMaxF, localComb);
-    }
-    end_time = MPI_Wtime();
-    master_worker_time += end_time - start_time;
-    struct {
-      double value;
-      int rank;
-    } localResult, globalResult;
 
+    START_TIMING(master_worker)
+    execute_role(rank, size - 1, num_Comb, tumorData, normalData, numGenes,
+                 count, Nt, Nn, localBestMaxF, localComb);
+    END_TIMING(master_worker, master_worker_time);
+
+    MPIResult localResult;
     localResult.value = localBestMaxF;
     localResult.rank = rank;
 
-    start_time = MPI_Wtime();
-    MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
-                  MPI_COMM_WORLD);
-    end_time = MPI_Wtime();
-    all_reduce_time += end_time - start_time;
+    START_TIMING(all_reduce)
+    MPIResult globalResult = perform_MPI_allreduce(localResult);
+    END_TIMING(all_reduce, all_reduce_time);
 
-    std::array<int, 4> globalBestComb;
+    std::array<int, 4> globalBestComb = {-1, -1, -1, -1};
     if (rank == globalResult.rank) {
       globalBestComb = localComb;
     }
 
-    start_time = MPI_Wtime();
-    MPI_Bcast(globalBestComb.data(), 4, MPI_INT, globalResult.rank,
-              MPI_COMM_WORLD);
-    end_time = MPI_Wtime();
-    broadcast_time += end_time - start_time;
+    START_TIMING(broadcast)
+    perform_MPI_bcast(globalBestComb, globalResult.rank);
+    END_TIMING(broadcast, broadcast_time);
 
-    std::set<int> finalIntersect1;
-    std::set<int> finalIntersect2;
-    std::set<int> sampleToCover;
-    std::set_intersection(
-        tumorData[globalBestComb[0]].begin(),
-        tumorData[globalBestComb[0]].end(),
-        tumorData[globalBestComb[1]].begin(),
-        tumorData[globalBestComb[1]].end(),
-        std::inserter(finalIntersect1, finalIntersect1.begin()));
-    std::set_intersection(
-        finalIntersect1.begin(), finalIntersect1.end(),
-        tumorData[globalBestComb[2]].begin(),
-        tumorData[globalBestComb[2]].end(),
-        std::inserter(finalIntersect2, finalIntersect2.begin()));
-    std::set_intersection(finalIntersect2.begin(), finalIntersect2.end(),
-                          tumorData[globalBestComb[3]].begin(),
-                          tumorData[globalBestComb[3]].end(),
-                          std::inserter(sampleToCover, sampleToCover.begin()));
-
+    std::set<int> sampleToCover = compute_intersection_four_sets(
+        tumorData, globalBestComb[0], globalBestComb[1], globalBestComb[2],
+        globalBestComb[3]);
     droppedSamples.insert(sampleToCover.begin(), sampleToCover.end());
 
-    for (auto &tumorSet : tumorData) {
-      for (const int sample : sampleToCover) {
-        tumorSet.erase(sample);
-      }
-    }
+    update_tumor_data(tumorData, sampleToCover);
 
-    if (rank == 0) {
-      std::ofstream outfile(outFilename, std::ios::app);
-      if (!outfile) {
-        std::cerr << "Error: Could not open output file." << std::endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
-      }
-      outfile << "(";
-      for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
-        outfile << geneIdArray[globalBestComb[idx]];
-        if (idx != globalBestComb.size() - 1) {
-          outfile << ", ";
-        }
-      }
-      outfile << ")  F-max = " << globalResult.value << std::endl;
-      outfile.close();
-    }
+    write_output(rank, outFilename, globalBestComb, geneIdArray,
+                 globalResult.value);
   }
 
-  elapsed_times[MASTER_WORKER] = master_worker_time;
-  elapsed_times[ALL_REDUCE] = all_reduce_time;
-  elapsed_times[BCAST] = broadcast_time;
+  elapsed_times[0] = master_worker_time;
+  elapsed_times[1] = all_reduce_time;
+  elapsed_times[2] = broadcast_time;
 }
