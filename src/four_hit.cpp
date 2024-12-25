@@ -138,6 +138,55 @@ void write_output(int rank, const char *outFilename,
   }
 }
 
+void notify_master_chunk_processed(int master_rank = 0, int tag = 1) {
+  char signal = 'a';
+  MPI_Send(&signal, 1, MPI_CHAR, master_rank, tag, MPI_COMM_WORLD);
+}
+
+long long int receive_next_chunk_index(MPI_Status &status, int master_rank = 0,
+                                       int tag = 2) {
+  long long int next_idx;
+  MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, master_rank, tag, MPI_COMM_WORLD,
+           &status);
+  return next_idx;
+}
+
+std::pair<long long int, long long int>
+calculate_initial_chunk(int rank, long long int num_Comb,
+                        long long int chunk_size) {
+  long long int begin = (rank - 1) * chunk_size;
+  long long int end = std::min(begin + chunk_size, num_Comb);
+  return {begin, end};
+}
+
+bool process_and_communicate(int rank, long long int num_Comb,
+                             std::vector<std::set<int>> &tumorData,
+                             const std::vector<std::set<int>> &normalData,
+                             int numGenes, long long int &count, int Nt, int Nn,
+                             double &localBestMaxF,
+                             std::array<int, 4> &localComb,
+                             long long int &begin, long long int &end,
+                             MPI_Status &status) {
+  // Process the current chunk
+  process_lambda_interval(tumorData, normalData, begin, end, numGenes, count,
+                          localComb, Nt, Nn, localBestMaxF);
+
+  // Notify the master that the chunk has been processed
+  notify_master_chunk_processed();
+
+  // Receive the next chunk index from the master
+  long long int next_idx = receive_next_chunk_index(status);
+
+  // Check if there are more chunks to process
+  if (next_idx == -1)
+    return false;
+
+  // Update the begin and end indices for the next chunk
+  begin = next_idx;
+  end = std::min(next_idx + CHUNK_SIZE, num_Comb);
+  return true;
+}
+
 // ############MAIN FUNCTIONS####################
 
 void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
@@ -207,28 +256,25 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
     }
   }
 }
+
 void worker_process(int rank, long long int num_Comb,
                     std::vector<std::set<int>> &tumorData,
                     const std::vector<std::set<int>> &normalData, int numGenes,
                     long long int &count, int Nt, int Nn, double &localBestMaxF,
                     std::array<int, 4> &localComb) {
 
-  long long int begin = (rank - 1) * CHUNK_SIZE;
-  long long int end = std::min(begin + CHUNK_SIZE, num_Comb);
+  std::pair<long long int, long long int> chunk_indices =
+      calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
+  long long int begin = chunk_indices.first;
+  long long int end = chunk_indices.second;
+
   MPI_Status status;
   while (end <= num_Comb) {
-    process_lambda_interval(tumorData, normalData, begin, end, numGenes, count,
-                            localComb, Nt, Nn, localBestMaxF);
-    char c = 'a';
-    MPI_Send(&c, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
-
-    long long int next_idx;
-    MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, 0, 2, MPI_COMM_WORLD, &status);
-    if (next_idx == -1)
+    bool has_next = process_and_communicate(
+        rank, num_Comb, tumorData, normalData, numGenes, count, Nt, Nn,
+        localBestMaxF, localComb, begin, end, status);
+    if (!has_next)
       break;
-
-    begin = next_idx;
-    end = std::min(next_idx + CHUNK_SIZE, num_Comb);
   }
 }
 
