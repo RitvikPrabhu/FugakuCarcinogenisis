@@ -7,7 +7,7 @@
 
 long long int nCr(int n, int r);
 void write_timings_to_file(const double all_times[][6], int size,
-                           long long int totalCount, const char *filename);
+                           const char *filename);
 std::string *read_data(const char *filename, int &numGenes, int &numSamples,
                        int &numTumor, int &numNormal,
                        std::set<int> &tumorSamples,

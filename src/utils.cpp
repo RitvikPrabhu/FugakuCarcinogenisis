@@ -22,7 +22,7 @@ long long int nCr(int n, int r) {
 }
 
 void write_timings_to_file(const double all_times[][6], int size,
-                           long long int totalCount, const char *filename) {
+                           const char *filename) {
   std::ofstream timingFile(filename);
   if (!timingFile.is_open()) {
     std::cerr << "Error: Could not open file " << filename << " for writing.\n";

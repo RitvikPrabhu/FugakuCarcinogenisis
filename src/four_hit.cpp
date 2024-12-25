@@ -87,13 +87,13 @@ void update_best_combination(double &globalMaxF,
 void execute_role(int rank, int size_minus_one, long long int num_Comb,
                   std::vector<std::set<int>> &tumorData,
                   const std::vector<std::set<int>> &normalData, int numGenes,
-                  long long int &count, int Nt, int Nn, double &localBestMaxF,
+                  int Nt, int Nn, double &localBestMaxF,
                   std::array<int, 4> &localComb) {
   if (rank == 0) {
     master_process(size_minus_one, num_Comb);
   } else {
-    worker_process(rank, num_Comb, tumorData, normalData, numGenes, count, Nt,
-                   Nn, localBestMaxF, localComb);
+    worker_process(rank, num_Comb, tumorData, normalData, numGenes, Nt, Nn,
+                   localBestMaxF, localComb);
   }
 }
 
@@ -159,16 +159,13 @@ calculate_initial_chunk(int rank, long long int num_Comb,
   return {begin, end};
 }
 
-bool process_and_communicate(int rank, long long int num_Comb,
-                             std::vector<std::set<int>> &tumorData,
-                             const std::vector<std::set<int>> &normalData,
-                             int numGenes, long long int &count, int Nt, int Nn,
-                             double &localBestMaxF,
-                             std::array<int, 4> &localComb,
-                             long long int &begin, long long int &end,
-                             MPI_Status &status) {
+bool process_and_communicate(
+    int rank, long long int num_Comb, std::vector<std::set<int>> &tumorData,
+    const std::vector<std::set<int>> &normalData, int numGenes, int Nt, int Nn,
+    double &localBestMaxF, std::array<int, 4> &localComb, long long int &begin,
+    long long int &end, MPI_Status &status) {
   // Process the current chunk
-  process_lambda_interval(tumorData, normalData, begin, end, numGenes, count,
+  process_lambda_interval(tumorData, normalData, begin, end, numGenes,
                           localComb, Nt, Nn, localBestMaxF);
 
   // Notify the master that the chunk has been processed
@@ -192,7 +189,7 @@ bool process_and_communicate(int rank, long long int num_Comb,
 void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
                              const std::vector<std::set<int>> &normalData,
                              long long int startComb, long long int endComb,
-                             int totalGenes, long long int &count,
+                             int totalGenes,
                              std::array<int, 4> &bestCombination, int Nt,
                              int Nn, double &maxF) {
   const double alpha = 0.1;
@@ -260,7 +257,7 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
 void worker_process(int rank, long long int num_Comb,
                     std::vector<std::set<int>> &tumorData,
                     const std::vector<std::set<int>> &normalData, int numGenes,
-                    long long int &count, int Nt, int Nn, double &localBestMaxF,
+                    int Nt, int Nn, double &localBestMaxF,
                     std::array<int, 4> &localComb) {
 
   std::pair<long long int, long long int> chunk_indices =
@@ -271,8 +268,8 @@ void worker_process(int rank, long long int num_Comb,
   MPI_Status status;
   while (end <= num_Comb) {
     bool has_next = process_and_communicate(
-        rank, num_Comb, tumorData, normalData, numGenes, count, Nt, Nn,
-        localBestMaxF, localComb, begin, end, status);
+        rank, num_Comb, tumorData, normalData, numGenes, Nt, Nn, localBestMaxF,
+        localComb, begin, end, status);
     if (!has_next)
       break;
   }
@@ -280,8 +277,7 @@ void worker_process(int rank, long long int num_Comb,
 
 void distribute_tasks(int rank, int size, int numGenes,
                       std::vector<std::set<int>> &tumorData,
-                      std::vector<std::set<int>> &normalData,
-                      long long int &count, int Nt, int Nn,
+                      std::vector<std::set<int>> &normalData, int Nt, int Nn,
                       const char *outFilename,
                       const std::set<int> &tumorSamples,
                       std::string *geneIdArray, double elapsed_times[]) {
@@ -295,8 +291,8 @@ void distribute_tasks(int rank, int size, int numGenes,
     double localBestMaxF = -1.0;
 
     START_TIMING(master_worker)
-    execute_role(rank, size - 1, num_Comb, tumorData, normalData, numGenes,
-                 count, Nt, Nn, localBestMaxF, localComb);
+    execute_role(rank, size - 1, num_Comb, tumorData, normalData, numGenes, Nt,
+                 Nn, localBestMaxF, localComb);
     END_TIMING(master_worker, master_worker_time);
 
     MPIResult localResult;
