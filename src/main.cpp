@@ -42,7 +42,13 @@ void gather_and_write_timings(int rank, int size, double elapsed_times[],
   }
 }
 
-void finalize_mpi() { MPI_Finalize(); }
+void cleanup(unsigned long long *tumorSamples, unsigned long long **tumorData,
+             unsigned long long **normalData) {
+  delete[] tumorData;
+  delete[] normalData;
+  delete[] tumorSamples;
+  MPI_Finalize();
+}
 
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
@@ -67,9 +73,9 @@ int main(int argc, char *argv[]) {
 
   START_TIMING(loading)
   int numGenes, numSamples, numTumor, numNormal;
-  std::set<int> tumorSamples;
-  std::vector<std::set<int>> tumorData;
-  std::vector<std::set<int>> normalData;
+  unsigned long long *tumorSamples;
+  unsigned long long **tumorData = nullptr;
+  unsigned long long **normalData = nullptr;
 
   std::string *geneIdArray =
       read_data(argv[1], numGenes, numSamples, numTumor, numNormal,
@@ -78,9 +84,9 @@ int main(int argc, char *argv[]) {
 
   START_TIMING(function_execution)
 
-  distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,
-                   numNormal, prunedDataOutputFile, tumorSamples, geneIdArray,
-                   elapsed_times);
+  // distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,
+  //                  numNormal, prunedDataOutputFile, tumorSamples,
+  //                  geneIdArray, elapsed_times);
   END_TIMING(function_execution, elapsed_time_func);
 
   END_TIMING(overall_execution, elapsed_time_total);
@@ -93,7 +99,7 @@ int main(int argc, char *argv[]) {
   gather_and_write_timings(rank, size, elapsed_times, outputMetricFile);
 #endif
 
-  finalize_mpi();
+  cleanup(tumorSamples, tumorData, normalData);
 
   return 0;
 }
