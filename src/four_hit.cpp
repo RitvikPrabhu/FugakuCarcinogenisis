@@ -375,6 +375,15 @@ void distribute_tasks(int rank, int size, int numGenes,
       write_output(rank, outfile, globalBestComb, geneIdArray,
                    globalResult.value); // TODO: This also needs to be updated
     }
+    if (rank == 0) {
+      std::cout << "Dropped Samples Bitmask: ";
+      for (size_t unit = 0; unit < calculate_bit_units(Nt); ++unit) {
+        std::cout << to_binary_string(
+            droppedSamples[unit],
+            std::min(64, Nt - static_cast<int>(unit * 64)));
+      }
+      std::cout << "\n";
+    }
 
     delete[] sampleToCover[0];
     delete[] sampleToCover;

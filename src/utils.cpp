@@ -121,11 +121,6 @@ void parse_data_lines(char *buffer, int numGenes, int numTumor,
   }
 }
 
-size_t calculate_bit_units(size_t numSample) {
-  const size_t BITS_PER_UNIT = 64;
-  return (numSample + BITS_PER_UNIT - 1) / BITS_PER_UNIT;
-}
-
 // #########################MAIN###########################
 
 long long int nCr(int n, int r) {
@@ -206,4 +201,87 @@ std::string *read_data(const char *filename, int &numGenes, int &numSamples,
   delete[] file_buffer;
 
   return geneIdArray;
+}
+
+size_t calculate_bit_units(size_t numSample) {
+  const size_t BITS_PER_UNIT = 64;
+  return (numSample + BITS_PER_UNIT - 1) / BITS_PER_UNIT;
+}
+
+std::string to_binary_string(unsigned long long value, int bits = 64) {
+  std::bitset<64> bits_set(value);
+  return bits_set.to_string().substr(64 - bits);
+}
+
+unsigned long long *
+allocate_bit_array(size_t units,
+                   unsigned long long init_value = 0xFFFFFFFFFFFFFFFFULL) {
+  unsigned long long *bitArray = new unsigned long long[units];
+  for (size_t i = 0; i < units; ++i) {
+    bitArray[i] = init_value;
+  }
+  return bitArray;
+}
+
+void bitwise_and_arrays(unsigned long long *result,
+                        const unsigned long long *source, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    result[i] &= source[i];
+  }
+}
+
+unsigned long long **get_intersection(unsigned long long **data, int numSamples,
+                                      ...) {
+  size_t units = calculate_bit_units(numSamples);
+  unsigned long long **finalIntersect = new unsigned long long *[1];
+  finalIntersect[0] = allocate_bit_array(units);
+
+  va_list args;
+  va_start(args, numSamples);
+  bool isFirst = true;
+  while (true) {
+    int geneIndex = va_arg(args, int);
+    if (geneIndex == -1) {
+      break;
+    }
+
+    if (isFirst) {
+      for (size_t i = 0; i < units; ++i) {
+        finalIntersect[0][i] = data[geneIndex][i];
+      }
+      isFirst = false;
+    } else {
+      bitwise_and_arrays(finalIntersect[0], data[geneIndex], units);
+    }
+  }
+
+  va_end(args);
+  return finalIntersect;
+}
+
+bool is_empty(unsigned long long **bitArray, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    if (bitArray[0][i] != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+size_t bitCollection_size(unsigned long long **bitArray, size_t units) {
+  size_t count = 0;
+  for (size_t i = 0; i < units; ++i) {
+    count += __builtin_popcountll(bitArray[0][i]);
+  }
+  return count;
+}
+
+bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
+                  size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
 }

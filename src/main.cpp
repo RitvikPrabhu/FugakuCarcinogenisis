@@ -51,11 +51,6 @@ void cleanup(unsigned long long *tumorSamples, unsigned long long **tumorData,
   MPI_Finalize();
 }
 
-std::string to_binary_string(unsigned long long value, int bits = 64) {
-  std::bitset<64> bits_set(value);
-  return bits_set.to_string().substr(64 - bits);
-}
-
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
 
@@ -101,28 +96,6 @@ int main(int argc, char *argv[]) {
           std::min(64, numTumor - static_cast<int>(unit * 64)));
     }
     std::cout << "\n";
-
-    std::cout << "First 5 Tumor Data Rows (Bitmask):\n";
-    for (int gene = 5; gene < std::min(10, numGenes); gene++) {
-      std::cout << "Gene " << geneIdArray[gene] << ": ";
-      for (size_t unit = 0; unit < calculate_bit_units(numTumor); ++unit) {
-        std::cout << to_binary_string(
-            tumorData[gene][unit],
-            std::min(64, numTumor - static_cast<int>(unit * 64)));
-      }
-
-      std::cout << "\n";
-    }
-    std::cout << "First 5 Normal Data Rows (Bitmask):\n";
-    for (int gene = 0; gene < std::min(5, numGenes); gene++) {
-      std::cout << "Gene " << geneIdArray[gene] << ": ";
-      for (size_t unit = 0; unit < calculate_bit_units(numNormal); ++unit) {
-        std::cout << to_binary_string(
-            normalData[gene][unit],
-            std::min(64, numNormal - static_cast<int>(unit * 64)));
-      }
-      std::cout << "\n";
-    }
   }
 
   START_TIMING(function_execution)
