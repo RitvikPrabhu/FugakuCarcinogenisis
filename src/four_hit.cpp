@@ -16,12 +16,7 @@
 #include "mpi_specific.h"
 #include "utils.h"
 
-#define NUMHITS 4
 // ############HELPER FUNCTIONS####################
-struct LambdaComputed {
-  int i, j;
-};
-
 LambdaComputed compute_lambda_variables(long long int lambda, int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
@@ -150,7 +145,55 @@ void updateNt(int &Nt, unsigned long long *&sampleToCover) {
   Nt -= bitCollection_size(sampleToCover, calculate_bit_units(Nt));
 }
 
+void max_fscore_with_comb(void *in, void *inout, int *len, MPI_Datatype *type) {
+  const MPIResultWithComb *in_vals = static_cast<const MPIResultWithComb *>(in);
+  MPIResultWithComb *inout_vals = static_cast<MPIResultWithComb *>(inout);
+
+  for (int i = 0; i < *len; i++) {
+    if (in_vals[i].fscore > inout_vals[i].fscore) {
+      inout_vals[i].fscore = in_vals[i].fscore;
+      for (int j = 0; j < NUMHITS; j++) {
+        inout_vals[i].iter[j] = in_vals[i].iter[j];
+      }
+    }
+  }
+}
+
+MPI_Op create_max_fscore_with_comb_op(MPI_Datatype MPI_RESULT_WITH_COMB) {
+  MPI_Op MPI_MAX_FSCORE_WITH_COMB;
+  MPI_Op_create(&max_fscore_with_comb, 1, &MPI_MAX_FSCORE_WITH_COMB);
+  return MPI_MAX_FSCORE_WITH_COMB;
+}
+
+MPIResultWithComb
+perform_MPI_allreduce_with_comb(const MPIResultWithComb &localResult,
+                                MPI_Op MPI_MAX_FSCORE_WITH_COMB,
+                                MPI_Datatype MPI_RESULT_WITH_COMB) {
+  MPIResultWithComb globalResult;
+  MPI_Allreduce(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
+                MPI_MAX_FSCORE_WITH_COMB, MPI_COMM_WORLD);
+  return globalResult;
+}
+
 // ############MAIN FUNCTIONS####################
+
+MPI_Datatype create_mpi_result_with_comb_type() {
+  MPI_Datatype MPI_RESULT_WITH_COMB;
+
+  const int nitems = 2;
+  int blocklengths[] = {1, NUMHITS};
+  MPI_Datatype types[] = {MPI_DOUBLE, MPI_INT};
+
+  MPI_Aint offsets[nitems];
+  offsets[0] = offsetof(MPIResultWithComb, fscore);
+  offsets[1] = offsetof(MPIResultWithComb, iter);
+
+  MPI_Type_create_struct(nitems, blocklengths, offsets, types,
+                         &MPI_RESULT_WITH_COMB);
+  MPI_Type_commit(&MPI_RESULT_WITH_COMB);
+
+  return MPI_RESULT_WITH_COMB;
+}
 
 void process_lambda_interval(unsigned long long **&tumorData,
                              unsigned long long **&normalData,
@@ -242,6 +285,9 @@ void distribute_tasks(int rank, int size, int numGenes,
                       unsigned long long *&tumorSamples,
                       std::string *geneIdArray, double elapsed_times[]) {
 
+  MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
+  MPI_Op MPI_MAX_FSCORE_WITH_COMB =
+      create_max_fscore_with_comb_op(MPI_RESULT_WITH_COMB);
   long long int num_Comb = nCr(numGenes, 2);
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
   unsigned long long *droppedSamples =
@@ -262,22 +308,21 @@ void distribute_tasks(int rank, int size, int numGenes,
                  Nn, localBestMaxF, localComb);
     END_TIMING(master_worker, master_worker_time);
 
-    MPIResult localResult;
-    localResult.value = localBestMaxF;
-    localResult.rank = rank;
-
-    START_TIMING(all_reduce)
-    MPIResult globalResult = perform_MPI_allreduce(localResult);
-    END_TIMING(all_reduce, all_reduce_time);
-
-    std::array<int, NUMHITS> globalBestComb = {-1, -1, -1, -1};
-    if (rank == globalResult.rank) {
-      globalBestComb = localComb;
+    MPIResultWithComb localResult;
+    localResult.fscore = localBestMaxF;
+    for (int i = 0; i < NUMHITS; i++) {
+      localResult.iter[i] = localComb[i];
     }
 
-    START_TIMING(broadcast)
-    perform_MPI_bcast(globalBestComb, globalResult.rank);
-    END_TIMING(broadcast, broadcast_time);
+    START_TIMING(all_reduce)
+    MPIResultWithComb globalResult = perform_MPI_allreduce_with_comb(
+        localResult, MPI_MAX_FSCORE_WITH_COMB, MPI_RESULT_WITH_COMB);
+    END_TIMING(all_reduce, all_reduce_time);
+
+    std::array<int, NUMHITS> globalBestComb;
+    for (int i = 0; i < NUMHITS; i++) {
+      globalBestComb[i] = globalResult.iter[i];
+    }
 
     unsigned long long *sampleToCover =
         get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
@@ -292,7 +337,7 @@ void distribute_tasks(int rank, int size, int numGenes,
 
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,
-                   globalResult.value);
+                   globalResult.fscore);
     }
     delete[] sampleToCover;
   }
@@ -305,4 +350,6 @@ void distribute_tasks(int rank, int size, int numGenes,
   elapsed_times[BCAST] = broadcast_time;
 
   delete[] droppedSamples;
+  MPI_Op_free(&MPI_MAX_FSCORE_WITH_COMB);
+  MPI_Type_free(&MPI_RESULT_WITH_COMB);
 }

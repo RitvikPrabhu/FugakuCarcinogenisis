@@ -2,9 +2,21 @@
 #define FOUR_HIT_H
 
 #include <array>
+#include <mpi.h>
 #include <set>
 #include <string>
 #include <vector>
+
+#define NUMHITS 4
+
+struct MPIResultWithComb {
+  double fscore;
+  int iter[NUMHITS];
+};
+
+struct LambdaComputed {
+  int i, j;
+};
 
 void process_lambda_interval(unsigned long long **&tumorData,
                              unsigned long long **&normalData,
