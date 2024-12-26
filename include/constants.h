@@ -27,4 +27,9 @@ enum time_stages {
   OVERALL_TOTAL
 };
 
+struct MPIResult {
+  double value;
+  int rank;
+};
+
 #endif

@@ -230,11 +230,11 @@ void bitwise_and_arrays(unsigned long long *result,
   }
 }
 
-unsigned long long **get_intersection(unsigned long long **data, int numSamples,
-                                      ...) {
+unsigned long long *get_intersection(unsigned long long **data, int numSamples,
+                                     ...) {
   size_t units = calculate_bit_units(numSamples);
-  unsigned long long **finalIntersect = new unsigned long long *[1];
-  finalIntersect[0] = allocate_bit_array(units);
+  unsigned long long *finalIntersect =
+      allocate_bit_array(units); // Allocate single pointer
 
   va_list args;
   va_start(args, numSamples);
@@ -247,31 +247,30 @@ unsigned long long **get_intersection(unsigned long long **data, int numSamples,
 
     if (isFirst) {
       for (size_t i = 0; i < units; ++i) {
-        finalIntersect[0][i] = data[geneIndex][i];
+        finalIntersect[i] = data[geneIndex][i];
       }
       isFirst = false;
     } else {
-      bitwise_and_arrays(finalIntersect[0], data[geneIndex], units);
+      bitwise_and_arrays(finalIntersect, data[geneIndex], units);
     }
   }
-
   va_end(args);
-  return finalIntersect;
+  return finalIntersect; // Return single pointer
 }
 
-bool is_empty(unsigned long long **bitArray, size_t units) {
+bool is_empty(unsigned long long *bitArray, size_t units) {
   for (size_t i = 0; i < units; ++i) {
-    if (bitArray[0][i] != 0) {
+    if (bitArray[i] != 0) {
       return false;
     }
   }
   return true;
 }
 
-size_t bitCollection_size(unsigned long long **bitArray, size_t units) {
+size_t bitCollection_size(unsigned long long *bitArray, size_t units) {
   size_t count = 0;
   for (size_t i = 0; i < units; ++i) {
-    count += __builtin_popcountll(bitArray[0][i]);
+    count += __builtin_popcountll(bitArray[i]);
   }
   return count;
 }
@@ -285,3 +284,5 @@ bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
   }
   return true;
 }
+
+double compute_F(int TP, int TN, double alpha) { return alpha * TP + TN; }

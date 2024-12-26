@@ -53,3 +53,10 @@ void master_process(int num_workers, long long int num_Comb) {
   distribute_work(num_workers, num_Comb, next_idx);
   send_termination_signals(num_workers);
 }
+
+MPIResult perform_MPI_allreduce(const MPIResult &localResult) {
+  MPIResult globalResult;
+  MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
+                MPI_COMM_WORLD);
+  return globalResult;
+}

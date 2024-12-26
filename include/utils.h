@@ -20,10 +20,11 @@ unsigned long long *allocate_bit_array(size_t units,
                                        unsigned long long init_value);
 void bitwise_and_arrays(unsigned long long *result,
                         const unsigned long long *source, size_t units);
-unsigned long long **get_intersection(unsigned long long **data, int numSamples,
-                                      ...);
-bool is_empty(unsigned long long **bitArray, size_t units);
-size_t bitCollection_size(unsigned long long **bitArray, size_t units);
+unsigned long long *get_intersection(unsigned long long **data, int numSamples,
+                                     ...);
+bool is_empty(unsigned long long *bitArray, size_t units);
+size_t bitCollection_size(unsigned long long *bitArray, size_t units);
 bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
                   size_t units);
+double compute_F(int TP, int TN, double alpha);
 #endif

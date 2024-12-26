@@ -22,11 +22,6 @@ struct LambdaComputed {
   int i, j;
 };
 
-struct MPIResult {
-  double value;
-  int rank;
-};
-
 LambdaComputed compute_lambda_variables(long long int lambda, int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
@@ -37,71 +32,6 @@ LambdaComputed compute_lambda_variables(long long int lambda, int totalGenes) {
   computed.i = lambda - (computed.j * (computed.j - 1)) / 2;
   return computed;
 }
-
-unsigned long long *
-allocate_bit_array(size_t units,
-                   unsigned long long init_value = 0xFFFFFFFFFFFFFFFFULL) {
-  unsigned long long *bitArray = new unsigned long long[units];
-  for (size_t i = 0; i < units; ++i) {
-    bitArray[i] = init_value;
-  }
-  return bitArray;
-}
-
-void bitwise_and_arrays(unsigned long long *result,
-                        const unsigned long long *source, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    result[i] &= source[i];
-  }
-}
-
-unsigned long long **get_intersection(unsigned long long **data, int numSamples,
-                                      ...) {
-  size_t units = calculate_bit_units(numSamples);
-  unsigned long long **finalIntersect = new unsigned long long *[1];
-  finalIntersect[0] = allocate_bit_array(units);
-
-  va_list args;
-  va_start(args, numSamples);
-  bool isFirst = true;
-  while (true) {
-    int geneIndex = va_arg(args, int);
-    if (geneIndex == -1) {
-      break;
-    }
-
-    if (isFirst) {
-      for (size_t i = 0; i < units; ++i) {
-        finalIntersect[0][i] = data[geneIndex][i];
-      }
-      isFirst = false;
-    } else {
-      bitwise_and_arrays(finalIntersect[0], data[geneIndex], units);
-    }
-  }
-
-  va_end(args);
-  return finalIntersect;
-}
-
-bool is_empty(unsigned long long **bitArray, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    if (bitArray[0][i] != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-size_t bitCollection_size(unsigned long long **bitArray, size_t units) {
-  size_t count = 0;
-  for (size_t i = 0; i < units; ++i) {
-    count += __builtin_popcountll(bitArray[0][i]);
-  }
-  return count;
-}
-
-double compute_F(int TP, int TN, double alpha) { return alpha * TP + TN; }
 
 void update_best_combination(
     double &globalMaxF, std::array<int, NUMHITS> &globalBestCombination,
@@ -125,22 +55,18 @@ void execute_role(int rank, int size_minus_one, long long int num_Comb,
   }
 }
 
-MPIResult perform_MPI_allreduce(const MPIResult &localResult) {
-  MPIResult globalResult;
-  MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
-                MPI_COMM_WORLD);
-  return globalResult;
-}
-
 void perform_MPI_bcast(std::array<int, NUMHITS> &globalBestComb,
                        int root_rank) {
   MPI_Bcast(globalBestComb.data(), NUMHITS, MPI_INT, root_rank, MPI_COMM_WORLD);
 }
 
 void update_tumor_data(unsigned long long **&tumorData,
-                       unsigned long long **sampleToCover, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    tumorData[0][i] &= ~sampleToCover[0][i];
+                       unsigned long long *sampleToCover, size_t units,
+                       int numGenes) {
+  for (int gene = 0; gene < numGenes; ++gene) {
+    for (size_t i = 0; i < units; ++i) {
+      tumorData[gene][i] &= ~sampleToCover[i];
+    }
   }
 }
 
@@ -193,29 +119,24 @@ bool process_and_communicate(int rank, long long int num_Comb,
                              std::array<int, NUMHITS> &localComb,
                              long long int &begin, long long int &end,
                              MPI_Status &status) {
-  // Process the current chunk
+
   process_lambda_interval(tumorData, normalData, begin, end, numGenes,
                           localComb, Nt, Nn, localBestMaxF);
-
-  // Notify the master that the chunk has been processed
   notify_master_chunk_processed();
-
-  // Receive the next chunk index from the master
   long long int next_idx = receive_next_chunk_index(status);
-  // Check if there are more chunks to process
+
   if (next_idx == -1)
     return false;
 
-  // Update the begin and end indices for the next chunk
   begin = next_idx;
   end = std::min(next_idx + CHUNK_SIZE, num_Comb);
   return true;
 }
 
 void update_dropped_samples(unsigned long long *&droppedSamples,
-                            unsigned long long **sampleToCover, size_t units) {
+                            unsigned long long *sampleToCover, size_t units) {
   for (size_t i = 0; i < units; ++i) {
-    droppedSamples[0] |= sampleToCover[0][i];
+    droppedSamples[i] |= sampleToCover[i];
   }
 }
 
@@ -223,16 +144,6 @@ unsigned long long *initialize_dropped_samples(size_t units) {
   unsigned long long *droppedSamples = new unsigned long long[units];
   memset(droppedSamples, 0, units * sizeof(unsigned long long));
   return droppedSamples;
-}
-
-bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
-                  size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    if (a[i] != b[i]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 // ############MAIN FUNCTIONS####################
@@ -256,27 +167,27 @@ void process_lambda_interval(unsigned long long **&tumorData,
       if (computed.j == -1)
         continue;
 
-      unsigned long long **intersectTumor1 =
+      unsigned long long *intersectTumor1 =
           get_intersection(tumorData, Nt, computed.i, computed.j, -1);
 
       if (is_empty(intersectTumor1, calculate_bit_units(Nt)))
         continue;
 
       for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-        unsigned long long **intersectTumor2 =
+        unsigned long long *intersectTumor2 =
             get_intersection(tumorData, Nt, computed.i, computed.j, k, -1);
 
         if (is_empty(intersectTumor2, calculate_bit_units(Nt)))
           continue;
 
         for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-          unsigned long long **intersectTumor3 =
+          unsigned long long *intersectTumor3 =
               get_intersection(tumorData, Nt, computed.i, computed.j, k, l, -1);
 
           if (is_empty(intersectTumor3, calculate_bit_units(Nt)))
             continue;
 
-          unsigned long long **intersectNormal =
+          unsigned long long *intersectNormal =
               get_intersection(tumorData, Nn, computed.i, computed.j, k, l, -1);
 
           int TP = bitCollection_size(intersectTumor3, calculate_bit_units(Nt));
@@ -364,16 +275,18 @@ void distribute_tasks(int rank, int size, int numGenes,
     perform_MPI_bcast(globalBestComb, globalResult.rank);
     END_TIMING(broadcast, broadcast_time);
 
-    unsigned long long **sampleToCover =
+    unsigned long long *sampleToCover =
         get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
                          globalBestComb[2], globalBestComb[3], -1);
+
     update_dropped_samples(droppedSamples, sampleToCover,
                            calculate_bit_units(Nt));
 
-    update_tumor_data(tumorData, sampleToCover, calculate_bit_units(Nt));
+    update_tumor_data(tumorData, sampleToCover, calculate_bit_units(Nt),
+                      numGenes);
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,
-                   globalResult.value); // TODO: This also needs to be updated
+                   globalResult.value);
     }
     if (rank == 0) {
       std::cout << "Dropped Samples Bitmask: ";
@@ -385,7 +298,6 @@ void distribute_tasks(int rank, int size, int numGenes,
       std::cout << "\n";
     }
 
-    delete[] sampleToCover[0];
     delete[] sampleToCover;
   }
   if (rank == 0) {
