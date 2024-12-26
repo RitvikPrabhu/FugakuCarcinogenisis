@@ -6,17 +6,17 @@
 #include <string>
 #include <vector>
 
-void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
-                             const std::vector<std::set<int>> &normalData,
+void process_lambda_interval(unsigned long long **&tumorData,
+                             unsigned long long **&normalData,
                              long long int startComb, long long int endComb,
                              int totalGenes,
                              std::array<int, 4> &bestCombination, int Nt,
                              int Nn, double &maxF);
 
 void worker_process(int rank, long long int num_Comb,
-                    std::vector<std::set<int>> &tumorData,
-                    const std::vector<std::set<int>> &normalData, int numGenes,
-                    int Nt, int Nn, double &localBestMaxF,
+                    unsigned long long **&tumorData,
+                    unsigned long long **&normalData, int numGenes, int Nt,
+                    int Nn, double &localBestMaxF,
                     std::array<int, 4> &localComb);
 
 void distribute_tasks(int rank, int size, int numGenes,
