@@ -1,3 +1,4 @@
+#include <bitset>
 #include <cstring>
 #include <iostream>
 #include <mpi.h>
@@ -50,6 +51,11 @@ void cleanup(unsigned long long *tumorSamples, unsigned long long **tumorData,
   MPI_Finalize();
 }
 
+std::string to_binary_string(unsigned long long value, int bits = 64) {
+  std::bitset<64> bits_set(value);
+  return bits_set.to_string().substr(64 - bits);
+}
+
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
 
@@ -81,6 +87,55 @@ int main(int argc, char *argv[]) {
       read_data(argv[1], numGenes, numSamples, numTumor, numNormal,
                 tumorSamples, tumorData, normalData, rank);
   END_TIMING(loading, elapsed_time_loading);
+
+  if (rank == 0) {
+    std::cout << "Number of Genes: " << numGenes << "\n";
+    std::cout << "Number of Samples: " << numSamples << "\n";
+    std::cout << "Number of Tumor Samples: " << numTumor << "\n";
+    std::cout << "Number of Normal Samples: " << numNormal << "\n";
+
+    if (tumorSamples) {
+      std::cout << "Tumor Samples Bitmask: ";
+      for (size_t unit = 0; unit < calculate_bit_units(numTumor); ++unit) {
+        std::cout << to_binary_string(
+            tumorSamples[unit],
+            std::min(64, numTumor - static_cast<int>(unit * 64)));
+      }
+      std::cout << "\n";
+    } else {
+      std::cout << "Tumor Samples not loaded.\n";
+    }
+
+    if (tumorData) {
+      std::cout << "First 5 Tumor Data Rows (Bitmask):\n";
+      for (int gene = 0; gene < std::min(5, numGenes); gene++) {
+        std::cout << "Gene " << geneIdArray[gene] << ": ";
+        for (size_t unit = 0; unit < calculate_bit_units(numTumor); ++unit) {
+          std::cout << to_binary_string(
+              tumorData[gene][unit],
+              std::min(64, numTumor - static_cast<int>(unit * 64)));
+        }
+        std::cout << "\n";
+      }
+    } else {
+      std::cout << "Tumor Data not loaded.\n";
+    }
+
+    if (normalData) {
+      std::cout << "First 5 Normal Data Rows (Bitmask):\n";
+      for (int gene = 0; gene < std::min(5, numGenes); gene++) {
+        std::cout << "Gene " << geneIdArray[gene] << ": ";
+        for (size_t unit = 0; unit < calculate_bit_units(numNormal); ++unit) {
+          std::cout << to_binary_string(
+              normalData[gene][unit],
+              std::min(64, numNormal - static_cast<int>(unit * 64)));
+        }
+        std::cout << "\n";
+      }
+    } else {
+      std::cout << "Normal Data not loaded.\n";
+    }
+  }
 
   START_TIMING(function_execution)
 

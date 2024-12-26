@@ -137,12 +137,10 @@ void perform_MPI_bcast(std::array<int, NUMHITS> &globalBestComb,
   MPI_Bcast(globalBestComb.data(), NUMHITS, MPI_INT, root_rank, MPI_COMM_WORLD);
 }
 
-void update_tumor_data(std::vector<std::set<int>> &tumorData,
-                       const std::set<int> &sampleToCover) {
-  for (auto &tumorSet : tumorData) {
-    for (const int sample : sampleToCover) {
-      tumorSet.erase(sample);
-    }
+void update_tumor_data(unsigned long long **&tumorData,
+                       unsigned long long **sampleToCover, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    tumorData[0][i] &= ~sampleToCover[0][i];
   }
 }
 
@@ -259,27 +257,27 @@ void process_lambda_interval(unsigned long long **&tumorData,
         continue;
 
       unsigned long long **intersectTumor1 =
-          get_intersection(tumorData, Nt, computed.i, computed.j);
+          get_intersection(tumorData, Nt, computed.i, computed.j, -1);
 
       if (is_empty(intersectTumor1, calculate_bit_units(Nt)))
         continue;
 
       for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
         unsigned long long **intersectTumor2 =
-            get_intersection(tumorData, Nt, computed.i, computed.j, k);
+            get_intersection(tumorData, Nt, computed.i, computed.j, k, -1);
 
         if (is_empty(intersectTumor2, calculate_bit_units(Nt)))
           continue;
 
         for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
           unsigned long long **intersectTumor3 =
-              get_intersection(tumorData, Nt, computed.i, computed.j, k, l);
+              get_intersection(tumorData, Nt, computed.i, computed.j, k, l, -1);
 
           if (is_empty(intersectTumor3, calculate_bit_units(Nt)))
             continue;
 
           unsigned long long **intersectNormal =
-              get_intersection(tumorData, Nn, computed.i, computed.j, k, l);
+              get_intersection(tumorData, Nn, computed.i, computed.j, k, l, -1);
 
           int TP = bitCollection_size(intersectTumor3, calculate_bit_units(Nt));
           int TN =
@@ -368,11 +366,11 @@ void distribute_tasks(int rank, int size, int numGenes,
 
     unsigned long long **sampleToCover =
         get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
-                         globalBestComb[2], globalBestComb[3]);
+                         globalBestComb[2], globalBestComb[3], -1);
     update_dropped_samples(droppedSamples, sampleToCover,
                            calculate_bit_units(Nt));
 
-    // update_tumor_data(tumorData, sampleToCover);
+    update_tumor_data(tumorData, sampleToCover, calculate_bit_units(Nt));
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,
                    globalResult.value); // TODO: This also needs to be updated
