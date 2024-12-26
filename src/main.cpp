@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
   START_TIMING(loading)
   int numGenes, numSamples, numTumor, numNormal;
-  unsigned long long *tumorSamples;
+  unsigned long long *tumorSamples = nullptr;
   unsigned long long **tumorData = nullptr;
   unsigned long long **normalData = nullptr;
 
@@ -84,9 +84,9 @@ int main(int argc, char *argv[]) {
 
   START_TIMING(function_execution)
 
-  // distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,
-  //                  numNormal, prunedDataOutputFile, tumorSamples,
-  //                  geneIdArray, elapsed_times);
+  distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,
+                   numNormal, prunedDataOutputFile, tumorSamples, geneIdArray,
+                   elapsed_times);
   END_TIMING(function_execution, elapsed_time_func);
 
   END_TIMING(overall_execution, elapsed_time_total);

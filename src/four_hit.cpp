@@ -2,6 +2,8 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <cstdarg>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <mpi.h>
@@ -36,20 +38,49 @@ LambdaComputed compute_lambda_variables(long long int lambda, int totalGenes) {
   return computed;
 }
 
-std::set<int> get_intersection(const std::set<int> &set1,
-                               const std::set<int> &set2) {
-  std::set<int> result;
-  std::set_intersection(set1.begin(), set1.end(), set2.begin(), set2.end(),
-                        std::inserter(result, result.begin()));
-  return result;
+unsigned long long *
+allocate_bit_array(size_t units,
+                   unsigned long long init_value = 0xFFFFFFFFFFFFFFFFULL) {
+  unsigned long long *bitArray = new unsigned long long[units];
+  for (size_t i = 0; i < units; ++i) {
+    bitArray[i] = init_value;
+  }
+  return bitArray;
 }
 
-std::set<int>
-compute_intersection_four_sets(const std::vector<std::set<int>> &data, int i,
-                               int j, int k, int l) {
-  std::set<int> intersect1 = get_intersection(data[i], data[j]);
-  std::set<int> intersect2 = get_intersection(intersect1, data[k]);
-  std::set<int> finalIntersect = get_intersection(intersect2, data[l]);
+void bitwise_and_arrays(unsigned long long *result,
+                        const unsigned long long *source, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    result[i] &= source[i];
+  }
+}
+
+unsigned long long **get_intersection(unsigned long long **data, int numSamples,
+                                      ...) {
+  size_t units = calculate_bit_units(numSamples);
+  unsigned long long **finalIntersect = new unsigned long long *[1];
+  finalIntersect[0] = allocate_bit_array(units);
+
+  va_list args;
+  va_start(args, numSamples);
+  bool isFirst = true;
+  while (true) {
+    int geneIndex = va_arg(args, int);
+    if (geneIndex == -1) {
+      break;
+    }
+
+    if (isFirst) {
+      for (size_t i = 0; i < units; ++i) {
+        finalIntersect[0][i] = data[geneIndex][i];
+      }
+      isFirst = false;
+    } else {
+      bitwise_and_arrays(finalIntersect[0], data[geneIndex], units);
+    }
+  }
+
+  va_end(args);
   return finalIntersect;
 }
 
@@ -166,8 +197,31 @@ bool process_and_communicate(
   return true;
 }
 
-// ############MAIN FUNCTIONS####################
+void update_dropped_samples(unsigned long long *&droppedSamples,
+                            unsigned long long **sampleToCover, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    droppedSamples[0] |= sampleToCover[0][i];
+  }
+}
 
+unsigned long long *initialize_dropped_samples(size_t units) {
+  unsigned long long *droppedSamples = new unsigned long long[units];
+  memset(droppedSamples, 0, units * sizeof(unsigned long long));
+  return droppedSamples;
+}
+
+bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
+                  size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// ############MAIN FUNCTIONS####################
+/*
 void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
                              const std::vector<std::set<int>> &normalData,
                              long long int startComb, long long int endComb,
@@ -251,18 +305,19 @@ void worker_process(int rank, long long int num_Comb,
     if (!has_next)
       break;
   }
-}
+}*/
 
 void distribute_tasks(int rank, int size, int numGenes,
-                      std::vector<std::set<int>> &tumorData,
-                      std::vector<std::set<int>> &normalData, int Nt, int Nn,
+                      unsigned long long **&tumorData,
+                      unsigned long long **&normalData, int Nt, int Nn,
                       const char *outFilename,
-                      const std::set<int> &tumorSamples,
+                      unsigned long long *&tumorSamples,
                       std::string *geneIdArray, double elapsed_times[]) {
 
   long long int num_Comb = nCr(numGenes, 2);
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
-  std::set<int> droppedSamples;
+  unsigned long long *droppedSamples =
+      initialize_dropped_samples(calculate_bit_units(Nt));
 
   std::ofstream outfile;
   if (rank == 0) {
@@ -270,13 +325,14 @@ void distribute_tasks(int rank, int size, int numGenes,
     outputFileWriteError(outfile);
   }
 
-  while (tumorSamples != droppedSamples) {
+  while (!arrays_equal(tumorSamples, droppedSamples, calculate_bit_units(Nt))) {
     std::array<int, NUMHITS> localComb = {-1, -1, -1, -1};
     double localBestMaxF = -1.0;
 
     START_TIMING(master_worker)
-    execute_role(rank, size - 1, num_Comb, tumorData, normalData, numGenes, Nt,
-                 Nn, localBestMaxF, localComb);
+    // execute_role(rank, size - 1, num_Comb, tumorData, normalData, numGenes,
+    // Nt,
+    //              Nn, localBestMaxF, localComb);
     END_TIMING(master_worker, master_worker_time);
 
     MPIResult localResult;
@@ -296,16 +352,20 @@ void distribute_tasks(int rank, int size, int numGenes,
     perform_MPI_bcast(globalBestComb, globalResult.rank);
     END_TIMING(broadcast, broadcast_time);
 
-    std::set<int> sampleToCover = compute_intersection_four_sets(
-        tumorData, globalBestComb[0], globalBestComb[1], globalBestComb[2],
-        globalBestComb[3]);
-    droppedSamples.insert(sampleToCover.begin(), sampleToCover.end());
+    unsigned long long **sampleToCover =
+        get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
+                         globalBestComb[2], globalBestComb[3]);
+    update_dropped_samples(droppedSamples, sampleToCover,
+                           calculate_bit_units(Nt));
 
-    update_tumor_data(tumorData, sampleToCover);
+    // update_tumor_data(tumorData, sampleToCover);
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,
                    globalResult.value);
     }
+
+    delete[] sampleToCover[0];
+    delete[] sampleToCover;
   }
   if (rank == 0) {
     outfile.close();
@@ -314,4 +374,6 @@ void distribute_tasks(int rank, int size, int numGenes,
   elapsed_times[MASTER_WORKER] = master_worker_time;
   elapsed_times[ALL_REDUCE] = all_reduce_time;
   elapsed_times[BCAST] = broadcast_time;
+
+  delete[] droppedSamples;
 }

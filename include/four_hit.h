@@ -20,10 +20,10 @@ void worker_process(int rank, long long int num_Comb,
                     std::array<int, 4> &localComb);
 
 void distribute_tasks(int rank, int size, int numGenes,
-                      std::vector<std::set<int>> &tumorData,
-                      std::vector<std::set<int>> &normalData, int Nt, int Nn,
+                      unsigned long long **&tumorData,
+                      unsigned long long **&normalData, int Nt, int Nn,
                       const char *outFilename,
-                      const std::set<int> &tumorSamples,
+                      unsigned long long *&tumorSamples,
                       std::string *geneIdArray, double elapsed_times[]);
 
 #endif
