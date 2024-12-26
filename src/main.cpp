@@ -94,46 +94,34 @@ int main(int argc, char *argv[]) {
     std::cout << "Number of Tumor Samples: " << numTumor << "\n";
     std::cout << "Number of Normal Samples: " << numNormal << "\n";
 
-    if (tumorSamples) {
-      std::cout << "Tumor Samples Bitmask: ";
+    std::cout << "Tumor Samples Bitmask: ";
+    for (size_t unit = 0; unit < calculate_bit_units(numTumor); ++unit) {
+      std::cout << to_binary_string(
+          tumorSamples[unit],
+          std::min(64, numTumor - static_cast<int>(unit * 64)));
+    }
+    std::cout << "\n";
+
+    std::cout << "First 5 Tumor Data Rows (Bitmask):\n";
+    for (int gene = 5; gene < std::min(10, numGenes); gene++) {
+      std::cout << "Gene " << geneIdArray[gene] << ": ";
       for (size_t unit = 0; unit < calculate_bit_units(numTumor); ++unit) {
         std::cout << to_binary_string(
-            tumorSamples[unit],
+            tumorData[gene][unit],
             std::min(64, numTumor - static_cast<int>(unit * 64)));
       }
+
       std::cout << "\n";
-    } else {
-      std::cout << "Tumor Samples not loaded.\n";
     }
-
-    if (tumorData) {
-      std::cout << "First 5 Tumor Data Rows (Bitmask):\n";
-      for (int gene = 0; gene < std::min(5, numGenes); gene++) {
-        std::cout << "Gene " << geneIdArray[gene] << ": ";
-        for (size_t unit = 0; unit < calculate_bit_units(numTumor); ++unit) {
-          std::cout << to_binary_string(
-              tumorData[gene][unit],
-              std::min(64, numTumor - static_cast<int>(unit * 64)));
-        }
-        std::cout << "\n";
+    std::cout << "First 5 Normal Data Rows (Bitmask):\n";
+    for (int gene = 0; gene < std::min(5, numGenes); gene++) {
+      std::cout << "Gene " << geneIdArray[gene] << ": ";
+      for (size_t unit = 0; unit < calculate_bit_units(numNormal); ++unit) {
+        std::cout << to_binary_string(
+            normalData[gene][unit],
+            std::min(64, numNormal - static_cast<int>(unit * 64)));
       }
-    } else {
-      std::cout << "Tumor Data not loaded.\n";
-    }
-
-    if (normalData) {
-      std::cout << "First 5 Normal Data Rows (Bitmask):\n";
-      for (int gene = 0; gene < std::min(5, numGenes); gene++) {
-        std::cout << "Gene " << geneIdArray[gene] << ": ";
-        for (size_t unit = 0; unit < calculate_bit_units(numNormal); ++unit) {
-          std::cout << to_binary_string(
-              normalData[gene][unit],
-              std::min(64, numNormal - static_cast<int>(unit * 64)));
-        }
-        std::cout << "\n";
-      }
-    } else {
-      std::cout << "Normal Data not loaded.\n";
+      std::cout << "\n";
     }
   }
 

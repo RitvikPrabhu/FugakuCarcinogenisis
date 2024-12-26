@@ -103,26 +103,27 @@ void parse_data_lines(char *buffer, int numGenes, int numTumor,
     }
 
     geneIdArray[gene] = geneId;
-
-    if (sample < numTumor) {
-      size_t unit = sample / 64;
-      size_t bit = sample % 64;
-      sparseTumorData[gene][unit] |= (1ULL << bit);
-      tumorSamples[unit] |= (1ULL << bit);
-    } else {
-      size_t normalSample = sample - numTumor;
-      size_t unit = normalSample / 64;
-      size_t bit = normalSample % 64;
-      sparseNormalData[gene][unit] |= (1ULL << bit);
+    if (val > 0) {
+      if (sample < numTumor) {
+        size_t unit = sample / 64;
+        size_t bit = sample % 64;
+        sparseTumorData[gene][unit] |= (1ULL << bit);
+        tumorSamples[unit] |= (1ULL << bit);
+      } else {
+        size_t normalSample = sample - numTumor;
+        size_t unit = normalSample / 64;
+        size_t bit = normalSample % 64;
+        sparseNormalData[gene][unit] |= (1ULL << bit);
+      }
     }
 
     line = strtok(NULL, "\n");
   }
 }
 
-size_t calculate_bit_units(size_t numGenes) {
+size_t calculate_bit_units(size_t numSample) {
   const size_t BITS_PER_UNIT = 64;
-  return (numGenes + BITS_PER_UNIT - 1) / BITS_PER_UNIT;
+  return (numSample + BITS_PER_UNIT - 1) / BITS_PER_UNIT;
 }
 
 // #########################MAIN###########################
