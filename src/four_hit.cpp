@@ -2,6 +2,8 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <cstdarg>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <mpi.h>
@@ -20,11 +22,6 @@ struct LambdaComputed {
   int i, j;
 };
 
-struct MPIResult {
-  double value;
-  int rank;
-};
-
 LambdaComputed compute_lambda_variables(long long int lambda, int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
@@ -36,27 +33,6 @@ LambdaComputed compute_lambda_variables(long long int lambda, int totalGenes) {
   return computed;
 }
 
-std::set<int> get_intersection(const std::set<int> &set1,
-                               const std::set<int> &set2) {
-  std::set<int> result;
-  std::set_intersection(set1.begin(), set1.end(), set2.begin(), set2.end(),
-                        std::inserter(result, result.begin()));
-  return result;
-}
-
-std::set<int>
-compute_intersection_four_sets(const std::vector<std::set<int>> &data, int i,
-                               int j, int k, int l) {
-  std::set<int> intersect1 = get_intersection(data[i], data[j]);
-  std::set<int> intersect2 = get_intersection(intersect1, data[k]);
-  std::set<int> finalIntersect = get_intersection(intersect2, data[l]);
-  return finalIntersect;
-}
-
-bool is_empty(const std::set<int> &set) { return set.empty(); }
-
-double compute_F(int TP, int TN, double alpha) { return alpha * TP + TN; }
-
 void update_best_combination(
     double &globalMaxF, std::array<int, NUMHITS> &globalBestCombination,
     double localMaxF, const std::array<int, NUMHITS> &localBestCombination) {
@@ -67,9 +43,9 @@ void update_best_combination(
 }
 
 void execute_role(int rank, int size_minus_one, long long int num_Comb,
-                  std::vector<std::set<int>> &tumorData,
-                  const std::vector<std::set<int>> &normalData, int numGenes,
-                  int Nt, int Nn, double &localBestMaxF,
+                  unsigned long long **&tumorData,
+                  unsigned long long **&normalData, int numGenes, int Nt,
+                  int Nn, double &localBestMaxF,
                   std::array<int, NUMHITS> &localComb) {
   if (rank == 0) {
     master_process(size_minus_one, num_Comb);
@@ -79,23 +55,17 @@ void execute_role(int rank, int size_minus_one, long long int num_Comb,
   }
 }
 
-MPIResult perform_MPI_allreduce(const MPIResult &localResult) {
-  MPIResult globalResult;
-  MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
-                MPI_COMM_WORLD);
-  return globalResult;
-}
-
 void perform_MPI_bcast(std::array<int, NUMHITS> &globalBestComb,
                        int root_rank) {
   MPI_Bcast(globalBestComb.data(), NUMHITS, MPI_INT, root_rank, MPI_COMM_WORLD);
 }
 
-void update_tumor_data(std::vector<std::set<int>> &tumorData,
-                       const std::set<int> &sampleToCover) {
-  for (auto &tumorSet : tumorData) {
-    for (const int sample : sampleToCover) {
-      tumorSet.erase(sample);
+void update_tumor_data(unsigned long long **&tumorData,
+                       unsigned long long *sampleToCover, size_t units,
+                       int numGenes) {
+  for (int gene = 0; gene < numGenes; ++gene) {
+    for (size_t i = 0; i < units; ++i) {
+      tumorData[gene][i] &= ~sampleToCover[i];
     }
   }
 }
@@ -142,34 +112,44 @@ calculate_initial_chunk(int rank, long long int num_Comb,
   return {begin, end};
 }
 
-bool process_and_communicate(
-    int rank, long long int num_Comb, std::vector<std::set<int>> &tumorData,
-    const std::vector<std::set<int>> &normalData, int numGenes, int Nt, int Nn,
-    double &localBestMaxF, std::array<int, NUMHITS> &localComb,
-    long long int &begin, long long int &end, MPI_Status &status) {
-  // Process the current chunk
+bool process_and_communicate(int rank, long long int num_Comb,
+                             unsigned long long **&tumorData,
+                             unsigned long long **&normalData, int numGenes,
+                             int Nt, int Nn, double &localBestMaxF,
+                             std::array<int, NUMHITS> &localComb,
+                             long long int &begin, long long int &end,
+                             MPI_Status &status) {
+
   process_lambda_interval(tumorData, normalData, begin, end, numGenes,
                           localComb, Nt, Nn, localBestMaxF);
-
-  // Notify the master that the chunk has been processed
   notify_master_chunk_processed();
-
-  // Receive the next chunk index from the master
   long long int next_idx = receive_next_chunk_index(status);
-  // Check if there are more chunks to process
+
   if (next_idx == -1)
     return false;
 
-  // Update the begin and end indices for the next chunk
   begin = next_idx;
   end = std::min(next_idx + CHUNK_SIZE, num_Comb);
   return true;
 }
 
+void update_dropped_samples(unsigned long long *&droppedSamples,
+                            unsigned long long *sampleToCover, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    droppedSamples[i] |= sampleToCover[i];
+  }
+}
+
+unsigned long long *initialize_dropped_samples(size_t units) {
+  unsigned long long *droppedSamples = new unsigned long long[units];
+  memset(droppedSamples, 0, units * sizeof(unsigned long long));
+  return droppedSamples;
+}
+
 // ############MAIN FUNCTIONS####################
 
-void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
-                             const std::vector<std::set<int>> &normalData,
+void process_lambda_interval(unsigned long long **&tumorData,
+                             unsigned long long **&normalData,
                              long long int startComb, long long int endComb,
                              int totalGenes,
                              std::array<int, NUMHITS> &bestCombination, int Nt,
@@ -187,34 +167,32 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
       if (computed.j == -1)
         continue;
 
-      const std::set<int> &gene1Tumor = tumorData[computed.i];
-      const std::set<int> &gene2Tumor = tumorData[computed.j];
-      std::set<int> intersectTumor1 = get_intersection(gene1Tumor, gene2Tumor);
+      unsigned long long *intersectTumor1 =
+          get_intersection(tumorData, Nt, computed.i, computed.j, -1);
 
-      if (is_empty(intersectTumor1))
+      if (is_empty(intersectTumor1, calculate_bit_units(Nt)))
         continue;
 
       for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-        const std::set<int> &gene3Tumor = tumorData[k];
-        std::set<int> intersectTumor2 =
-            get_intersection(gene3Tumor, intersectTumor1);
+        unsigned long long *intersectTumor2 =
+            get_intersection(tumorData, Nt, computed.i, computed.j, k, -1);
 
-        if (is_empty(intersectTumor2))
+        if (is_empty(intersectTumor2, calculate_bit_units(Nt)))
           continue;
 
         for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-          const std::set<int> &gene4Tumor = tumorData[l];
-          std::set<int> intersectTumor3 =
-              get_intersection(gene4Tumor, intersectTumor2);
+          unsigned long long *intersectTumor3 =
+              get_intersection(tumorData, Nt, computed.i, computed.j, k, l, -1);
 
-          if (is_empty(intersectTumor3))
+          if (is_empty(intersectTumor3, calculate_bit_units(Nt)))
             continue;
 
-          std::set<int> intersectNormal = compute_intersection_four_sets(
-              normalData, computed.i, computed.j, k, l);
+          unsigned long long *intersectNormal = get_intersection(
+              normalData, Nn, computed.i, computed.j, k, l, -1);
 
-          int TP = static_cast<int>(intersectTumor3.size());
-          int TN = static_cast<int>(Nn - intersectNormal.size());
+          int TP = bitCollection_size(intersectTumor3, calculate_bit_units(Nt));
+          int TN =
+              Nn - bitCollection_size(intersectNormal, calculate_bit_units(Nn));
 
           double F = compute_F(TP, TN, alpha);
           if (F >= localMaxF) {
@@ -234,9 +212,9 @@ void process_lambda_interval(const std::vector<std::set<int>> &tumorData,
 }
 
 void worker_process(int rank, long long int num_Comb,
-                    std::vector<std::set<int>> &tumorData,
-                    const std::vector<std::set<int>> &normalData, int numGenes,
-                    int Nt, int Nn, double &localBestMaxF,
+                    unsigned long long **&tumorData,
+                    unsigned long long **&normalData, int numGenes, int Nt,
+                    int Nn, double &localBestMaxF,
                     std::array<int, NUMHITS> &localComb) {
 
   std::pair<long long int, long long int> chunk_indices =
@@ -254,15 +232,16 @@ void worker_process(int rank, long long int num_Comb,
 }
 
 void distribute_tasks(int rank, int size, int numGenes,
-                      std::vector<std::set<int>> &tumorData,
-                      std::vector<std::set<int>> &normalData, int Nt, int Nn,
+                      unsigned long long **&tumorData,
+                      unsigned long long **&normalData, int Nt, int Nn,
                       const char *outFilename,
-                      const std::set<int> &tumorSamples,
+                      unsigned long long *&tumorSamples,
                       std::string *geneIdArray, double elapsed_times[]) {
 
   long long int num_Comb = nCr(numGenes, 2);
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
-  std::set<int> droppedSamples;
+  unsigned long long *droppedSamples =
+      initialize_dropped_samples(calculate_bit_units(Nt));
 
   std::ofstream outfile;
   if (rank == 0) {
@@ -270,7 +249,7 @@ void distribute_tasks(int rank, int size, int numGenes,
     outputFileWriteError(outfile);
   }
 
-  while (tumorSamples != droppedSamples) {
+  while (!arrays_equal(tumorSamples, droppedSamples, calculate_bit_units(Nt))) {
     std::array<int, NUMHITS> localComb = {-1, -1, -1, -1};
     double localBestMaxF = -1.0;
 
@@ -296,16 +275,20 @@ void distribute_tasks(int rank, int size, int numGenes,
     perform_MPI_bcast(globalBestComb, globalResult.rank);
     END_TIMING(broadcast, broadcast_time);
 
-    std::set<int> sampleToCover = compute_intersection_four_sets(
-        tumorData, globalBestComb[0], globalBestComb[1], globalBestComb[2],
-        globalBestComb[3]);
-    droppedSamples.insert(sampleToCover.begin(), sampleToCover.end());
+    unsigned long long *sampleToCover =
+        get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
+                         globalBestComb[2], globalBestComb[3], -1);
+    update_dropped_samples(droppedSamples, sampleToCover,
+                           calculate_bit_units(Nt));
 
-    update_tumor_data(tumorData, sampleToCover);
+    update_tumor_data(tumorData, sampleToCover, calculate_bit_units(Nt),
+                      numGenes);
+
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,
                    globalResult.value);
     }
+    delete[] sampleToCover;
   }
   if (rank == 0) {
     outfile.close();
@@ -314,4 +297,6 @@ void distribute_tasks(int rank, int size, int numGenes,
   elapsed_times[MASTER_WORKER] = master_worker_time;
   elapsed_times[ALL_REDUCE] = all_reduce_time;
   elapsed_times[BCAST] = broadcast_time;
+
+  delete[] droppedSamples;
 }

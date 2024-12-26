@@ -59,23 +59,39 @@ void parse_header(const char *line, int &numGenes, int &numSamples, int &value,
 }
 
 std::string *
-initialize_data_structures(int numGenes,
-                           std::vector<std::set<int>> &sparseTumorData,
-                           std::vector<std::set<int>> &sparseNormalData) {
-  sparseTumorData.resize(numGenes);
-  sparseNormalData.resize(numGenes);
+initialize_data_structures(int numGenes, int numNormal, int numTumor,
+                           unsigned long long *&tumorSamples,
+                           unsigned long long **&sparseTumorData,
+                           unsigned long long **&sparseNormalData) {
+  size_t tumorUnits = calculate_bit_units(numTumor);
+  size_t normalUnits = calculate_bit_units(numNormal);
+
+  tumorSamples = new unsigned long long[tumorUnits];
+  memset(tumorSamples, 0, tumorUnits * sizeof(unsigned long long));
+
+  sparseTumorData = new unsigned long long *[numGenes];
+  sparseNormalData = new unsigned long long *[numGenes];
+
+  for (int gene = 0; gene < numGenes; ++gene) {
+    // Allocate and initialize each gene's bit array
+    sparseTumorData[gene] = new unsigned long long[tumorUnits];
+    memset(sparseTumorData[gene], 0, tumorUnits * sizeof(unsigned long long));
+
+    sparseNormalData[gene] = new unsigned long long[normalUnits];
+    memset(sparseNormalData[gene], 0, normalUnits * sizeof(unsigned long long));
+  }
+
   return new std::string[numGenes];
 }
 
 void parse_data_lines(char *buffer, int numGenes, int numTumor,
-                      std::string *geneIdArray, std::set<int> &tumorSamples,
-                      std::vector<std::set<int>> &sparseTumorData,
-                      std::vector<std::set<int>> &sparseNormalData, int rank) {
+                      std::string *geneIdArray,
+                      unsigned long long *tumorSamples,
+                      unsigned long long **sparseTumorData,
+                      unsigned long long **sparseNormalData, int rank) {
   // Move to the first data line
   char *line = strtok(NULL, "\n");
-  int count = 0;
   while (line != NULL) {
-    count++;
     int gene, sample, val;
     char geneId[MAX_BUF_SIZE], sampleId[MAX_BUF_SIZE];
 
@@ -87,13 +103,17 @@ void parse_data_lines(char *buffer, int numGenes, int numTumor,
     }
 
     geneIdArray[gene] = geneId;
-
     if (val > 0) {
       if (sample < numTumor) {
-        sparseTumorData[gene].insert(sample);
-        tumorSamples.insert(sample);
+        size_t unit = sample / 64;
+        size_t bit = sample % 64;
+        sparseTumorData[gene][unit] |= (1ULL << bit);
+        tumorSamples[unit] |= (1ULL << bit);
       } else {
-        sparseNormalData[gene].insert(sample);
+        size_t normalSample = sample - numTumor;
+        size_t unit = normalSample / 64;
+        size_t bit = normalSample % 64;
+        sparseNormalData[gene][unit] |= (1ULL << bit);
       }
     }
 
@@ -145,10 +165,9 @@ void write_timings_to_file(const double all_times[][6], int size,
 
 std::string *read_data(const char *filename, int &numGenes, int &numSamples,
                        int &numTumor, int &numNormal,
-                       std::set<int> &tumorSamples,
-                       std::vector<std::set<int>> &sparseTumorData,
-                       std::vector<std::set<int>> &sparseNormalData, int rank) {
-
+                       unsigned long long *&tumorSamples,
+                       unsigned long long **&sparseTumorData,
+                       unsigned long long **&sparseNormalData, int rank) {
   MPI_File dataFile = open_mpi_file(filename, rank);
 
   // Read the file buffer
@@ -171,7 +190,8 @@ std::string *read_data(const char *filename, int &numGenes, int &numSamples,
 
   // Initialize data structures
   std::string *geneIdArray =
-      initialize_data_structures(numGenes, sparseTumorData, sparseNormalData);
+      initialize_data_structures(numGenes, numNormal, numTumor, tumorSamples,
+                                 sparseTumorData, sparseNormalData);
 
   // Parse the remaining data lines
   parse_data_lines(file_buffer, numGenes, numTumor, geneIdArray, tumorSamples,
@@ -183,80 +203,85 @@ std::string *read_data(const char *filename, int &numGenes, int &numSamples,
   return geneIdArray;
 }
 
-/*
-std::string *read_data(const char *filename, int &numGenes, int &numSamples,
-                       int &numTumor, int &numNormal,
-                       std::set<int> &tumorSamples,
-                       std::vector<std::set<int>> &sparseTumorData,
-                       std::vector<std::set<int>> &sparseNormalData, int rank) {
+size_t calculate_bit_units(size_t numSample) {
+  const size_t BITS_PER_UNIT = 64;
+  return (numSample + BITS_PER_UNIT - 1) / BITS_PER_UNIT;
+}
 
-  MPI_Status status;
-  char *file_buffer = nullptr;
-  MPI_Offset file_size = 0;
+std::string to_binary_string(unsigned long long value, int bits = 64) {
+  std::bitset<64> bits_set(value);
+  return bits_set.to_string().substr(64 - bits);
+}
 
-  MPI_File dataFile;
-  int rc = MPI_File_open(MPI_COMM_WORLD, const_cast<char *>(filename),
-                         MPI_MODE_RDONLY, MPI_INFO_NULL, &dataFile);
-  if (rc != MPI_SUCCESS) {
-    char error_string[BUFSIZ];
-    int length_of_error_string;
-    MPI_Error_string(rc, error_string, &length_of_error_string);
-    fprintf(stderr, "Rank %d: Error opening file: %s\n", rank, error_string);
-    MPI_Abort(MPI_COMM_WORLD, rc);
+unsigned long long *
+allocate_bit_array(size_t units,
+                   unsigned long long init_value = 0xFFFFFFFFFFFFFFFFULL) {
+  unsigned long long *bitArray = new unsigned long long[units];
+  for (size_t i = 0; i < units; ++i) {
+    bitArray[i] = init_value;
   }
+  return bitArray;
+}
 
-  MPI_File_get_size(dataFile, &file_size);
-
-  file_buffer = new char[file_size + 1];
-  file_buffer[file_size] = '\0';
-
-  MPI_File_read_all(dataFile, file_buffer, file_size, MPI_CHAR, &status);
-
-  MPI_File_close(&dataFile);
-
-  char *line = strtok(file_buffer, "\n");
-  if (line == NULL) {
-    fprintf(stderr, "Rank %d: No lines in file\n", rank);
-    MPI_Abort(MPI_COMM_WORLD, 1);
+void bitwise_and_arrays(unsigned long long *result,
+                        const unsigned long long *source, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    result[i] &= source[i];
   }
+}
 
-  int value;
-  if (sscanf(line, "%d %d %d %d %d", &numGenes, &numSamples, &value, &numTumor,
-             &numNormal) != 5) {
-    fprintf(stderr, "Rank %d: Error reading the first line numbers\n", rank);
-    MPI_Abort(MPI_COMM_WORLD, 1);
-  }
+unsigned long long *get_intersection(unsigned long long **data, int numSamples,
+                                     ...) {
+  size_t units = calculate_bit_units(numSamples);
+  unsigned long long *finalIntersect = allocate_bit_array(units);
 
-  sparseTumorData.resize(numGenes);
-  sparseNormalData.resize(numGenes);
-  std::string *geneIdArray = new std::string[numGenes];
-
-  line = strtok(NULL, "\n");
-  while (line != NULL) {
-    int gene, sample, val;
-    char geneId[MAX_BUF_SIZE], sampleId[MAX_BUF_SIZE];
-
-    if (sscanf(line, "%d %d %d %s %s", &gene, &sample, &val, geneId,
-               sampleId) != 5) {
-      fprintf(stderr, "Rank %d: Error reading data line: %s\n", rank, line);
-      delete[] file_buffer;
-      MPI_Abort(MPI_COMM_WORLD, 1);
+  va_list args;
+  va_start(args, numSamples);
+  bool isFirst = true;
+  while (true) {
+    int geneIndex = va_arg(args, int);
+    if (geneIndex == -1) {
+      break;
     }
 
-    geneIdArray[gene] = geneId;
-
-    if (val > 0) {
-      if (sample < numTumor) {
-        sparseTumorData[gene].insert(sample);
-        tumorSamples.insert(sample);
-      } else {
-        sparseNormalData[gene].insert(sample);
+    if (isFirst) {
+      for (size_t i = 0; i < units; ++i) {
+        finalIntersect[i] = data[geneIndex][i];
       }
+      isFirst = false;
+    } else {
+      bitwise_and_arrays(finalIntersect, data[geneIndex], units);
     }
-
-    line = strtok(NULL, "\n");
   }
+  va_end(args);
+  return finalIntersect; // Return single pointer
+}
 
-  delete[] file_buffer;
-  return geneIdArray;
-}*/
+bool is_empty(unsigned long long *bitArray, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    if (bitArray[i] != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+size_t bitCollection_size(unsigned long long *bitArray, size_t units) {
+  size_t count = 0;
+  for (size_t i = 0; i < units; ++i) {
+    count += __builtin_popcountll(bitArray[i]);
+  }
+  return count;
+}
+
+bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
+                  size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+double compute_F(int TP, int TN, double alpha) { return alpha * TP + TN; }
