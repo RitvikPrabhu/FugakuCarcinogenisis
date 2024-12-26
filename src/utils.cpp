@@ -233,8 +233,7 @@ void bitwise_and_arrays(unsigned long long *result,
 unsigned long long *get_intersection(unsigned long long **data, int numSamples,
                                      ...) {
   size_t units = calculate_bit_units(numSamples);
-  unsigned long long *finalIntersect =
-      allocate_bit_array(units); // Allocate single pointer
+  unsigned long long *finalIntersect = allocate_bit_array(units);
 
   va_list args;
   va_start(args, numSamples);

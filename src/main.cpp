@@ -83,21 +83,6 @@ int main(int argc, char *argv[]) {
                 tumorSamples, tumorData, normalData, rank);
   END_TIMING(loading, elapsed_time_loading);
 
-  if (rank == 0) {
-    std::cout << "Number of Genes: " << numGenes << "\n";
-    std::cout << "Number of Samples: " << numSamples << "\n";
-    std::cout << "Number of Tumor Samples: " << numTumor << "\n";
-    std::cout << "Number of Normal Samples: " << numNormal << "\n";
-
-    std::cout << "Tumor Samples Bitmask: ";
-    for (size_t unit = 0; unit < calculate_bit_units(numTumor); ++unit) {
-      std::cout << to_binary_string(
-          tumorSamples[unit],
-          std::min(64, numTumor - static_cast<int>(unit * 64)));
-    }
-    std::cout << "\n";
-  }
-
   START_TIMING(function_execution)
 
   distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,

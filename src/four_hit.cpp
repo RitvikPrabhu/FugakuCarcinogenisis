@@ -187,12 +187,12 @@ void process_lambda_interval(unsigned long long **&tumorData,
           if (is_empty(intersectTumor3, calculate_bit_units(Nt)))
             continue;
 
-          unsigned long long *intersectNormal =
-              get_intersection(tumorData, Nn, computed.i, computed.j, k, l, -1);
+          unsigned long long *intersectNormal = get_intersection(
+              normalData, Nn, computed.i, computed.j, k, l, -1);
 
           int TP = bitCollection_size(intersectTumor3, calculate_bit_units(Nt));
           int TN =
-              Nn - bitCollection_size(intersectTumor3, calculate_bit_units(Nn));
+              Nn - bitCollection_size(intersectNormal, calculate_bit_units(Nn));
 
           double F = compute_F(TP, TN, alpha);
           if (F >= localMaxF) {
@@ -278,26 +278,16 @@ void distribute_tasks(int rank, int size, int numGenes,
     unsigned long long *sampleToCover =
         get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
                          globalBestComb[2], globalBestComb[3], -1);
-
     update_dropped_samples(droppedSamples, sampleToCover,
                            calculate_bit_units(Nt));
 
     update_tumor_data(tumorData, sampleToCover, calculate_bit_units(Nt),
                       numGenes);
+
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,
                    globalResult.value);
     }
-    if (rank == 0) {
-      std::cout << "Dropped Samples Bitmask: ";
-      for (size_t unit = 0; unit < calculate_bit_units(Nt); ++unit) {
-        std::cout << to_binary_string(
-            droppedSamples[unit],
-            std::min(64, Nt - static_cast<int>(unit * 64)));
-      }
-      std::cout << "\n";
-    }
-
     delete[] sampleToCover;
   }
   if (rank == 0) {
