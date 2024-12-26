@@ -194,7 +194,7 @@ void process_lambda_interval(unsigned long long **&tumorData,
           int TN =
               Nn - bitCollection_size(intersectNormal, calculate_bit_units(Nn));
 
-          double F = compute_F(TP, TN, alpha);
+          double F = compute_F(TP, TN, alpha, Nt, Nn);
           if (F >= localMaxF) {
             localMaxF = F;
             localBestCombination = {computed.i, computed.j, k, l};
@@ -283,6 +283,8 @@ void distribute_tasks(int rank, int size, int numGenes,
 
     update_tumor_data(tumorData, sampleToCover, calculate_bit_units(Nt),
                       numGenes);
+
+    Nt -= bitCollection_size(sampleToCover, calculate_bit_units(Nt));
 
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,

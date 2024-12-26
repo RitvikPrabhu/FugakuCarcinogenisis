@@ -26,5 +26,5 @@ bool is_empty(unsigned long long *bitArray, size_t units);
 size_t bitCollection_size(unsigned long long *bitArray, size_t units);
 bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
                   size_t units);
-double compute_F(int TP, int TN, double alpha);
+double compute_F(int TP, int TN, double alpha, int Nt, int Nn);
 #endif

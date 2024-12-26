@@ -284,4 +284,6 @@ bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
   return true;
 }
 
-double compute_F(int TP, int TN, double alpha) { return alpha * TP + TN; }
+double compute_F(int TP, int TN, double alpha, int Nt, int Nn) {
+  return (alpha * TP + TN) / (Nt + Nn);
+}
