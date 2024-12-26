@@ -146,6 +146,10 @@ unsigned long long *initialize_dropped_samples(size_t units) {
   return droppedSamples;
 }
 
+void updateNt(int &Nt, unsigned long long *&sampleToCover) {
+  Nt -= bitCollection_size(sampleToCover, calculate_bit_units(Nt));
+}
+
 // ############MAIN FUNCTIONS####################
 
 void process_lambda_interval(unsigned long long **&tumorData,
@@ -284,7 +288,7 @@ void distribute_tasks(int rank, int size, int numGenes,
     update_tumor_data(tumorData, sampleToCover, calculate_bit_units(Nt),
                       numGenes);
 
-    Nt -= bitCollection_size(sampleToCover, calculate_bit_units(Nt));
+    updateNt(Nt, sampleToCover);
 
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, geneIdArray,
