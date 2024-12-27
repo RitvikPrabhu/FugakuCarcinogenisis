@@ -11,7 +11,6 @@
 #include <set>
 #include <vector>
 
-#include "constants.h"
 #include "four_hit.h"
 #include "mpi_specific.h"
 

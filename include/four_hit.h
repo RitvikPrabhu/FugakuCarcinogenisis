@@ -3,9 +3,7 @@
 
 #include <array>
 #include <mpi.h>
-#include <set>
 #include <string>
-#include <vector>
 
 #define NUMHITS 4
 
