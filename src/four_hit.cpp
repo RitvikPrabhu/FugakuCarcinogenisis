@@ -214,6 +214,31 @@ void worker_process(int rank, long long int num_Comb,
   }
 }
 
+std::array<int, NUMHITS> initialize_local_comb_and_f(double &f) {
+  std::array<int, NUMHITS> comb;
+  comb.fill(-1);
+  return comb;
+}
+
+MPIResultWithComb create_mpi_result(double f,
+                                    const std::array<int, NUMHITS> &comb) {
+  MPIResultWithComb result;
+  result.f = f;
+  for (int i = 0; i < NUMHITS; ++i) {
+    result.comb[i] = comb[i];
+  }
+  return result;
+}
+
+std::array<int, NUMHITS>
+extract_global_comb(const MPIResultWithComb &globalResult) {
+  std::array<int, NUMHITS> globalBestComb;
+  for (int i = 0; i < NUMHITS; ++i) {
+    globalBestComb[i] = globalResult.comb[i];
+  }
+  return globalBestComb;
+}
+
 void distribute_tasks(int rank, int size, int numGenes,
                       unsigned long long **&tumorData,
                       unsigned long long **&normalData, int Nt, int Nn,
@@ -235,29 +260,21 @@ void distribute_tasks(int rank, int size, int numGenes,
   }
 
   while (!arrays_equal(tumorSamples, droppedSamples, calculate_bit_units(Nt))) {
-    std::array<int, NUMHITS> localComb = {-1, -1, -1, -1};
-    double localBestMaxF = -1.0;
+    double localBestMaxF;
+    std::array<int, NUMHITS> localComb =
+        initialize_local_comb_and_f(localBestMaxF);
 
     START_TIMING(master_worker)
     execute_role(rank, size - 1, num_Comb, tumorData, normalData, numGenes, Nt,
                  Nn, localBestMaxF, localComb);
     END_TIMING(master_worker, master_worker_time);
 
-    MPIResultWithComb localResult;
-    localResult.f = localBestMaxF;
-    for (int i = 0; i < NUMHITS; i++) {
-      localResult.comb[i] = localComb[i];
-    }
-
     START_TIMING(all_reduce)
+    MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = perform_MPI_allreduce_with_comb(
         localResult, MPI_MAX_F_WITH_COMB, MPI_RESULT_WITH_COMB);
+    std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
     END_TIMING(all_reduce, all_reduce_time);
-
-    std::array<int, NUMHITS> globalBestComb;
-    for (int i = 0; i < NUMHITS; i++) {
-      globalBestComb[i] = globalResult.comb[i];
-    }
 
     unsigned long long *sampleToCover =
         get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
