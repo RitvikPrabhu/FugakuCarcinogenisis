@@ -287,3 +287,46 @@ bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
 double compute_F(int TP, int TN, double alpha, int Nt, int Nn) {
   return (alpha * TP + TN) / (Nt + Nn);
 }
+
+void update_tumor_data(unsigned long long **&tumorData,
+                       unsigned long long *sampleToCover, size_t units,
+                       int numGenes) {
+  for (int gene = 0; gene < numGenes; ++gene) {
+    for (size_t i = 0; i < units; ++i) {
+      tumorData[gene][i] &= ~sampleToCover[i];
+    }
+  }
+}
+
+void outputFileWriteError(std::ofstream &outfile) {
+
+  if (!outfile) {
+    std::cerr << "Error: Could not open output file." << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+}
+
+std::pair<long long int, long long int>
+calculate_initial_chunk(int rank, long long int num_Comb,
+                        long long int chunk_size) {
+  long long int begin = (rank - 1) * chunk_size;
+  long long int end = std::min(begin + chunk_size, num_Comb);
+  return {begin, end};
+}
+
+void update_dropped_samples(unsigned long long *&droppedSamples,
+                            unsigned long long *sampleToCover, size_t units) {
+  for (size_t i = 0; i < units; ++i) {
+    droppedSamples[i] |= sampleToCover[i];
+  }
+}
+
+unsigned long long *initialize_dropped_samples(size_t units) {
+  unsigned long long *droppedSamples = new unsigned long long[units];
+  memset(droppedSamples, 0, units * sizeof(unsigned long long));
+  return droppedSamples;
+}
+
+void updateNt(int &Nt, unsigned long long *&sampleToCover) {
+  Nt -= bitCollection_size(sampleToCover, calculate_bit_units(Nt));
+}

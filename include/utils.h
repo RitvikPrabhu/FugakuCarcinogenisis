@@ -27,4 +27,15 @@ size_t bitCollection_size(unsigned long long *bitArray, size_t units);
 bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
                   size_t units);
 double compute_F(int TP, int TN, double alpha, int Nt, int Nn);
+void update_tumor_data(unsigned long long **&tumorData,
+                       unsigned long long *sampleToCover, size_t units,
+                       int numGenes);
+void outputFileWriteError(std::ofstream &outfile);
+std::pair<long long int, long long int>
+calculate_initial_chunk(int rank, long long int num_Comb,
+                        long long int chunk_size);
+void update_dropped_samples(unsigned long long *&droppedSamples,
+                            unsigned long long *sampleToCover, size_t units);
+unsigned long long *initialize_dropped_samples(size_t units);
+void updateNt(int &Nt, unsigned long long *&sampleToCover);
 #endif

@@ -10,20 +10,13 @@
 #define NUMHITS 4
 
 struct MPIResultWithComb {
-  double fscore;
-  int iter[NUMHITS];
+  double f;
+  int comb[NUMHITS];
 };
 
 struct LambdaComputed {
   int i, j;
 };
-
-void process_lambda_interval(unsigned long long **&tumorData,
-                             unsigned long long **&normalData,
-                             long long int startComb, long long int endComb,
-                             int totalGenes,
-                             std::array<int, 4> &bestCombination, int Nt,
-                             int Nn, double &maxF);
 
 void worker_process(int rank, long long int num_Comb,
                     unsigned long long **&tumorData,

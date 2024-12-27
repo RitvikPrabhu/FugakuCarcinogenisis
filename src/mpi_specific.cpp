@@ -60,3 +60,16 @@ MPIResult perform_MPI_allreduce(const MPIResult &localResult) {
                 MPI_COMM_WORLD);
   return globalResult;
 }
+
+void notify_master_chunk_processed(int master_rank = 0, int tag = 1) {
+  char signal = 'a';
+  MPI_Send(&signal, 1, MPI_CHAR, master_rank, tag, MPI_COMM_WORLD);
+}
+
+long long int receive_next_chunk_index(MPI_Status &status, int master_rank = 0,
+                                       int tag = 2) {
+  long long int next_idx;
+  MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, master_rank, tag, MPI_COMM_WORLD,
+           &status);
+  return next_idx;
+}
