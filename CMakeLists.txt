@@ -24,7 +24,6 @@ find_package(OpenMP REQUIRED)
 set(SOURCES
     src/main.cpp
     src/utils.cpp
-    src/mpi_specific.cpp
     src/four_hit.cpp
 )
 

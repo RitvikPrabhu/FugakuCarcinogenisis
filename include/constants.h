@@ -16,7 +16,6 @@
 // ############MACROS####################
 
 #define MAX_BUF_SIZE 1024
-#define CHUNK_SIZE 100LL
 
 enum time_stages {
   MASTER_WORKER,
@@ -25,11 +24,6 @@ enum time_stages {
   OVERALL_FILE_LOAD,
   OVERALL_DISTRIBUTE_FUNCTION,
   OVERALL_TOTAL
-};
-
-struct MPIResult {
-  double value;
-  int rank;
 };
 
 #endif
