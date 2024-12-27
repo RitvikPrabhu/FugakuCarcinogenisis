@@ -9,6 +9,10 @@
 
 #define NUMHITS 4
 
+#define BITS_PER_UNIT 64
+#define CALCULATE_BIT_UNITS(numSample)                                         \
+  (((numSample) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
+
 struct MPIResultWithComb {
   double f;
   int comb[NUMHITS];
