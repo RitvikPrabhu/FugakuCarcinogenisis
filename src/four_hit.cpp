@@ -13,6 +13,7 @@
 
 #include "constants.h"
 #include "four_hit.h"
+#include "set_ops.h"
 
 long long int calculate_initial_index(int num_workers) {
   return num_workers * CHUNK_SIZE;

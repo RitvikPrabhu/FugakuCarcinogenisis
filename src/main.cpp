@@ -9,6 +9,7 @@
 #include "constants.h"
 #include "four_hit.h"
 #include "utils.h"
+#include "set_ops.h"
 
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
