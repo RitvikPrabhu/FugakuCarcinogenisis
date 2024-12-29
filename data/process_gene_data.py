@@ -66,41 +66,28 @@ def sort_data(gene_sample_pivot):
 
 def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
     gene_sample_pivot, normal_data = get_data(gene_sample_file, normal_gene_list_file)
-
     gene_sample_pivot = sort_data(gene_sample_pivot)
 
     num_rows, num_cols = gene_sample_pivot.shape
     num_normal_samples = normal_data.shape[1]
     num_tumor_samples = num_cols - num_normal_samples
+
     print("Number of rows (genes):", num_rows)
     print("Number of columns (samples):", num_cols)
 
-    result = gene_sample_pivot.reset_index().melt(
-        id_vars="gene", var_name="sample", value_name="mutation"
-    )
-
-    # RITVIK, probably the line below needed to be removed
-    # result = result.sort_values(["gene", "sample"]).reset_index(drop=True)
-    # result["row"] = result.index // len(result["sample"].unique())
-    # result["column"] = result.index % len(result["sample"].unique())
-    sorted_genes = gene_sample_pivot.index.tolist()
-    gene_to_row = {gene: idx for idx, gene in enumerate(sorted_genes)}
-    result["row"] = result["gene"].map(gene_to_row)
-    sorted_samples = gene_sample_pivot.columns.tolist()
-    sample_to_col = {sample: idx for idx, sample in enumerate(sorted_samples)}
-    result["column"] = result["sample"].map(sample_to_col)
-    result = result.sort_values(["row", "column"]).reset_index(drop=True)
-    
-    final_result = result[["row", "column", "mutation", "gene", "sample"]]
-
+    # Write the file
     try:
         with open(output_file, "w") as f:
-            header = (
-                f"{num_rows} {num_cols} -1 {num_tumor_samples} {num_normal_samples}\n"
-            )
-            f.write(header)
-            final_result.to_csv(f, sep=" ", index=False, header=False)
+            # Write the header line
+            header_line = f"{num_rows} {num_cols} -1 {num_tumor_samples} {num_normal_samples}\n"
+            f.write(header_line)
+
+            for row_tuple in gene_sample_pivot.itertuples(index=False):
+                row_values = map(str, row_tuple)
+                f.write("".join(row_values) + "\n")
+
         print(f"File successfully written to {output_file}")
+
     except Exception as e:
         print(f"Error writing file: {e}")
 
