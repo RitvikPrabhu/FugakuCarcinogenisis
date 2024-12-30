@@ -63,8 +63,8 @@ initialize_data_structures(int numGenes, int numNormal, int numTumor,
                            unsigned long long *&tumorSamples,
                            unsigned long long **&sparseTumorData,
                            unsigned long long **&sparseNormalData) {
-  size_t tumorUnits = calculate_bit_units(numTumor);
-  size_t normalUnits = calculate_bit_units(numNormal);
+  size_t tumorUnits = CALCULATE_BIT_UNITS(numTumor);
+  size_t normalUnits = CALCULATE_BIT_UNITS(numNormal);
 
   tumorSamples = new unsigned long long[tumorUnits];
   memset(tumorSamples, 0, tumorUnits * sizeof(unsigned long long));
@@ -122,22 +122,6 @@ void parse_data_lines(char *buffer, int numGenes, int numTumor,
 }
 
 // #########################MAIN###########################
-
-long long int nCr(int n, int r) {
-  if (r > n)
-    return 0;
-  if (r == 0 || r == n)
-    return 1;
-  if (r > n - r)
-    r = n - r; // Because C(n, r) == C(n, n-r)
-
-  long long int result = 1;
-  for (int i = 1; i <= r; ++i) {
-    result *= (n - r + i);
-    result /= i;
-  }
-  return result;
-}
 
 void write_timings_to_file(const double all_times[][6], int size,
                            const char *filename) {
@@ -201,132 +185,4 @@ std::string *read_data(const char *filename, int &numGenes, int &numSamples,
   delete[] file_buffer;
 
   return geneIdArray;
-}
-
-size_t calculate_bit_units(size_t numSample) {
-  const size_t BITS_PER_UNIT = 64;
-  return (numSample + BITS_PER_UNIT - 1) / BITS_PER_UNIT;
-}
-
-std::string to_binary_string(unsigned long long value, int bits = 64) {
-  std::bitset<64> bits_set(value);
-  return bits_set.to_string().substr(64 - bits);
-}
-
-unsigned long long *
-allocate_bit_array(size_t units,
-                   unsigned long long init_value = 0xFFFFFFFFFFFFFFFFULL) {
-  unsigned long long *bitArray = new unsigned long long[units];
-  for (size_t i = 0; i < units; ++i) {
-    bitArray[i] = init_value;
-  }
-  return bitArray;
-}
-
-void bitwise_and_arrays(unsigned long long *result,
-                        const unsigned long long *source, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    result[i] &= source[i];
-  }
-}
-
-unsigned long long *get_intersection(unsigned long long **data, int numSamples,
-                                     ...) {
-  size_t units = calculate_bit_units(numSamples);
-  unsigned long long *finalIntersect = allocate_bit_array(units);
-
-  va_list args;
-  va_start(args, numSamples);
-  bool isFirst = true;
-  while (true) {
-    int geneIndex = va_arg(args, int);
-    if (geneIndex == -1) {
-      break;
-    }
-
-    if (isFirst) {
-      for (size_t i = 0; i < units; ++i) {
-        finalIntersect[i] = data[geneIndex][i];
-      }
-      isFirst = false;
-    } else {
-      bitwise_and_arrays(finalIntersect, data[geneIndex], units);
-    }
-  }
-  va_end(args);
-  return finalIntersect; // Return single pointer
-}
-
-bool is_empty(unsigned long long *bitArray, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    if (bitArray[i] != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-size_t bitCollection_size(unsigned long long *bitArray, size_t units) {
-  size_t count = 0;
-  for (size_t i = 0; i < units; ++i) {
-    count += __builtin_popcountll(bitArray[i]);
-  }
-  return count;
-}
-
-bool arrays_equal(const unsigned long long *a, const unsigned long long *b,
-                  size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    if (a[i] != b[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-double compute_F(int TP, int TN, double alpha, int Nt, int Nn) {
-  return (alpha * TP + TN) / (Nt + Nn);
-}
-
-void update_tumor_data(unsigned long long **&tumorData,
-                       unsigned long long *sampleToCover, size_t units,
-                       int numGenes) {
-  for (int gene = 0; gene < numGenes; ++gene) {
-    for (size_t i = 0; i < units; ++i) {
-      tumorData[gene][i] &= ~sampleToCover[i];
-    }
-  }
-}
-
-void outputFileWriteError(std::ofstream &outfile) {
-
-  if (!outfile) {
-    std::cerr << "Error: Could not open output file." << std::endl;
-    MPI_Abort(MPI_COMM_WORLD, 1);
-  }
-}
-
-std::pair<long long int, long long int>
-calculate_initial_chunk(int rank, long long int num_Comb,
-                        long long int chunk_size) {
-  long long int begin = (rank - 1) * chunk_size;
-  long long int end = std::min(begin + chunk_size, num_Comb);
-  return {begin, end};
-}
-
-void update_dropped_samples(unsigned long long *&droppedSamples,
-                            unsigned long long *sampleToCover, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    droppedSamples[i] |= sampleToCover[i];
-  }
-}
-
-unsigned long long *initialize_dropped_samples(size_t units) {
-  unsigned long long *droppedSamples = new unsigned long long[units];
-  memset(droppedSamples, 0, units * sizeof(unsigned long long));
-  return droppedSamples;
-}
-
-void updateNt(int &Nt, unsigned long long *&sampleToCover) {
-  Nt -= bitCollection_size(sampleToCover, calculate_bit_units(Nt));
 }

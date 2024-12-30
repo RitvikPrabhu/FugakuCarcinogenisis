@@ -3,11 +3,14 @@
 
 #include <array>
 #include <mpi.h>
-#include <set>
 #include <string>
-#include <vector>
 
 #define NUMHITS 4
+#define CHUNK_SIZE 100LL
+
+#define BITS_PER_UNIT 64
+#define CALCULATE_BIT_UNITS(numSample)                                         \
+  (((numSample) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
 
 struct MPIResultWithComb {
   double f;
@@ -16,6 +19,11 @@ struct MPIResultWithComb {
 
 struct LambdaComputed {
   int i, j;
+};
+
+struct MPIResult {
+  double value;
+  int rank;
 };
 
 void worker_process(int rank, long long int num_Comb,
