@@ -37,10 +37,7 @@ void gather_and_write_timings(int rank, int size, double elapsed_times[],
   }
 }**/
 
-void cleanup(stets_t dataTable) {
-  delete[] dataTable.tumorData;
-  delete[] dataTable.normalData;
-}
+void cleanup(sets_t dataTable) { delete[] dataTable.data; }
 
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
@@ -68,7 +65,7 @@ int main(int argc, char *argv[]) {
   unsigned long long **tumorData = nullptr;
   unsigned long long **normalData = nullptr;
 
-  stets_t dataTable = read_data(argv[1], rank);
+  sets_t dataTable = read_data(argv[1], rank);
 
   END_TIMING(loading, elapsed_time_loading);
 

@@ -44,7 +44,7 @@ char *read_entire_file_into_buffer(const char *filename, MPI_Offset &file_size,
   return buffer;
 }
 
-stets_t allocate_stets_from_header(const char *header_line, int rank) {
+sets_t allocate_sets_from_header(const char *header_line, int rank) {
   long long num_cols = 0, num_rows = 0, not_used = 0, num_tumor = 0,
             num_normal = 0;
 
@@ -54,21 +54,16 @@ stets_t allocate_stets_from_header(const char *header_line, int rank) {
     handle_parsing_error("Error parsing header line", rank);
   }
 
-  stets_t table;
+  sets_t table;
   table.num_rows = static_cast<size_t>(num_rows);
   table.num_tumor = static_cast<size_t>(num_tumor);
   table.num_normal = static_cast<size_t>(num_normal);
   table.num_cols = static_cast<size_t>(num_cols);
 
-  const size_t total_tumor_bits = table.num_rows * table.num_tumor;
-  const size_t tumor_units = CALCULATE_BIT_UNITS(total_tumor_bits);
-  table.tumorData = new unit_t[tumor_units];
-  std::memset(table.tumorData, 0, tumor_units * sizeof(unit_t));
-
-  const size_t total_normal_bits = table.num_rows * table.num_normal;
-  const size_t normal_units = CALCULATE_BIT_UNITS(total_normal_bits);
-  table.normalData = new unit_t[normal_units];
-  std::memset(table.normalData, 0, normal_units * sizeof(unit_t));
+  const size_t total_bits = table.num_rows * table.num_cols;
+  const size_t total_units = CALCULATE_BIT_UNITS(total_bits);
+  table.data = new unit_t[total_units];
+  std::memset(table.data, 0, total_units * sizeof(unit_t));
 
   return table;
 }
@@ -80,7 +75,7 @@ inline void set_bit(unit_t *array, size_t row, size_t col, size_t total_cols) {
   array[unit_idx] |= (1ULL << bit_in_unit);
 }
 
-void parse_and_populate(stets_t &table, char *file_buffer, int rank) {
+void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
   size_t row_index = 0;
   char *line = strtok(nullptr, "\n");
   while (line != nullptr && row_index < table.num_rows) {
@@ -89,15 +84,9 @@ void parse_and_populate(stets_t &table, char *file_buffer, int rank) {
               rank, row_index, table.num_cols);
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    for (size_t c = 0; c < table.num_tumor; c++) {
+    for (size_t c = 0; c < table.num_cols; c++) {
       if (line[c] == '1') {
-        set_bit(table.tumorData, row_index, c, table.num_tumor);
-      }
-    }
-    for (size_t c = table.num_tumor; c < table.num_cols; c++) {
-      if (line[c] == '1') {
-        size_t col_in_normal = c - table.num_tumor;
-        set_bit(table.normalData, row_index, col_in_normal, table.num_normal);
+        set_bit(table.data, row_index, c, table.num_cols);
       }
     }
     row_index++;
@@ -111,7 +100,7 @@ void parse_and_populate(stets_t &table, char *file_buffer, int rank) {
   }
 }
 
-stets_t read_data(const char *filename, int rank) {
+sets_t read_data(const char *filename, int rank) {
   MPI_Offset file_size;
   char *file_buffer = read_entire_file_into_buffer(filename, file_size, rank);
 
@@ -120,7 +109,7 @@ stets_t read_data(const char *filename, int rank) {
     delete[] file_buffer;
     handle_parsing_error("No lines in file.", rank);
   }
-  stets_t table = allocate_stets_from_header(header_line, rank);
+  sets_t table = allocate_sets_from_header(header_line, rank);
   parse_and_populate(table, file_buffer, rank);
   delete[] file_buffer;
   return table;

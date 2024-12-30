@@ -30,12 +30,11 @@ enum time_stages {
 
 typedef uint64_t unit_t;
 
-struct stets_t {
+struct sets_t {
   size_t num_rows;
   size_t num_tumor;
   size_t num_normal;
   size_t num_cols;
-  unit_t *tumorData;
-  unit_t *normalData;
+  unit_t *data;
 };
 #endif
