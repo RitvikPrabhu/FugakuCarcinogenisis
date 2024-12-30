@@ -46,10 +46,10 @@ char *read_entire_file_into_buffer(const char *filename, MPI_Offset &file_size,
 
 stets_t allocate_stets_from_header(const char *header_line, int rank) {
   long long num_cols = 0, num_rows = 0, not_used = 0, num_tumor = 0,
-            num_norma = 0;
+            num_normal = 0;
 
   int nvals = sscanf(header_line, "%lld %lld %lld %lld %lld", &num_rows,
-                     &num_cols, &not_used, &num_tumor, &num_norma);
+                     &num_cols, &not_used, &num_tumor, &num_normal);
   if (nvals != 5) {
     handle_parsing_error("Error parsing header line", rank);
   }
@@ -57,7 +57,7 @@ stets_t allocate_stets_from_header(const char *header_line, int rank) {
   stets_t table;
   table.num_rows = static_cast<size_t>(num_rows);
   table.num_tumor = static_cast<size_t>(num_tumor);
-  table.num_norma = static_cast<size_t>(num_norma);
+  table.num_normal = static_cast<size_t>(num_normal);
   table.num_cols = static_cast<size_t>(num_cols);
 
   const size_t total_tumor_bits = table.num_rows * table.num_tumor;
@@ -65,7 +65,7 @@ stets_t allocate_stets_from_header(const char *header_line, int rank) {
   table.tumorData = new unit_t[tumor_units];
   std::memset(table.tumorData, 0, tumor_units * sizeof(unit_t));
 
-  const size_t total_normal_bits = table.num_rows * table.num_norma;
+  const size_t total_normal_bits = table.num_rows * table.num_normal;
   const size_t normal_units = CALCULATE_BIT_UNITS(total_normal_bits);
   table.normalData = new unit_t[normal_units];
   std::memset(table.normalData, 0, normal_units * sizeof(unit_t));
@@ -97,7 +97,7 @@ void parse_and_populate(stets_t &table, char *file_buffer, int rank) {
     for (size_t c = table.num_tumor; c < table.num_cols; c++) {
       if (line[c] == '1') {
         size_t col_in_normal = c - table.num_tumor;
-        set_bit(table.normalData, row_index, col_in_normal, table.num_norma);
+        set_bit(table.normalData, row_index, col_in_normal, table.num_normal);
       }
     }
     row_index++;
