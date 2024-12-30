@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
   unsigned long long **tumorData = nullptr;
   unsigned long long **normalData = nullptr;
 
-  stets_t dataTable = read_data_new_format(argv[1], rank);
+  stets_t dataTable = read_data(argv[1], rank);
 
   END_TIMING(loading, elapsed_time_loading);
 

@@ -111,7 +111,7 @@ void parse_and_populate(stets_t &table, char *file_buffer, int rank) {
   }
 }
 
-stets_t read_data_new_format(const char *filename, int rank) {
+stets_t read_data(const char *filename, int rank) {
   MPI_Offset file_size;
   char *file_buffer = read_entire_file_into_buffer(filename, file_size, rank);
 
