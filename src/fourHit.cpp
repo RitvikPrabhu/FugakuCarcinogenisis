@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "constants.h"
-#include "four_hit.h"
+#include "fourHit.h"
 
 long long int calculate_initial_index(int num_workers) {
   return num_workers * CHUNK_SIZE;

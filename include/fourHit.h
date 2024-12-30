@@ -26,12 +26,6 @@ struct MPIResult {
   int rank;
 };
 
-void worker_process(int rank, long long int num_Comb,
-                    unsigned long long **&tumorData,
-                    unsigned long long **&normalData, int numGenes, int Nt,
-                    int Nn, double &localBestMaxF,
-                    std::array<int, 4> &localComb);
-
 void distribute_tasks(int rank, int size, int numGenes,
                       unsigned long long **&tumorData,
                       unsigned long long **&normalData, int Nt, int Nn,
