@@ -79,7 +79,9 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
     try:
         with open(output_file, "w") as f:
             # Write the header line
-            header_line = f"{num_rows} {num_cols} -1 {num_tumor_samples} {num_normal_samples}\n"
+            header_line = (
+                f"{num_rows} {num_cols} -1 {num_tumor_samples} {num_normal_samples}\n"
+            )
             f.write(header_line)
 
             for row_tuple in gene_sample_pivot.itertuples(index=False):
@@ -90,6 +92,25 @@ def process_gene_data(gene_sample_file, normal_gene_list_file, output_file):
 
     except Exception as e:
         print(f"Error writing file: {e}")
+
+    try:
+        # Gene -> row index
+        gene_map_file = str(output_file) + ".gene_map"
+        with open(gene_map_file, "w") as f_gene_map:
+            for i, gene in enumerate(gene_sample_pivot.index):
+                f_gene_map.write(f"{gene}\t{i}\n")
+
+        # Sample -> column index
+        # col_map_file = str(output_file) + ".col_map"
+        # with open(col_map_file, "w") as f_col_map:
+        #    for j, sample in enumerate(gene_sample_pivot.columns):
+        #        f_col_map.write(f"{sample}\t{j}\n")
+
+        print(f"Row (gene) mapping written to {gene_map_file}")
+        # print(f"Column (sample) mapping written to {col_map_file}")
+
+    except Exception as e:
+        print(f"Error writing mapping files: {e}")
 
 
 def get_args():
