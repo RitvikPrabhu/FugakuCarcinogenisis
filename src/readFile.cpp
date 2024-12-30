@@ -1,0 +1,127 @@
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <mpi.h>
+
+#include "readFile.h"
+
+// #########################HELPER###########################
+void handle_mpi_error(int rc, const char *context, int rank) {
+  if (rc != MPI_SUCCESS) {
+    char error_string[BUFSIZ];
+    int length_of_error_string;
+    MPI_Error_string(rc, error_string, &length_of_error_string);
+    fprintf(stderr, "Rank %d: %s: %s\n", rank, context, error_string);
+    MPI_Abort(MPI_COMM_WORLD, rc);
+  }
+}
+
+void handle_parsing_error(const char *message, int rank, int abort_code = 1) {
+  fprintf(stderr, "Rank %d: %s\n", rank, message);
+  MPI_Abort(MPI_COMM_WORLD, abort_code);
+}
+
+char *read_entire_file_into_buffer(const char *filename, MPI_Offset &file_size,
+                                   int rank) {
+  MPI_File fh;
+  int rc = MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY,
+                         MPI_INFO_NULL, &fh);
+  handle_mpi_error(rc, "Error opening file", rank);
+
+  rc = MPI_File_get_size(fh, &file_size);
+  handle_mpi_error(rc, "Error getting file size", rank);
+
+  char *buffer = new char[file_size + 1];
+  buffer[file_size] = '\0';
+
+  MPI_Status status;
+  rc = MPI_File_read_at_all(fh, 0, buffer, file_size, MPI_CHAR, &status);
+  handle_mpi_error(rc, "Error reading file", rank);
+
+  rc = MPI_File_close(&fh);
+  handle_mpi_error(rc, "Error closing file", rank);
+
+  return buffer;
+}
+
+stets_t allocate_stets_from_header(const char *header_line, int rank) {
+  long long num_cols = 0, num_rows = 0, not_used = 0, num_tumor = 0,
+            num_norma = 0;
+
+  int nvals = sscanf(header_line, "%lld %lld %lld %lld %lld", &num_rows,
+                     &num_cols, &not_used, &num_tumor, &num_norma);
+  if (nvals != 5) {
+    handle_parsing_error("Error parsing header line", rank);
+  }
+
+  stets_t table;
+  table.num_rows = static_cast<size_t>(num_rows);
+  table.num_tumor = static_cast<size_t>(num_tumor);
+  table.num_norma = static_cast<size_t>(num_norma);
+  table.num_cols = static_cast<size_t>(num_cols);
+
+  const size_t total_tumor_bits = table.num_rows * table.num_tumor;
+  const size_t tumor_units = CALCULATE_BIT_UNITS(total_tumor_bits);
+  table.tumorData = new unit_t[tumor_units];
+  std::memset(table.tumorData, 0, tumor_units * sizeof(unit_t));
+
+  const size_t total_normal_bits = table.num_rows * table.num_norma;
+  const size_t normal_units = CALCULATE_BIT_UNITS(total_normal_bits);
+  table.normalData = new unit_t[normal_units];
+  std::memset(table.normalData, 0, normal_units * sizeof(unit_t));
+
+  return table;
+}
+
+inline void set_bit(unit_t *array, size_t row, size_t col, size_t total_cols) {
+  size_t idx = row * total_cols + col;
+  size_t unit_idx = idx / 64;
+  size_t bit_in_unit = idx % 64;
+  array[unit_idx] |= (1ULL << bit_in_unit);
+}
+
+void parse_and_populate(stets_t &table, char *file_buffer, int rank) {
+  size_t row_index = 0;
+  char *line = strtok(nullptr, "\n");
+  while (line != nullptr && row_index < table.num_rows) {
+    if (std::strlen(line) < table.num_cols) {
+      fprintf(stderr, "Rank %d: Error: line %zu has fewer than %zu bits.\n",
+              rank, row_index, table.num_cols);
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    for (size_t c = 0; c < table.num_tumor; c++) {
+      if (line[c] == '1') {
+        set_bit(table.tumorData, row_index, c, table.num_tumor);
+      }
+    }
+    for (size_t c = table.num_tumor; c < table.num_cols; c++) {
+      if (line[c] == '1') {
+        size_t col_in_normal = c - table.num_tumor;
+        set_bit(table.normalData, row_index, col_in_normal, table.num_norma);
+      }
+    }
+    row_index++;
+    line = strtok(nullptr, "\n");
+  }
+
+  if (row_index != table.num_rows) {
+    fprintf(stderr, "Rank %d: Error: expected %zu data lines but got %zu.\n",
+            rank, table.num_rows, row_index);
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+}
+
+stets_t read_data_new_format(const char *filename, int rank) {
+  MPI_Offset file_size;
+  char *file_buffer = read_entire_file_into_buffer(filename, file_size, rank);
+
+  char *header_line = strtok(file_buffer, "\n");
+  if (!header_line) {
+    delete[] file_buffer;
+    handle_parsing_error("No lines in file.", rank);
+  }
+  stets_t table = allocate_stets_from_header(header_line, rank);
+  parse_and_populate(table, file_buffer, rank);
+  delete[] file_buffer;
+  return table;
+}

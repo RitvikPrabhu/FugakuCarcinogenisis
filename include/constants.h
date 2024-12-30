@@ -1,3 +1,6 @@
+#include <cstddef>
+#include <cstdint>
+
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
@@ -16,7 +19,6 @@
 // ############MACROS####################
 
 #define MAX_BUF_SIZE 1024
-
 enum time_stages {
   MASTER_WORKER,
   ALL_REDUCE,
@@ -26,4 +28,14 @@ enum time_stages {
   OVERALL_TOTAL
 };
 
+typedef uint64_t unit_t;
+
+struct stets_t {
+  size_t num_rows;
+  size_t num_tumor;
+  size_t num_norma;
+  size_t num_cols;
+  unit_t *tumorData;
+  unit_t *normalData;
+};
 #endif
