@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "constants.h"
-#include "four_hit.h"
+#include "fourHit.h"
 #include "readFile.h"
 
 // ###########################HELPER#########################
@@ -71,9 +71,8 @@ int main(int argc, char *argv[]) {
 
   START_TIMING(function_execution)
 
-  // distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,
-  //                  numNormal, argv[3], tumorSamples, geneIdArray,
-  //                  elapsed_times);
+  distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,
+                   numNormal, argv[3], tumorSamples, elapsed_times);
   END_TIMING(function_execution, elapsed_time_func);
 
   END_TIMING(overall_execution, elapsed_time_total);

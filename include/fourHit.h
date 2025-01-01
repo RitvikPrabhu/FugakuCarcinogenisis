@@ -1,5 +1,5 @@
-#ifndef FOUR_HIT_H
-#define FOUR_HIT_H
+#ifndef FOURHIT_H
+#define FOURHIT_H
 
 #include <array>
 #include <mpi.h>
@@ -31,6 +31,6 @@ void distribute_tasks(int rank, int size, int numGenes,
                       unsigned long long **&normalData, int Nt, int Nn,
                       const char *outFilename,
                       unsigned long long *&tumorSamples,
-                      std::string *geneIdArray, double elapsed_times[]);
+                      double elapsed_times[]);
 
 #endif

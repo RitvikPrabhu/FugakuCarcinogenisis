@@ -18,22 +18,22 @@ long long int calculate_initial_index(int num_workers) {
   return num_workers * CHUNK_SIZE;
 }
 
-void receive_worker_message(char &message, int workerRank) {
+/**void receive_worker_message(char &message, int workerRank) {
   MPI_Status status;
   MPI_Recv(&message, 1, MPI_CHAR, workerRank, 1, MPI_COMM_WORLD, &status);
-}
+}**/
 
-void send_chunk_assignment(int workerRank, long long int chunk) {
+/**void send_chunk_assignment(int workerRank, long long int chunk) {
   MPI_Send(&chunk, 1, MPI_LONG_LONG_INT, workerRank, 2, MPI_COMM_WORLD);
-}
+}**/
 
-void send_termination_signals(int num_workers) {
+/**void send_termination_signals(int num_workers) {
   long long int termination_signal = -1;
   for (int workerRank = 1; workerRank <= num_workers; ++workerRank) {
     MPI_Send(&termination_signal, 1, MPI_LONG_LONG_INT, workerRank, 2,
              MPI_COMM_WORLD);
   }
-}
+}**/
 
 void distribute_work(int num_workers, long long int num_Comb,
                      long long int &next_idx) {
@@ -46,10 +46,12 @@ void distribute_work(int num_workers, long long int num_Comb,
     if (flag) {
       int workerRank = status.MPI_SOURCE;
       char message;
-      receive_worker_message(message, workerRank);
+      MPI_Status status;
+      MPI_Recv(&message, 1, MPI_CHAR, workerRank, 1, MPI_COMM_WORLD, &status);
 
       if (message == 'a') {
-        send_chunk_assignment(workerRank, next_idx);
+        MPI_Send(&next_idx, 1, MPI_LONG_LONG_INT, workerRank, 2,
+                 MPI_COMM_WORLD);
         next_idx += CHUNK_SIZE;
       }
     }
@@ -59,28 +61,29 @@ void distribute_work(int num_workers, long long int num_Comb,
 void master_process(int num_workers, long long int num_Comb) {
   long long int next_idx = calculate_initial_index(num_workers);
   distribute_work(num_workers, num_Comb, next_idx);
-  send_termination_signals(num_workers);
+  long long int termination_signal = -1;
+  for (int workerRank = 1; workerRank <= num_workers; ++workerRank) {
+    MPI_Send(&termination_signal, 1, MPI_LONG_LONG_INT, workerRank, 2,
+             MPI_COMM_WORLD);
+  }
 }
 
-MPIResult perform_MPI_allreduce(const MPIResult &localResult) {
+/**MPIResult perform_MPI_allreduce(const MPIResult &localResult) {
   MPIResult globalResult;
   MPI_Allreduce(&localResult, &globalResult, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
                 MPI_COMM_WORLD);
   return globalResult;
-}
+}**/
 
-void notify_master_chunk_processed(int master_rank = 0, int tag = 1) {
+/**void notify_master_chunk_processed(int master_rank = 0, int tag = 1) {
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, master_rank, tag, MPI_COMM_WORLD);
-}
+}**/
 
-long long int receive_next_chunk_index(MPI_Status &status, int master_rank = 0,
-                                       int tag = 2) {
-  long long int next_idx;
-  MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, master_rank, tag, MPI_COMM_WORLD,
-           &status);
-  return next_idx;
-}
+/**long long int receive_next_chunk_index(MPI_Status &status, int master_rank =
+0, int tag = 2) { long long int next_idx; MPI_Recv(&next_idx, 1,
+MPI_LONG_LONG_INT, master_rank, tag, MPI_COMM_WORLD, &status); return next_idx;
+}**/
 
 long long int nCr(int n, int r) {
   if (r > n)
@@ -236,25 +239,12 @@ void update_best_combination(
   }
 }
 
-void execute_role(int rank, int size_minus_one, long long int num_Comb,
-                  unsigned long long **&tumorData,
-                  unsigned long long **&normalData, int numGenes, int Nt,
-                  int Nn, double &localBestMaxF,
-                  std::array<int, NUMHITS> &localComb) {
-  if (rank == 0) {
-    master_process(size_minus_one, num_Comb);
-  } else {
-    worker_process(rank, num_Comb, tumorData, normalData, numGenes, Nt, Nn,
-                   localBestMaxF, localComb);
-  }
-}
-
 void write_output(int rank, std::ofstream &outfile,
                   const std::array<int, NUMHITS> &globalBestComb,
-                  const std::string *geneIdArray, double F_max) {
+                  double F_max) {
   outfile << "(";
   for (size_t idx = 0; idx < globalBestComb.size(); ++idx) {
-    outfile << geneIdArray[globalBestComb[idx]];
+    outfile << globalBestComb[idx];
     if (idx != globalBestComb.size() - 1) {
       outfile << ", ";
     }
@@ -282,7 +272,7 @@ MPI_Op create_max_f_with_comb_op(MPI_Datatype MPI_RESULT_WITH_COMB) {
   return MPI_MAX_F_WITH_COMB;
 }
 
-MPIResultWithComb
+/**MPIResultWithComb
 perform_MPI_allreduce_with_comb(const MPIResultWithComb &localResult,
                                 MPI_Op MPI_MAX_FSCORE_WITH_COMB,
                                 MPI_Datatype MPI_RESULT_WITH_COMB) {
@@ -290,7 +280,7 @@ perform_MPI_allreduce_with_comb(const MPIResultWithComb &localResult,
   MPI_Allreduce(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                 MPI_MAX_FSCORE_WITH_COMB, MPI_COMM_WORLD);
   return globalResult;
-}
+}**/
 
 MPI_Datatype create_mpi_result_with_comb_type() {
   MPI_Datatype MPI_RESULT_WITH_COMB;
@@ -383,8 +373,13 @@ bool process_and_communicate(int rank, long long int num_Comb,
 
   process_lambda_interval(tumorData, normalData, begin, end, numGenes,
                           localComb, Nt, Nn, localBestMaxF);
-  notify_master_chunk_processed(0, 1);
-  long long int next_idx = receive_next_chunk_index(status, 0, 2);
+  char signal = 'a';
+  MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
+
+  // long long int next_idx = receive_next_chunk_index(status, 0, 2);
+
+  long long int next_idx;
+  MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, 0, 2, MPI_COMM_WORLD, &status);
 
   if (next_idx == -1)
     return false;
@@ -411,6 +406,19 @@ void worker_process(int rank, long long int num_Comb,
         localComb, begin, end, status);
     if (!has_next)
       break;
+  }
+}
+
+void execute_role(int rank, int size_minus_one, long long int num_Comb,
+                  unsigned long long **&tumorData,
+                  unsigned long long **&normalData, int numGenes, int Nt,
+                  int Nn, double &localBestMaxF,
+                  std::array<int, NUMHITS> &localComb) {
+  if (rank == 0) {
+    master_process(size_minus_one, num_Comb);
+  } else {
+    worker_process(rank, num_Comb, tumorData, normalData, numGenes, Nt, Nn,
+                   localBestMaxF, localComb);
   }
 }
 
@@ -444,7 +452,7 @@ void distribute_tasks(int rank, int size, int numGenes,
                       unsigned long long **&normalData, int Nt, int Nn,
                       const char *outFilename,
                       unsigned long long *&tumorSamples,
-                      std::string *geneIdArray, double elapsed_times[]) {
+                      double elapsed_times[]) {
 
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
@@ -471,8 +479,12 @@ void distribute_tasks(int rank, int size, int numGenes,
 
     START_TIMING(all_reduce)
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
-    MPIResultWithComb globalResult = perform_MPI_allreduce_with_comb(
-        localResult, MPI_MAX_F_WITH_COMB, MPI_RESULT_WITH_COMB);
+    /** MPIResultWithComb globalResult = perform_MPI_allreduce_with_comb(
+         localResult, MPI_MAX_F_WITH_COMB, MPI_RESULT_WITH_COMB);**/
+    MPIResultWithComb globalResult;
+    MPI_Allreduce(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
+                  MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
+
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
     END_TIMING(all_reduce, all_reduce_time);
 
@@ -486,10 +498,10 @@ void distribute_tasks(int rank, int size, int numGenes,
                       numGenes);
 
     updateNt(Nt, sampleToCover);
-
-    if (rank == 0) {
-      write_output(rank, outfile, globalBestComb, geneIdArray, globalResult.f);
-    }
+    /**
+        if (rank == 0) {
+          write_output(rank, outfile, globalBestComb, globalResult.f);
+        }**/
     delete[] sampleToCover;
   }
   if (rank == 0) {
