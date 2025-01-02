@@ -271,8 +271,7 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
         continue;
 
       for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-        unit_t *intersectTumor2 =
-            get_intersection(tumorData, dataTable.numTumor), computed.i, computed.j, k, -1);
+        unit_t *intersectTumor2 = get_intersection(tumorData, dataTable.numTumor), computed.i, computed.j, k, -1);
 
         if (is_empty(intersectTumor2, CALCULATE_BIT_UNITS(dataTable.numTumor)))
           continue;
@@ -415,7 +414,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
         initialize_local_comb_and_f(localBestMaxF);
 
     START_TIMING(master_worker)
-    execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb);
+    execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable);
     END_TIMING(master_worker, master_worker_time);
 
     START_TIMING(all_reduce)
