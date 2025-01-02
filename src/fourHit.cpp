@@ -259,38 +259,44 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
 
 #pragma omp for nowait schedule(dynamic)
     for (unit_t lambda = startComb; lambda <= endComb; lambda++) {
-      LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
+      LambdaComputed computed =
+          compute_lambda_variables(lambda, dataTable.numRows);
       if (computed.j == -1)
         continue;
 
-      unit_t *intersectTumor1 =
-          get_intersection(tumorData, Nt, computed.i, computed.j, -1);
+      unit_t *intersectTumor1 = get_intersection(tumorData, dataTable.numTumor,
+                                                 computed.i, computed.j, -1);
 
-      if (is_empty(intersectTumor1, CALCULATE_BIT_UNITS(Nt)))
+      if (is_empty(intersectTumor1, CALCULATE_BIT_UNITS(dataTable.numTumor)))
         continue;
 
       for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
         unit_t *intersectTumor2 =
-            get_intersection(tumorData, Nt, computed.i, computed.j, k, -1);
+            get_intersection(tumorData, dataTable.numTumor), computed.i, computed.j, k, -1);
 
-        if (is_empty(intersectTumor2, CALCULATE_BIT_UNITS(Nt)))
+        if (is_empty(intersectTumor2, CALCULATE_BIT_UNITS(dataTable.numTumor)))
           continue;
 
         for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-          unit_t *intersectTumor3 =
-              get_intersection(tumorData, Nt, computed.i, computed.j, k, l, -1);
+          unit_t *intersectTumor3 = get_intersection(
+              tumorData, dataTable.numTumor, computed.i, computed.j, k, l, -1);
 
-          if (is_empty(intersectTumor3, CALCULATE_BIT_UNITS(Nt)))
+          if (is_empty(intersectTumor3,
+                       CALCULATE_BIT_UNITS(dataTable.numTumor)))
             continue;
 
-          unit_t *intersectNormal = get_intersection(normalData, Nn, computed.i,
-                                                     computed.j, k, l, -1);
+          unit_t *intersectNormal =
+              get_intersection(normalData, dataTable.numNormal, computed.i,
+                               computed.j, k, l, -1);
 
-          int TP = bitCollection_size(intersectTumor3, CALCULATE_BIT_UNITS(Nt));
-          int TN =
-              Nn - bitCollection_size(intersectNormal, CALCULATE_BIT_UNITS(Nn));
+          int TP = bitCollection_size(intersectTumor3,
+                                      CALCULATE_BIT_UNITS(dataTable.numTumor));
+          int TN = dataTable.numNormal -
+                   bitCollection_size(intersectNormal,
+                                      CALCULATE_BIT_UNITS(dataTable.numNormal));
 
-          double F = compute_F(TP, TN, alpha, Nt, Nn);
+          double F =
+              compute_F(TP, TN, alpha, dataTable.numTumor, dataTable.numNormal);
           if (F >= localMaxF) {
             localMaxF = F;
             localBestCombination = {computed.i, computed.j, k, l};
