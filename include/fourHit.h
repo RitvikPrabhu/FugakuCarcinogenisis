@@ -5,6 +5,7 @@
 #include <mpi.h>
 #include <string>
 
+#include "constants.h"
 #define NUMHITS 4
 #define CHUNK_SIZE 100LL
 
@@ -26,11 +27,6 @@ struct MPIResult {
   int rank;
 };
 
-void distribute_tasks(int rank, int size, int numGenes,
-                      unsigned long long **&tumorData,
-                      unsigned long long **&normalData, int Nt, int Nn,
-                      const char *outFilename,
-                      unsigned long long *&tumorSamples,
-                      double elapsed_times[]);
-
+void distribute_tasks(int rank, int size, const char *outFilename,
+                      double elapsed_times[], sets_t dataTable);
 #endif

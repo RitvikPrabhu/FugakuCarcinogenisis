@@ -55,12 +55,12 @@ sets_t allocate_sets_from_header(const char *header_line, int rank) {
   }
 
   sets_t table;
-  table.num_rows = static_cast<size_t>(num_rows);
-  table.num_tumor = static_cast<size_t>(num_tumor);
-  table.num_normal = static_cast<size_t>(num_normal);
-  table.num_cols = static_cast<size_t>(num_cols);
+  table.numRows = static_cast<size_t>(num_rows);
+  table.numTumor = static_cast<size_t>(num_tumor);
+  table.numNormal = static_cast<size_t>(num_normal);
+  table.numCols = static_cast<size_t>(num_cols);
 
-  const size_t total_bits = table.num_rows * table.num_cols;
+  const size_t total_bits = table.numRows * table.numCols;
   const size_t total_units = CALCULATE_BIT_UNITS(total_bits);
   table.data = new unit_t[total_units];
   std::memset(table.data, 0, total_units * sizeof(unit_t));
@@ -78,24 +78,24 @@ inline void set_bit(unit_t *array, size_t row, size_t col, size_t total_cols) {
 void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
   size_t row_index = 0;
   char *line = strtok(nullptr, "\n");
-  while (line != nullptr && row_index < table.num_rows) {
-    if (std::strlen(line) < table.num_cols) {
+  while (line != nullptr && row_index < table.numRows) {
+    if (std::strlen(line) < table.numCols) {
       fprintf(stderr, "Rank %d: Error: line %zu has fewer than %zu bits.\n",
-              rank, row_index, table.num_cols);
+              rank, row_index, table.numCols);
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    for (size_t c = 0; c < table.num_cols; c++) {
+    for (size_t c = 0; c < table.numCols; c++) {
       if (line[c] == '1') {
-        set_bit(table.data, row_index, c, table.num_cols);
+        set_bit(table.data, row_index, c, table.numCols);
       }
     }
     row_index++;
     line = strtok(nullptr, "\n");
   }
 
-  if (row_index != table.num_rows) {
+  if (row_index != table.numRows) {
     fprintf(stderr, "Rank %d: Error: expected %zu data lines but got %zu.\n",
-            rank, table.num_rows, row_index);
+            rank, table.numRows, row_index);
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 }

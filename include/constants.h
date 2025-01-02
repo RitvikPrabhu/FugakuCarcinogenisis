@@ -29,12 +29,13 @@ enum time_stages {
 };
 
 typedef uint64_t unit_t;
+#define MPI_UNIT_T MPI_UINT64_T
 
 struct sets_t {
-  size_t num_rows;
-  size_t num_tumor;
-  size_t num_normal;
-  size_t num_cols;
+  size_t numRows;
+  size_t numTumor;
+  size_t numNormal;
+  size_t numCols;
   unit_t *data;
 };
 #endif
