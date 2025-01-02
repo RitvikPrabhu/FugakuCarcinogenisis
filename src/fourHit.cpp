@@ -247,10 +247,9 @@ MPI_Datatype create_mpi_result_with_comb_type() {
   return MPI_RESULT_WITH_COMB;
 }
 
-void process_lambda_interval(unit_t **&tumorData, unit_t **&normalData,
-                             unit_t startComb, unit_t endComb, int totalGenes,
-                             std::array<int, NUMHITS> &bestCombination, int Nt,
-                             int Nn, double &maxF) {
+void process_lambda_interval(unit_t startComb, unit_t endComb,
+                             std::array<int, NUMHITS> &bestCombination,
+                             double &maxF, sets_t dataTable) {
   const double alpha = 0.1;
 
 #pragma omp parallel
@@ -308,14 +307,12 @@ void process_lambda_interval(unit_t **&tumorData, unit_t **&normalData,
   }
 }
 
-bool process_and_communicate(int rank, unit_t num_Comb, unit_t **&tumorData,
-                             unit_t **&normalData, int numGenes, int Nt, int Nn,
-                             double &localBestMaxF,
+bool process_and_communicate(int rank, unit_t num_Comb, double &localBestMaxF,
                              std::array<int, NUMHITS> &localComb, unit_t &begin,
-                             unit_t &end, MPI_Status &status) {
+                             unit_t &end, MPI_Status &status,
+                             sets_t dataTable) {
 
-  process_lambda_interval(tumorData, normalData, begin, end, numGenes,
-                          localComb, Nt, Nn, localBestMaxF);
+  process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
@@ -330,10 +327,8 @@ bool process_and_communicate(int rank, unit_t num_Comb, unit_t **&tumorData,
   return true;
 }
 
-void worker_process(int rank, unit_t num_Comb, unit_t **&tumorData,
-                    unit_t **&normalData, int numGenes, int Nt, int Nn,
-                    double &localBestMaxF,
-                    std::array<int, NUMHITS> &localComb) {
+void worker_process(int rank, unit_t num_Comb, double &localBestMaxF,
+                    std::array<int, NUMHITS> &localComb, sets_t dataTable) {
 
   std::pair<unit_t, unit_t> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
@@ -341,23 +336,21 @@ void worker_process(int rank, unit_t num_Comb, unit_t **&tumorData,
   unit_t end = chunk_indices.second;
   MPI_Status status;
   while (end <= num_Comb) {
-    bool has_next = process_and_communicate(
-        rank, num_Comb, tumorData, normalData, numGenes, Nt, Nn, localBestMaxF,
-        localComb, begin, end, status);
+    bool has_next =
+        process_and_communicate(rank, num_Comb, localBestMaxF, localComb, begin,
+                                end, status, dataTable);
     if (!has_next)
       break;
   }
 }
 
 void execute_role(int rank, int size_minus_one, unit_t num_Comb,
-                  unit_t **&tumorData, unit_t **&normalData, int numGenes,
-                  int Nt, int Nn, double &localBestMaxF,
-                  std::array<int, NUMHITS> &localComb) {
+                  double &localBestMaxF, std::array<int, NUMHITS> &localComb,
+                  sets_t dataTable) {
   if (rank == 0) {
     master_process(size_minus_one, num_Comb);
   } else {
-    worker_process(rank, num_Comb, tumorData, normalData, numGenes, Nt, Nn,
-                   localBestMaxF, localComb);
+    worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable);
   }
 }
 
@@ -416,8 +409,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
         initialize_local_comb_and_f(localBestMaxF);
 
     START_TIMING(master_worker)
-    execute_role(rank, size - 1, num_Comb, tumorData, normalData, numGenes, Nt,
-                 Nn, localBestMaxF, localComb);
+    execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb);
     END_TIMING(master_worker, master_worker_time);
 
     START_TIMING(all_reduce)
