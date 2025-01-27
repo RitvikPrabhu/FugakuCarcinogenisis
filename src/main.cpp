@@ -60,10 +60,10 @@ int main(int argc, char *argv[]) {
   double elapsed_times[6] = {0.0};
 
   START_TIMING(loading)
-  int numGenes, numSamples, numTumor, numNormal;
-  unsigned long long *tumorSamples = nullptr;
-  unsigned long long **tumorData = nullptr;
-  unsigned long long **normalData = nullptr;
+  // int numGenes, numSamples, numTumor, numNormal;
+  // unsigned long long *tumorSamples = nullptr;
+  //  unsigned long long **tumorData = nullptr;
+  // unsigned long long **normalData = nullptr;
 
   sets_t dataTable = read_data(argv[1], rank);
 

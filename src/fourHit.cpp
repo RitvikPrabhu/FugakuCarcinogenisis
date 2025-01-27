@@ -11,6 +11,7 @@
 #include <set>
 #include <vector>
 
+#include "constants.h"
 #include "fourHit.h"
 
 unit_t calculate_initial_index(int num_workers) {
@@ -48,7 +49,7 @@ void master_process(int num_workers, unit_t num_Comb) {
   }
 }
 
-unit_t nCr(int n, int r) {
+inline unit_t nCr(int n, int r) {
   if (r > n)
     return 0;
   if (r == 0 || r == n)
@@ -64,48 +65,7 @@ unit_t nCr(int n, int r) {
   return result;
 }
 
-unit_t *allocate_bit_array(size_t units,
-                           unit_t init_value = 0xFFFFFFFFFFFFFFFFULL) {
-  unit_t *bitArray = new unit_t[units];
-  for (size_t i = 0; i < units; ++i) {
-    bitArray[i] = init_value;
-  }
-  return bitArray;
-}
-
-void bitwise_and_arrays(unit_t *result, const unit_t *source, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    result[i] &= source[i];
-  }
-}
-
-unit_t *get_intersection(unit_t **data, int numSamples, ...) {
-  size_t units = CALCULATE_BIT_UNITS(numSamples);
-  unit_t *finalIntersect = allocate_bit_array(units);
-
-  va_list args;
-  va_start(args, numSamples);
-  bool isFirst = true;
-  while (true) {
-    int geneIndex = va_arg(args, int);
-    if (geneIndex == -1) {
-      break;
-    }
-
-    if (isFirst) {
-      for (size_t i = 0; i < units; ++i) {
-        finalIntersect[i] = data[geneIndex][i];
-      }
-      isFirst = false;
-    } else {
-      bitwise_and_arrays(finalIntersect, data[geneIndex], units);
-    }
-  }
-  va_end(args);
-  return finalIntersect; // Return single pointer
-}
-
-bool is_empty(unit_t *bitArray, size_t units) {
+inline bool is_empty(unit_t *bitArray, size_t units) {
   for (size_t i = 0; i < units; ++i) {
     if (bitArray[i] != 0) {
       return false;
@@ -114,8 +74,9 @@ bool is_empty(unit_t *bitArray, size_t units) {
   return true;
 }
 
-size_t bitCollection_size(unit_t *bitArray, size_t units) {
-  size_t count = 0;
+// Apparently only works if using 64 bits
+int bitCollection_size(unit_t *bitArray, size_t units) {
+  int count = 0;
   for (size_t i = 0; i < units; ++i) {
     count += __builtin_popcountll(bitArray[i]);
   }
@@ -251,11 +212,32 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
                              std::array<int, NUMHITS> &bestCombination,
                              double &maxF, sets_t dataTable) {
   const double alpha = 0.1;
+  const size_t tumorUnits = UNITS_FOR_BITS(dataTable.numTumor);
+  const size_t normalUnits = UNITS_FOR_BITS(dataTable.numNormal);
+  const int totalGenes = dataTable.numRows;
 
 #pragma omp parallel
   {
     double localMaxF = maxF;
     std::array<int, NUMHITS> localBestCombination = bestCombination;
+
+    std::vector<unit_t> row_i_buf(tumorUnits, 0);
+    std::vector<unit_t> row_j_buf(tumorUnits, 0);
+    std::vector<unit_t> row_k_buf(tumorUnits, 0);
+    std::vector<unit_t> row_l_buf(tumorUnits, 0);
+
+    std::vector<unit_t> ij_buf(tumorUnits, 0);
+    std::vector<unit_t> ijk_buf(tumorUnits, 0);
+    std::vector<unit_t> ijkl_buf(tumorUnits, 0);
+
+    std::vector<unit_t> normal_row_i_buf(normalUnits, 0);
+    std::vector<unit_t> normal_row_j_buf(normalUnits, 0);
+    std::vector<unit_t> normal_row_k_buf(normalUnits, 0);
+    std::vector<unit_t> normal_row_l_buf(normalUnits, 0);
+
+    std::vector<unit_t> normal_ij_buf(normalUnits, 0);
+    std::vector<unit_t> normal_ijk_buf(normalUnits, 0);
+    std::vector<unit_t> normal_ijkl_buf(normalUnits, 0);
 
 #pragma omp for nowait schedule(dynamic)
     for (unit_t lambda = startComb; lambda <= endComb; lambda++) {
@@ -264,38 +246,67 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
       if (computed.j == -1)
         continue;
 
-      unit_t *intersectTumor1 = get_intersection(tumorData, dataTable.numTumor,
-                                                 computed.i, computed.j, -1);
+      std::memset(row_i_buf.data(), 0, tumorUnits * sizeof(unit_t));
+      std::memset(row_j_buf.data(), 0, tumorUnits * sizeof(unit_t));
+      std::memset(ij_buf.data(), 0, tumorUnits * sizeof(unit_t));
 
-      if (is_empty(intersectTumor1, CALCULATE_BIT_UNITS(dataTable.numTumor)))
+      EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, computed.i);
+      EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, computed.j);
+      INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
+                        tumorUnits);
+
+      if (is_empty(ij_buf.data(), tumorUnits))
         continue;
 
       for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-        unit_t *intersectTumor2 = get_intersection(tumorData, dataTable.numTumor), computed.i, computed.j, k, -1);
+        std::memset(row_k_buf.data(), 0, tumorUnits * sizeof(unit_t));
+        std::memset(ijk_buf.data(), 0, tumorUnits * sizeof(unit_t));
 
-        if (is_empty(intersectTumor2, CALCULATE_BIT_UNITS(dataTable.numTumor)))
+        EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, k);
+        INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
+                          tumorUnits);
+
+        if (is_empty(ijk_buf.data(), tumorUnits))
           continue;
 
         for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-          unit_t *intersectTumor3 = get_intersection(
-              tumorData, dataTable.numTumor, computed.i, computed.j, k, l, -1);
+          std::memset(row_l_buf.data(), 0, tumorUnits * sizeof(unit_t));
+          std::memset(ijkl_buf.data(), 0, tumorUnits * sizeof(unit_t));
 
-          if (is_empty(intersectTumor3,
-                       CALCULATE_BIT_UNITS(dataTable.numTumor)))
+          EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, l);
+          INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(), ijk_buf.data(),
+                            tumorUnits);
+
+          if (is_empty(ijkl_buf.data(), tumorUnits))
             continue;
 
-          unit_t *intersectNormal =
-              get_intersection(normalData, dataTable.numNormal, computed.i,
-                               computed.j, k, l, -1);
+          std::memset(normal_row_i_buf.data(), 0, normalUnits * sizeof(unit_t));
+          std::memset(normal_row_j_buf.data(), 0, normalUnits * sizeof(unit_t));
+          std::memset(normal_row_k_buf.data(), 0, normalUnits * sizeof(unit_t));
+          std::memset(normal_row_l_buf.data(), 0, normalUnits * sizeof(unit_t));
 
-          int TP = bitCollection_size(intersectTumor3,
-                                      CALCULATE_BIT_UNITS(dataTable.numTumor));
+          std::memset(normal_ij_buf.data(), 0, normalUnits * sizeof(unit_t));
+          std::memset(normal_ijk_buf.data(), 0, normalUnits * sizeof(unit_t));
+          std::memset(normal_ijkl_buf.data(), 0, normalUnits * sizeof(unit_t));
+
+          EXTRACT_NORMAL_BITS(normal_row_i_buf.data(), dataTable, computed.i);
+          EXTRACT_NORMAL_BITS(normal_row_j_buf.data(), dataTable, computed.j);
+          EXTRACT_NORMAL_BITS(normal_row_k_buf.data(), dataTable, k);
+          EXTRACT_NORMAL_BITS(normal_row_l_buf.data(), dataTable, l);
+
+          INTERSECT_BUFFERS(normal_ij_buf.data(), normal_row_i_buf.data(),
+                            normal_row_j_buf.data(), normalUnits);
+          INTERSECT_BUFFERS(normal_ijk_buf.data(), normal_row_k_buf.data(),
+                            normal_ij_buf.data(), normalUnits);
+          INTERSECT_BUFFERS(normal_ijkl_buf.data(), normal_row_l_buf.data(),
+                            normal_ijk_buf.data(), normalUnits);
+
+          int TP = bitCollection_size(ijkl_buf.data(), tumorUnits);
           int TN = dataTable.numNormal -
-                   bitCollection_size(intersectNormal,
-                                      CALCULATE_BIT_UNITS(dataTable.numNormal));
+                   bitCollection_size(normal_ijkl_buf.data(), normalUnits);
 
           double F =
-              compute_F(TP, TN, alpha, dataTable.numTumor, dataTable.numNormal);
+              (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
           if (F >= localMaxF) {
             localMaxF = F;
             localBestCombination = {computed.i, computed.j, k, l};
@@ -407,6 +418,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outfile.open(outFilename);
     outputFileWriteError(outfile);
   }
+  const size_t tumorUnits = UNITS_FOR_BITS(dataTable.numTumor);
 
   while (!all_bits_set(droppedSamples, CALCULATE_BIT_UNITS(Nt))) {
     double localBestMaxF;
@@ -426,17 +438,33 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
     END_TIMING(all_reduce, all_reduce_time);
 
-    unit_t *sampleToCover =
-        get_intersection(tumorData, Nt, globalBestComb[0], globalBestComb[1],
-                         globalBestComb[2], globalBestComb[3], -1);
-    update_dropped_samples(droppedSamples, sampleToCover,
-                           CALCULATE_BIT_UNITS(Nt));
+    std::vector<unit_t> row_i_buf(tumorUnits, 0);
+    std::vector<unit_t> row_j_buf(tumorUnits, 0);
+    std::vector<unit_t> row_k_buf(tumorUnits, 0);
+    std::vector<unit_t> row_l_buf(tumorUnits, 0);
 
-    update_tumor_data(tumorData, sampleToCover, CALCULATE_BIT_UNITS(Nt),
-                      numGenes);
+    std::vector<unit_t> ij_buf(tumorUnits, 0);
+    std::vector<unit_t> ijk_buf(tumorUnits, 0);
+    std::vector<unit_t> ijkl_buf(tumorUnits, 0);
 
-    updateNt(Nt, sampleToCover);
-    delete[] sampleToCover;
+    EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, globalBestComb[0]);
+    EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, globalBestComb[1]);
+    EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, globalBestComb[2]);
+    EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, globalBestComb[3]);
+
+    INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
+                      tumorUnits);
+    INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
+                      tumorUnits);
+    INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(), ijk_buf.data(),
+                      tumorUnits);
+
+    update_dropped_samples(droppedSamples, ijkl_buf.data(), tumorUnits);
+
+    // update_tumor_data(tumorData, ijkl_buf.data(), tumorUnits, numGenes);
+
+    updateNt(Nt, ijkl_buf.data());
+    break;
   }
   if (rank == 0) {
     outfile.close();
