@@ -6,8 +6,6 @@
 #include <set>
 #include <vector>
 
-#include <iomanip> // for std::hex, std::setw, etc.
-
 #include "constants.h"
 #include "fourHit.h"
 #include "readFile.h"
