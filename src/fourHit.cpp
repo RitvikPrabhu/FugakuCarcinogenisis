@@ -463,7 +463,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     // update_tumor_data(tumorData, ijkl_buf.data(), tumorUnits, numGenes);
 
-    updateNt(Nt, ijkl_buf.data());
+    // updateNt(Nt, ijkl_buf.data());
     break;
   }
   if (rank == 0) {

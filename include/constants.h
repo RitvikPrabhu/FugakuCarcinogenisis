@@ -1,3 +1,4 @@
+#include <climits>
 #include <cstddef>
 #include <cstdint>
 
@@ -39,7 +40,7 @@ struct sets_t {
 #define END_TIMING(var, accumulated_time)
 #endif
 
-#define BITS_PER_UNIT (sizeof(unit_t) * 8)
+#define BITS_PER_UNIT (sizeof(unit_t) * CHAR_BIT)
 
 #define SHIFT_LEFT(x, n) (((n) >= BITS_PER_UNIT) ? (unit_t)0 : ((x) << (n)))
 #define SHIFT_RIGHT(x, n) (((n) >= BITS_PER_UNIT) ? (unit_t)0 : ((x) >> (n)))

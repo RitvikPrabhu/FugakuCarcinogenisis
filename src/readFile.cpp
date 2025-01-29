@@ -60,24 +60,30 @@ sets_t allocate_sets_from_header(const char *header_line, int rank) {
   table.numNormal = static_cast<size_t>(num_normal);
   table.numCols = static_cast<size_t>(num_cols);
 
-  const size_t total_bits = table.numRows * table.numCols;
-  const size_t total_units = CALCULATE_BIT_UNITS(total_bits);
+  size_t rowUnits = CALCULATE_BIT_UNITS(table.numCols);
+
+  const size_t total_units = rowUnits * table.numRows;
   table.data = new unit_t[total_units];
   std::memset(table.data, 0, total_units * sizeof(unit_t));
 
   return table;
 }
 
-inline void set_bit(unit_t *array, size_t row, size_t col, size_t total_cols) {
-  size_t idx = row * total_cols + col;
-  size_t unit_idx = idx / 64;
-  size_t bit_in_unit = idx % 64;
+inline void set_bit(unit_t *array, size_t row, size_t col,
+                    size_t row_size_in_bits) {
+  size_t idx = row * row_size_in_bits + col;
+  size_t unit_idx = idx / BITS_PER_UNIT;
+  size_t bit_in_unit = idx % BITS_PER_UNIT;
   array[unit_idx] |= (1ULL << bit_in_unit);
 }
 
 void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
   size_t row_index = 0;
   char *line = strtok(nullptr, "\n");
+
+  size_t rowUnits = CALCULATE_BIT_UNITS(table.numCols);
+  size_t row_size_in_bits = rowUnits * BITS_PER_UNIT;
+
   while (line != nullptr && row_index < table.numRows) {
     if (std::strlen(line) < table.numCols) {
       fprintf(stderr, "Rank %d: Error: line %zu has fewer than %zu bits.\n",
@@ -86,7 +92,7 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
     }
     for (size_t c = 0; c < table.numCols; c++) {
       if (line[c] == '1') {
-        set_bit(table.data, row_index, c, table.numCols);
+        set_bit(table.data, row_index, c, row_size_in_bits);
       }
     }
     row_index++;
