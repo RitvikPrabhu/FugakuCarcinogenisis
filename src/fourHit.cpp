@@ -11,7 +11,6 @@
 #include <set>
 #include <vector>
 
-#include "constants.h"
 #include "fourHit.h"
 
 unit_t calculate_initial_index(int num_workers) {
@@ -63,24 +62,6 @@ inline unit_t nCr(int n, int r) {
     result /= i;
   }
   return result;
-}
-
-inline bool is_empty(unit_t *bitArray, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    if (bitArray[i] != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Apparently only works if using 64 bits
-int bitCollection_size(unit_t *bitArray, size_t units) {
-  int count = 0;
-  for (size_t i = 0; i < units; ++i) {
-    count += __builtin_popcountll(bitArray[i]);
-  }
-  return count;
 }
 
 bool arrays_equal(const unit_t *a, const unit_t *b, size_t units) {
@@ -250,10 +231,10 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
       std::memset(row_j_buf.data(), 0, tumorUnits * sizeof(unit_t));
       std::memset(ij_buf.data(), 0, tumorUnits * sizeof(unit_t));
 
-      EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, computed.i);
-      EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, computed.j);
-      INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
-                        tumorUnits);
+      // EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, computed.i);
+      // EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, computed.j);
+      // INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
+      //                  tumorUnits);
 
       if (is_empty(ij_buf.data(), tumorUnits))
         continue;
@@ -262,9 +243,9 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
         std::memset(row_k_buf.data(), 0, tumorUnits * sizeof(unit_t));
         std::memset(ijk_buf.data(), 0, tumorUnits * sizeof(unit_t));
 
-        EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, k);
-        INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
-                          tumorUnits);
+        // EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, k);
+        // INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
+        //                  tumorUnits);
 
         if (is_empty(ijk_buf.data(), tumorUnits))
           continue;
@@ -273,9 +254,10 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
           std::memset(row_l_buf.data(), 0, tumorUnits * sizeof(unit_t));
           std::memset(ijkl_buf.data(), 0, tumorUnits * sizeof(unit_t));
 
-          EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, l);
-          INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(), ijk_buf.data(),
-                            tumorUnits);
+          // EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, l);
+          // INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(),
+          // ijk_buf.data(),
+          //                  tumorUnits);
 
           if (is_empty(ijkl_buf.data(), tumorUnits))
             continue;
@@ -289,17 +271,18 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
           std::memset(normal_ijk_buf.data(), 0, normalUnits * sizeof(unit_t));
           std::memset(normal_ijkl_buf.data(), 0, normalUnits * sizeof(unit_t));
 
-          EXTRACT_NORMAL_BITS(normal_row_i_buf.data(), dataTable, computed.i);
-          EXTRACT_NORMAL_BITS(normal_row_j_buf.data(), dataTable, computed.j);
-          EXTRACT_NORMAL_BITS(normal_row_k_buf.data(), dataTable, k);
-          EXTRACT_NORMAL_BITS(normal_row_l_buf.data(), dataTable, l);
+          // EXTRACT_NORMAL_BITS(normal_row_i_buf.data(), dataTable,
+          // computed.i); EXTRACT_NORMAL_BITS(normal_row_j_buf.data(),
+          // dataTable, computed.j);
+          // EXTRACT_NORMAL_BITS(normal_row_k_buf.data(), dataTable, k);
+          // EXTRACT_NORMAL_BITS(normal_row_l_buf.data(), dataTable, l);
 
-          INTERSECT_BUFFERS(normal_ij_buf.data(), normal_row_i_buf.data(),
-                            normal_row_j_buf.data(), normalUnits);
-          INTERSECT_BUFFERS(normal_ijk_buf.data(), normal_row_k_buf.data(),
-                            normal_ij_buf.data(), normalUnits);
-          INTERSECT_BUFFERS(normal_ijkl_buf.data(), normal_row_l_buf.data(),
-                            normal_ijk_buf.data(), normalUnits);
+          // INTERSECT_BUFFERS(normal_ij_buf.data(), normal_row_i_buf.data(),
+          //                   normal_row_j_buf.data(), normalUnits);
+          // INTERSECT_BUFFERS(normal_ijk_buf.data(), normal_row_k_buf.data(),
+          //                  normal_ij_buf.data(), normalUnits);
+          // INTERSECT_BUFFERS(normal_ijkl_buf.data(), normal_row_l_buf.data(),
+          //                 normal_ijk_buf.data(), normalUnits);
 
           int TP = bitCollection_size(ijkl_buf.data(), tumorUnits);
           int TN = dataTable.numNormal -
@@ -447,17 +430,17 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     std::vector<unit_t> ijk_buf(tumorUnits, 0);
     std::vector<unit_t> ijkl_buf(tumorUnits, 0);
 
-    EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, globalBestComb[0]);
-    EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, globalBestComb[1]);
-    EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, globalBestComb[2]);
-    EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, globalBestComb[3]);
+    // EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, globalBestComb[0]);
+    // EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, globalBestComb[1]);
+    // EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, globalBestComb[2]);
+    // EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, globalBestComb[3]);
 
-    INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
-                      tumorUnits);
-    INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
-                      tumorUnits);
-    INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(), ijk_buf.data(),
-                      tumorUnits);
+    // INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
+    //                   tumorUnits);
+    // INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
+    //                   tumorUnits);
+    // INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(), ijk_buf.data(),
+    //                   tumorUnits);
 
     update_dropped_samples(droppedSamples, ijkl_buf.data(), tumorUnits);
 

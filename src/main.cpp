@@ -6,7 +6,6 @@
 #include <set>
 #include <vector>
 
-#include "constants.h"
 #include "fourHit.h"
 #include "readFile.h"
 
