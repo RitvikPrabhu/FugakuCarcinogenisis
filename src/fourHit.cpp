@@ -1,4 +1,4 @@
-/**#include <algorithm>
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -129,15 +129,6 @@ LambdaComputed compute_lambda_variables(unit_t lambda, int totalGenes) {
   return computed;
 }
 
-void update_best_combination(
-    double &globalMaxF, std::array<int, NUMHITS> &globalBestCombination,
-    double localMaxF, const std::array<int, NUMHITS> &localBestCombination) {
-  if (localMaxF >= globalMaxF) {
-    globalMaxF = localMaxF;
-    globalBestCombination = localBestCombination;
-  }
-}
-
 void write_output(int rank, std::ofstream &outfile,
                   const std::array<int, NUMHITS> &globalBestComb,
                   double F_max) {
@@ -197,111 +188,45 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
   const size_t normalUnits = UNITS_FOR_BITS(dataTable.numNormal);
   const int totalGenes = dataTable.numRows;
 
-#pragma omp parallel
-  {
-    double localMaxF = maxF;
-    std::array<int, NUMHITS> localBestCombination = bestCombination;
+  std::vector<unit_t> intersection(normalUnits, 0);
 
-    std::vector<unit_t> row_i_buf(tumorUnits, 0);
-    std::vector<unit_t> row_j_buf(tumorUnits, 0);
-    std::vector<unit_t> row_k_buf(tumorUnits, 0);
-    std::vector<unit_t> row_l_buf(tumorUnits, 0);
+  for (unit_t lambda = startComb; lambda <= endComb; lambda++) {
+    LambdaComputed computed =
+        compute_lambda_variables(lambda, dataTable.numRows);
+    if (computed.j == -1)
+      continue;
 
-    std::vector<unit_t> ij_buf(tumorUnits, 0);
-    std::vector<unit_t> ijk_buf(tumorUnits, 0);
-    std::vector<unit_t> ijkl_buf(tumorUnits, 0);
+    // Intersect i,j
 
-    std::vector<unit_t> normal_row_i_buf(normalUnits, 0);
-    std::vector<unit_t> normal_row_j_buf(normalUnits, 0);
-    std::vector<unit_t> normal_row_k_buf(normalUnits, 0);
-    std::vector<unit_t> normal_row_l_buf(normalUnits, 0);
+    if (is_empty(ij_buf.data(), tumorUnits))
+      continue;
 
-    std::vector<unit_t> normal_ij_buf(normalUnits, 0);
-    std::vector<unit_t> normal_ijk_buf(normalUnits, 0);
-    std::vector<unit_t> normal_ijkl_buf(normalUnits, 0);
+    for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
 
-#pragma omp for nowait schedule(dynamic)
-    for (unit_t lambda = startComb; lambda <= endComb; lambda++) {
-      LambdaComputed computed =
-          compute_lambda_variables(lambda, dataTable.numRows);
-      if (computed.j == -1)
+      // Intersect i,j, k
+      //
+      if (is_empty(ijk_buf.data(), tumorUnits))
         continue;
 
-      std::memset(row_i_buf.data(), 0, tumorUnits * sizeof(unit_t));
-      std::memset(row_j_buf.data(), 0, tumorUnits * sizeof(unit_t));
-      std::memset(ij_buf.data(), 0, tumorUnits * sizeof(unit_t));
+      for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
 
-      // EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, computed.i);
-      // EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, computed.j);
-      // INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
-      //                  tumorUnits);
+        // intersect i, j, k,l
 
-      if (is_empty(ij_buf.data(), tumorUnits))
-        continue;
-
-      for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-        std::memset(row_k_buf.data(), 0, tumorUnits * sizeof(unit_t));
-        std::memset(ijk_buf.data(), 0, tumorUnits * sizeof(unit_t));
-
-        // EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, k);
-        // INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
-        //                  tumorUnits);
-
-        if (is_empty(ijk_buf.data(), tumorUnits))
+        if (is_empty(ijkl_buf.data(), tumorUnits))
           continue;
 
-        for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-          std::memset(row_l_buf.data(), 0, tumorUnits * sizeof(unit_t));
-          std::memset(ijkl_buf.data(), 0, tumorUnits * sizeof(unit_t));
+        int TP = bitCollection_size(ijkl_buf.data(), tumorUnits);
+        // intersect i, j, k ,l
+        int TN = dataTable.numNormal -
+                 1 bitCollection_size(normal_ijkl_buf.data(), normalUnits);
 
-          // EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, l);
-          // INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(),
-          // ijk_buf.data(),
-          //                  tumorUnits);
-
-          if (is_empty(ijkl_buf.data(), tumorUnits))
-            continue;
-
-          std::memset(normal_row_i_buf.data(), 0, normalUnits * sizeof(unit_t));
-          std::memset(normal_row_j_buf.data(), 0, normalUnits * sizeof(unit_t));
-          std::memset(normal_row_k_buf.data(), 0, normalUnits * sizeof(unit_t));
-          std::memset(normal_row_l_buf.data(), 0, normalUnits * sizeof(unit_t));
-
-          std::memset(normal_ij_buf.data(), 0, normalUnits * sizeof(unit_t));
-          std::memset(normal_ijk_buf.data(), 0, normalUnits * sizeof(unit_t));
-          std::memset(normal_ijkl_buf.data(), 0, normalUnits * sizeof(unit_t));
-
-          // EXTRACT_NORMAL_BITS(normal_row_i_buf.data(), dataTable,
-          // computed.i); EXTRACT_NORMAL_BITS(normal_row_j_buf.data(),
-          // dataTable, computed.j);
-          // EXTRACT_NORMAL_BITS(normal_row_k_buf.data(), dataTable, k);
-          // EXTRACT_NORMAL_BITS(normal_row_l_buf.data(), dataTable, l);
-
-          // INTERSECT_BUFFERS(normal_ij_buf.data(), normal_row_i_buf.data(),
-          //                   normal_row_j_buf.data(), normalUnits);
-          // INTERSECT_BUFFERS(normal_ijk_buf.data(), normal_row_k_buf.data(),
-          //                  normal_ij_buf.data(), normalUnits);
-          // INTERSECT_BUFFERS(normal_ijkl_buf.data(), normal_row_l_buf.data(),
-          //                 normal_ijk_buf.data(), normalUnits);
-
-          int TP = bitCollection_size(ijkl_buf.data(), tumorUnits);
-          int TN = dataTable.numNormal -
-                   1 bitCollection_size(normal_ijkl_buf.data(), normalUnits);
-
-          double F =
-              (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
-          if (F >= localMaxF) {
-            localMaxF = F;
-            localBestCombination = {computed.i, computed.j, k, l};
-          }
+        double F =
+            (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
+        if (F >= localMaxF) {
+          maxF = F;
+          bestCombination = {computed.i, computed.j, k, l};
         }
       }
-    }
-
-#pragma omp critical
-    {
-      update_best_combination(maxF, bestCombination, localMaxF,
-                              localBestCombination);
     }
   }
 }
@@ -460,4 +385,4 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   delete[] droppedSamples;
   MPI_Op_free(&MPI_MAX_F_WITH_COMB);
   MPI_Type_free(&MPI_RESULT_WITH_COMB);
-}**/
+}
