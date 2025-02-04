@@ -182,7 +182,8 @@ MPI_Datatype create_mpi_result_with_comb_type() {
 
 void process_lambda_interval(unit_t startComb, unit_t endComb,
                              std::array<int, NUMHITS> &bestCombination,
-                             double &maxF, sets_t dataTable) {
+                             double &maxF, sets_t dataTable,
+                             unit_t *intersectionBuffer) {
   const double alpha = 0.1;
   const size_t tumorUnits = UNITS_FOR_BITS(dataTable.numTumor);
   const size_t normalUnits = UNITS_FOR_BITS(dataTable.numNormal);
@@ -193,36 +194,41 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
   for (unit_t lambda = startComb; lambda <= endComb; lambda++) {
     LambdaComputed computed =
         compute_lambda_variables(lambda, dataTable.numRows);
-    if (computed.j == -1)
-      continue;
+    // if (computed.j == -1)
+    //  continue;
 
-    // Intersect i,j
+    load_first_tumor(intersectionBuffer, dataTable, computed.i);
+    inplace_intersect_tumor(intersectionBuffer, dataTable, computed.j);
 
-    if (is_empty(ij_buf.data(), tumorUnits))
+    if (is_empty(intersectionBuffer, tumorUnits))
       continue;
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
 
-      // Intersect i,j, k
-      //
-      if (is_empty(ijk_buf.data(), tumorUnits))
+      inplace_intersect_tumor(intersectionBuffer, dataTable, k);
+
+      if (is_empty(intersectionBuffer, tumorUnits))
         continue;
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
 
-        // intersect i, j, k,l
-
-        if (is_empty(ijkl_buf.data(), tumorUnits))
+        inplace_intersect_tumor(intersectionBuffer, dataTable, k);
+        if (is_empty(intersectionBuffer, tumorUnits))
           continue;
 
-        int TP = bitCollection_size(ijkl_buf.data(), tumorUnits);
-        // intersect i, j, k ,l
+        int TP = bitCollection_size(intersectionBuffer, tumorUnits);
+
+        load_first_normal(intersectionBuffer, dataTable, computed.i);
+        inplace_intersect_normal(intersectionBuffer, dataTable, computed.j);
+        inplace_intersect_normal(intersectionBuffer, dataTable, k);
+        inplace_intersect_normal(intersectionBuffer, dataTable, l);
+
         int TN = dataTable.numNormal -
-                 1 bitCollection_size(normal_ijkl_buf.data(), normalUnits);
+                 bitCollection_size(intersectionBuffer, normalUnits);
 
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
-        if (F >= localMaxF) {
+        if (F >= maxF) {
           maxF = F;
           bestCombination = {computed.i, computed.j, k, l};
         }
@@ -233,10 +239,11 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
 
 bool process_and_communicate(int rank, unit_t num_Comb, double &localBestMaxF,
                              std::array<int, NUMHITS> &localComb, unit_t &begin,
-                             unit_t &end, MPI_Status &status,
-                             sets_t dataTable) {
+                             unit_t &end, MPI_Status &status, sets_t dataTable,
+                             unit_t *intersectionBuffer) {
 
-  process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable);
+  process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
+                          intersectionBuffer);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
 
@@ -252,7 +259,8 @@ bool process_and_communicate(int rank, unit_t num_Comb, double &localBestMaxF,
 }
 
 void worker_process(int rank, unit_t num_Comb, double &localBestMaxF,
-                    std::array<int, NUMHITS> &localComb, sets_t dataTable) {
+                    std::array<int, NUMHITS> &localComb, sets_t dataTable,
+                    unit_t *intersectionBuffer) {
 
   std::pair<unit_t, unit_t> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
@@ -262,7 +270,7 @@ void worker_process(int rank, unit_t num_Comb, double &localBestMaxF,
   while (end <= num_Comb) {
     bool has_next =
         process_and_communicate(rank, num_Comb, localBestMaxF, localComb, begin,
-                                end, status, dataTable);
+                                end, status, dataTable, intersectionBuffer);
     if (!has_next)
       break;
   }
@@ -270,11 +278,12 @@ void worker_process(int rank, unit_t num_Comb, double &localBestMaxF,
 
 void execute_role(int rank, int size_minus_one, unit_t num_Comb,
                   double &localBestMaxF, std::array<int, NUMHITS> &localComb,
-                  sets_t dataTable) {
+                  sets_t dataTable, unit_t *intersectionBuffer) {
   if (rank == 0) {
     master_process(size_minus_one, num_Comb);
   } else {
-    worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable);
+    worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable,
+                   intersectionBuffer);
   }
 }
 
@@ -315,6 +324,12 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   int Nn = dataTable.numNormal;
   int numGenes = dataTable.numRows;
 
+  size_t tumorUnits = UNITS_FOR_BITS(Nt);
+  size_t normalUnits = UNITS_FOR_BITS(Nn);
+  size_t maxUnits = std::max(tumorUnits, normalUnits);
+
+  unit_t *intersectionBuffer = new unit_t[maxUnits];
+
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
   unit_t num_Comb = nCr(numGenes, 2);
@@ -326,7 +341,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outfile.open(outFilename);
     outputFileWriteError(outfile);
   }
-  const size_t tumorUnits = UNITS_FOR_BITS(dataTable.numTumor);
 
   while (!all_bits_set(droppedSamples, CALCULATE_BIT_UNITS(Nt))) {
     double localBestMaxF;
@@ -334,7 +348,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
         initialize_local_comb_and_f(localBestMaxF);
 
     START_TIMING(master_worker)
-    execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable);
+    execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
+                 intersectionBuffer);
     END_TIMING(master_worker, master_worker_time);
 
     START_TIMING(all_reduce)

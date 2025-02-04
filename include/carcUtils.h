@@ -47,19 +47,39 @@ struct sets_t {
 
 #define UNITS_FOR_BITS(N) (((N) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
 
-inline bool is_empty(const uint64_t *buf, size_t units) {
-  for (size_t i = 0; i < units; i++) {
-    if (buf[i] != 0ULL)
+inline bool is_empty(unit_t *buf, size_t validBits) {
+  size_t fullUnits = validBits / BITS_PER_UNIT;
+  size_t remainder = validBits % BITS_PER_UNIT;
+
+  for (size_t i = 0; i < fullUnits; i++) {
+    if (buf[i] != (unit_t)0)
+      return false;
+  }
+  if (remainder > 0) {
+    unit_t mask = ((unit_t)1 << remainder) - (unit_t)1;
+    if ((buf[fullUnits] & mask) != 0)
       return false;
   }
   return true;
 }
 
-inline int bitCollection_size(const uint64_t *buf, size_t units) {
+inline int bitCollection_size(
+    unit_t *buf,
+    size_t validBits) { // only works on 64 bits....need to replace
+                        // __builtin_popcountll
+  size_t fullUnits = validBits / BITS_PER_UNIT;
+  size_t remainder = validBits % BITS_PER_UNIT;
   int count = 0;
-  for (size_t i = 0; i < units; i++) {
+
+  for (size_t i = 0; i < fullUnits; i++) {
     count += __builtin_popcountll(buf[i]);
   }
+
+  if (remainder > 0) {
+    unit_t mask = ((unit_t)1 << remainder) - (unit_t)1;
+    count += __builtin_popcountll(buf[fullUnits] & mask);
+  }
+
   return count;
 }
 
