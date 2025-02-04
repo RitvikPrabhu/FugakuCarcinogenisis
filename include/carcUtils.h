@@ -45,7 +45,7 @@ struct sets_t {
 #define ALL_BITS_SET (~(unit_t)0)
 
 #define UNITS_FOR_BITS(N) (((N) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
-
+/**
 inline bool is_empty(const uint64_t *buf, size_t units) {
   for (size_t i = 0; i < units; i++) {
     if (buf[i] != 0ULL)
@@ -352,7 +352,7 @@ inline void load_first_normal(unit_t *scratch, const sets_t &table,
     firstBlockIndex++;
     firstBlockOffset = 0;
   }
-}
+}**/
 
 #endif
 // ############MACROS####################

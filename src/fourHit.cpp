@@ -1,4 +1,4 @@
-#include <algorithm>
+/**#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -286,7 +286,7 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
 
           int TP = bitCollection_size(ijkl_buf.data(), tumorUnits);
           int TN = dataTable.numNormal -
-                   bitCollection_size(normal_ijkl_buf.data(), normalUnits);
+                   1 bitCollection_size(normal_ijkl_buf.data(), normalUnits);
 
           double F =
               (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
@@ -460,4 +460,4 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   delete[] droppedSamples;
   MPI_Op_free(&MPI_MAX_F_WITH_COMB);
   MPI_Type_free(&MPI_RESULT_WITH_COMB);
-}
+}**/

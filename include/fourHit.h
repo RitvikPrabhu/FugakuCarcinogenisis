@@ -1,4 +1,4 @@
-#ifndef FOURHIT_H
+/**#ifndef FOURHIT_H
 #define FOURHIT_H
 
 #include <array>
@@ -28,4 +28,4 @@ struct MPIResult {
 
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable);
-#endif
+#endif**/
