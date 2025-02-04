@@ -77,11 +77,12 @@ double compute_F(int TP, int TN, double alpha, int Nt, int Nn) {
   return (alpha * TP + TN) / (Nt + Nn);
 }
 
-void update_tumor_data(unit_t **&tumorData, unit_t *sampleToCover, size_t units,
+void update_tumor_data(unit_t *&tumorData, unit_t *sampleToCover, size_t units,
                        int numGenes) {
   for (int gene = 0; gene < numGenes; ++gene) {
+    unit_t *geneRow = tumorData + gene * units;
     for (size_t i = 0; i < units; ++i) {
-      tumorData[gene][i] &= ~sampleToCover[i];
+      geneRow[i] &= ~sampleToCover[i];
     }
   }
 }
@@ -183,7 +184,7 @@ MPI_Datatype create_mpi_result_with_comb_type() {
 void process_lambda_interval(unit_t startComb, unit_t endComb,
                              std::array<int, NUMHITS> &bestCombination,
                              double &maxF, sets_t dataTable,
-                             unit_t *intersectionBuffer) {
+                             unit_t *&intersectionBuffer) {
   const double alpha = 0.1;
   const size_t tumorUnits = UNITS_FOR_BITS(dataTable.numTumor);
   const size_t normalUnits = UNITS_FOR_BITS(dataTable.numNormal);
@@ -240,7 +241,7 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
 bool process_and_communicate(int rank, unit_t num_Comb, double &localBestMaxF,
                              std::array<int, NUMHITS> &localComb, unit_t &begin,
                              unit_t &end, MPI_Status &status, sets_t dataTable,
-                             unit_t *intersectionBuffer) {
+                             unit_t *&intersectionBuffer) {
 
   process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
                           intersectionBuffer);
@@ -260,7 +261,7 @@ bool process_and_communicate(int rank, unit_t num_Comb, double &localBestMaxF,
 
 void worker_process(int rank, unit_t num_Comb, double &localBestMaxF,
                     std::array<int, NUMHITS> &localComb, sets_t dataTable,
-                    unit_t *intersectionBuffer) {
+                    unit_t *&intersectionBuffer) {
 
   std::pair<unit_t, unit_t> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
@@ -278,7 +279,7 @@ void worker_process(int rank, unit_t num_Comb, double &localBestMaxF,
 
 void execute_role(int rank, int size_minus_one, unit_t num_Comb,
                   double &localBestMaxF, std::array<int, NUMHITS> &localComb,
-                  sets_t dataTable, unit_t *intersectionBuffer) {
+                  sets_t dataTable, unit_t *&intersectionBuffer) {
   if (rank == 0) {
     master_process(size_minus_one, num_Comb);
   } else {
@@ -361,33 +362,17 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
     END_TIMING(all_reduce, all_reduce_time);
 
-    std::vector<unit_t> row_i_buf(tumorUnits, 0);
-    std::vector<unit_t> row_j_buf(tumorUnits, 0);
-    std::vector<unit_t> row_k_buf(tumorUnits, 0);
-    std::vector<unit_t> row_l_buf(tumorUnits, 0);
+    load_first_tumor(intersectionBuffer, dataTable, globalBestComb[0]);
+    inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[1]);
+    inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[2]);
+    inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[3]);
 
-    std::vector<unit_t> ij_buf(tumorUnits, 0);
-    std::vector<unit_t> ijk_buf(tumorUnits, 0);
-    std::vector<unit_t> ijkl_buf(tumorUnits, 0);
+    update_dropped_samples(droppedSamples, intersectionBuffer, tumorUnits);
 
-    // EXTRACT_TUMOR_BITS(row_i_buf.data(), dataTable, globalBestComb[0]);
-    // EXTRACT_TUMOR_BITS(row_j_buf.data(), dataTable, globalBestComb[1]);
-    // EXTRACT_TUMOR_BITS(row_k_buf.data(), dataTable, globalBestComb[2]);
-    // EXTRACT_TUMOR_BITS(row_l_buf.data(), dataTable, globalBestComb[3]);
+    update_tumor_data(dataTable.tumorData, intersectionBuffer, tumorUnits,
+                      numGenes);
 
-    // INTERSECT_BUFFERS(ij_buf.data(), row_i_buf.data(), row_j_buf.data(),
-    //                   tumorUnits);
-    // INTERSECT_BUFFERS(ijk_buf.data(), row_k_buf.data(), ij_buf.data(),
-    //                   tumorUnits);
-    // INTERSECT_BUFFERS(ijkl_buf.data(), row_l_buf.data(), ijk_buf.data(),
-    //                   tumorUnits);
-
-    update_dropped_samples(droppedSamples, ijkl_buf.data(), tumorUnits);
-
-    // update_tumor_data(tumorData, ijkl_buf.data(), tumorUnits, numGenes);
-
-    // updateNt(Nt, ijkl_buf.data());
-    break;
+    updateNt(Nt, intersectionBuffer);
   }
   if (rank == 0) {
     outfile.close();

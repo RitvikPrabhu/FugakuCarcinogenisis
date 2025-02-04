@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
   END_TIMING(loading, elapsed_time_loading);
 
   START_TIMING(function_execution)
-  // distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
+  distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
   END_TIMING(function_execution, elapsed_time_func);
 
   END_TIMING(overall_execution, elapsed_time_total);
