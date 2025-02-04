@@ -23,7 +23,8 @@ struct sets_t {
   size_t numTumor;
   size_t numNormal;
   size_t numCols;
-  unit_t *data;
+  unit_t *tumorData;
+  unit_t *normalData;
 };
 
 // ############MACROS####################
