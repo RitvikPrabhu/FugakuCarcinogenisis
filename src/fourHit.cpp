@@ -201,23 +201,23 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
     load_first_tumor(intersectionBuffer, dataTable, computed.i);
     inplace_intersect_tumor(intersectionBuffer, dataTable, computed.j);
 
-    if (is_empty(intersectionBuffer, tumorUnits))
+    if (is_empty(intersectionBuffer, dataTable.numTumor))
       continue;
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
 
       inplace_intersect_tumor(intersectionBuffer, dataTable, k);
 
-      if (is_empty(intersectionBuffer, tumorUnits))
+      if (is_empty(intersectionBuffer, dataTable.numTumor))
         continue;
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
 
-        inplace_intersect_tumor(intersectionBuffer, dataTable, k);
-        if (is_empty(intersectionBuffer, tumorUnits))
+        inplace_intersect_tumor(intersectionBuffer, dataTable, l);
+        if (is_empty(intersectionBuffer, dataTable.numTumor))
           continue;
 
-        int TP = bitCollection_size(intersectionBuffer, tumorUnits);
+        int TP = bitCollection_size(intersectionBuffer, dataTable.numTumor);
 
         load_first_normal(intersectionBuffer, dataTable, computed.i);
         inplace_intersect_normal(intersectionBuffer, dataTable, computed.j);
@@ -225,7 +225,7 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
         inplace_intersect_normal(intersectionBuffer, dataTable, l);
 
         int TN = dataTable.numNormal -
-                 bitCollection_size(intersectionBuffer, normalUnits);
+                 bitCollection_size(intersectionBuffer, dataTable.numNormal);
 
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
@@ -373,6 +373,9 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                       numGenes);
 
     updateNt(Nt, intersectionBuffer);
+    if (rank == 0) {
+      write_output(rank, outfile, globalBestComb, globalResult.f);
+    }
   }
   if (rank == 0) {
     outfile.close();
