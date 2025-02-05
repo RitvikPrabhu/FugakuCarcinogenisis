@@ -5,7 +5,6 @@
 #include <iostream>
 
 typedef uint64_t unit_t;
-#define MPI_UNIT_T MPI_UINT64_T
 
 struct sets_t {
   size_t numRows;
