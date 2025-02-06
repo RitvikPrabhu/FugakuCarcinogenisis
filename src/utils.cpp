@@ -72,6 +72,10 @@ void parse_data_lines(char *buffer, int numGenes, int numTumor,
                       std::string *geneIdArray, SET &tumorSamples,
                       SETS &sparseTumorData,
                       SETS &sparseNormalData, int rank) {
+  // SET tumorSamples
+  BSET b_tumorSamples;
+  BSET_NEW(b_tumorSamples, numTumor);
+
   // Move to the first data line
   char *line = strtok(NULL, "\n");
   int count = 0;
@@ -92,11 +96,14 @@ void parse_data_lines(char *buffer, int numGenes, int numTumor,
     if (val > 0) {
       if (sample < numTumor) {
         sparseTumorData[gene].insert(sample);
-        tumorSamples.insert(sample);
+        // tumorSamples.insert(sample);
+        SET_INSERT(tumorSamples, sample);
+        BSET_INSERT(b_tumorSamples, sample);
       } else {
         sparseNormalData[gene].insert(sample);
       }
     }
+    COMPARE_SET_AND_BSET(tumorSamples, b_tumorSamples, numTumor);
 
     line = strtok(NULL, "\n");
   }
@@ -177,7 +184,6 @@ std::string *read_data(const char *filename, int &numGenes, int &numSamples,
   // Parse the remaining data lines
   parse_data_lines(file_buffer, numGenes, numTumor, geneIdArray, tumorSamples,
                    sparseTumorData, sparseNormalData, rank);
-
   // Clean up
   delete[] file_buffer;
 
