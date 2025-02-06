@@ -8,6 +8,7 @@
 #include "constants.h"
 #include "four_hit.h"
 #include "utils.h"
+#include "sets.h"
 
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
@@ -67,9 +68,9 @@ int main(int argc, char *argv[]) {
 
   START_TIMING(loading)
   int numGenes, numSamples, numTumor, numNormal;
-  std::set<int> tumorSamples;
-  std::vector<std::set<int>> tumorData;
-  std::vector<std::set<int>> normalData;
+  SET tumorSamples;
+  SETS tumorData;
+  SETS normalData;
 
   std::string *geneIdArray =
       read_data(argv[1], numGenes, numSamples, numTumor, numNormal,

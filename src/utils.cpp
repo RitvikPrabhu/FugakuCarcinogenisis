@@ -3,6 +3,7 @@
 #include <iostream>
 #include <mpi.h>
 
+#include "sets.h"
 #include "constants.h"
 #include "utils.h"
 
@@ -60,17 +61,17 @@ void parse_header(const char *line, int &numGenes, int &numSamples, int &value,
 
 std::string *
 initialize_data_structures(int numGenes,
-                           std::vector<std::set<int>> &sparseTumorData,
-                           std::vector<std::set<int>> &sparseNormalData) {
+                           SETS &sparseTumorData,
+                           SETS &sparseNormalData) {
   sparseTumorData.resize(numGenes);
   sparseNormalData.resize(numGenes);
   return new std::string[numGenes];
 }
 
 void parse_data_lines(char *buffer, int numGenes, int numTumor,
-                      std::string *geneIdArray, std::set<int> &tumorSamples,
-                      std::vector<std::set<int>> &sparseTumorData,
-                      std::vector<std::set<int>> &sparseNormalData, int rank) {
+                      std::string *geneIdArray, SET &tumorSamples,
+                      SETS &sparseTumorData,
+                      SETS &sparseNormalData, int rank) {
   // Move to the first data line
   char *line = strtok(NULL, "\n");
   int count = 0;
@@ -145,9 +146,9 @@ void write_timings_to_file(const double all_times[][6], int size,
 
 std::string *read_data(const char *filename, int &numGenes, int &numSamples,
                        int &numTumor, int &numNormal,
-                       std::set<int> &tumorSamples,
-                       std::vector<std::set<int>> &sparseTumorData,
-                       std::vector<std::set<int>> &sparseNormalData, int rank) {
+                       SET &tumorSamples,
+                       SETS &sparseTumorData,
+                       SETS &sparseNormalData, int rank) {
 
   MPI_File dataFile = open_mpi_file(filename, rank);
 
@@ -186,9 +187,9 @@ std::string *read_data(const char *filename, int &numGenes, int &numSamples,
 /*
 std::string *read_data(const char *filename, int &numGenes, int &numSamples,
                        int &numTumor, int &numNormal,
-                       std::set<int> &tumorSamples,
-                       std::vector<std::set<int>> &sparseTumorData,
-                       std::vector<std::set<int>> &sparseNormalData, int rank) {
+                       SET &tumorSamples,
+                       SETS &sparseTumorData,
+                       SETS &sparseNormalData, int rank) {
 
   MPI_Status status;
   char *file_buffer = nullptr;
