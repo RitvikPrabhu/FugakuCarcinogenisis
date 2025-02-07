@@ -180,7 +180,7 @@ MPI_Datatype create_mpi_result_with_comb_type() {
 
   return MPI_RESULT_WITH_COMB;
 }
-
+/**
 void process_lambda_interval(unit_t startComb, unit_t endComb,
                              std::array<int, NUMHITS> &bestCombination,
                              double &maxF, sets_t dataTable,
@@ -198,33 +198,34 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
     // if (computed.j == -1)
     //  continue;
 
-    load_first_tumor(intersectionBuffer, dataTable, computed.i);
-    inplace_intersect_tumor(intersectionBuffer, dataTable, computed.j);
+    intersection_of_two_rows(
+        scratchBufferij, dataTable.tumorData + computed.i * tumorUnits,
+        dataTable.tumorData + computed.j * tumorUnits, tumorUnits);
 
     if (is_empty(intersectionBuffer, dataTable.numTumor))
       continue;
 
-    std::memcpy(scratchBufferij, intersectionBuffer,
-                tumorUnits * sizeof(unit_t));
-
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
 
-      std::memcpy(scratchBufferijk, scratchBufferij,
-                  tumorUnits * sizeof(unit_t));
-      inplace_intersect_tumor(scratchBufferijk, dataTable, k);
+      intersection_of_two_rows(scratchBufferijk, scratchBufferij,
+                               dataTable.tumorData + k * tumorUnits,
+                               tumorUnits);
 
       if (is_empty(scratchBufferijk, dataTable.numTumor))
         continue;
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-        std::memcpy(intersectionBuffer, scratchBufferijk,
-                    tumorUnits * sizeof(unit_t));
-
-        inplace_intersect_tumor(intersectionBuffer, dataTable, l);
+        intersection_of_two_rows(intersectionBuffer, scratchBufferijk,
+                                 dataTable.tumorData + l * tumorUnits,
+                                 tumorUnits);
         if (is_empty(intersectionBuffer, dataTable.numTumor))
           continue;
 
         int TP = bitCollection_size(intersectionBuffer, dataTable.numTumor);
+
+        intersection_of_two_rows(
+            scratchBufferij, dataTable.tumorData + computed.i * tumorUnits,
+            dataTable.tumorData + computed.j * tumorUnits, tumorUnits);
 
         load_first_normal(intersectionBuffer, dataTable, computed.i);
         inplace_intersect_normal(intersectionBuffer, dataTable, computed.j);
@@ -234,6 +235,75 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
         int TN = dataTable.numNormal -
                  bitCollection_size(intersectionBuffer, dataTable.numNormal);
 
+        double F =
+            (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
+        if (F >= maxF) {
+          maxF = F;
+          bestCombination = {computed.i, computed.j, k, l};
+        }
+      }
+    }
+  }
+}**/
+
+inline void intersect_two_rows(unit_t *dest, const unit_t *partial,
+                               const unit_t *rowPtr, size_t units) {
+  for (size_t b = 0; b < units; b++) {
+    dest[b] = partial[b] & rowPtr[b];
+  }
+}
+
+void process_lambda_interval(unit_t startComb, unit_t endComb,
+                             std::array<int, NUMHITS> &bestCombination,
+                             double &maxF, sets_t dataTable,
+                             unit_t *&intersectionBuffer,
+                             unit_t *&scratchBufferij,
+                             unit_t *&scratchBufferijk) {
+  double alpha = 0.1;
+  size_t tumorUnits = UNITS_FOR_BITS(dataTable.numTumor);
+  size_t normalUnits = UNITS_FOR_BITS(dataTable.numNormal);
+  int totalGenes = dataTable.numRows;
+
+  for (unit_t lambda = startComb; lambda <= endComb; lambda++) {
+    LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
+
+    unit_t *rowI = dataTable.tumorData + computed.i * tumorUnits;
+    unit_t *rowJ = dataTable.tumorData + computed.j * tumorUnits;
+
+    intersect_two_rows(scratchBufferij, rowI, rowJ, tumorUnits);
+
+    if (is_empty(scratchBufferij, dataTable.numTumor))
+      continue;
+
+    for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
+
+      unit_t *rowK = dataTable.tumorData + k * tumorUnits;
+      intersect_two_rows(scratchBufferijk, scratchBufferij, rowK, tumorUnits);
+
+      if (is_empty(scratchBufferijk, dataTable.numTumor))
+        continue;
+
+      for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
+        unit_t *rowL = dataTable.tumorData + l * tumorUnits;
+        intersect_two_rows(intersectionBuffer, scratchBufferijk, rowL,
+                           tumorUnits);
+
+        if (is_empty(intersectionBuffer, dataTable.numTumor))
+          continue;
+
+        int TP = bitCollection_size(intersectionBuffer, dataTable.numTumor);
+
+        const unit_t *rowIN = dataTable.normalData + computed.i * normalUnits;
+        const unit_t *rowJN = dataTable.normalData + computed.j * normalUnits;
+        const unit_t *rowKN = dataTable.normalData + k * normalUnits;
+        const unit_t *rowLN = dataTable.normalData + l * normalUnits;
+        for (size_t b = 0; b < normalUnits; b++) {
+          intersectionBuffer[b] = rowIN[b] & rowJN[b] & rowKN[b] & rowLN[b];
+        }
+
+        int coveredNormal =
+            bitCollection_size(intersectionBuffer, dataTable.numNormal);
+        int TN = dataTable.numNormal - coveredNormal;
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
         if (F >= maxF) {

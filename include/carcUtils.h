@@ -115,5 +115,12 @@ inline void inplace_intersect_normal(unit_t *scratch, sets_t &table,
   }
 }
 
+inline void intersect_two_rows(unit_t *dest, unit_t *partial, unit_t *rowPtr,
+                               size_t units) {
+  for (size_t b = 0; b < units; b++) {
+    dest[b] = partial[b] & rowPtr[b];
+  }
+}
+
 #endif
 // ############MACROS####################
