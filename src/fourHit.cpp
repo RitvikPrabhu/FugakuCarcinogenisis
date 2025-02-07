@@ -115,8 +115,8 @@ unit_t *initialize_dropped_samples(size_t units) {
   return droppedSamples;
 }
 
-void updateNt(int &Nt, unit_t *&sampleToCover) {
-  Nt -= bitCollection_size(sampleToCover, CALCULATE_BIT_UNITS(Nt));
+void updateNt(int &Nt, unit_t *sampleToCover, int numTumor) {
+  Nt -= bitCollection_size(sampleToCover, numTumor);
 }
 
 LambdaComputed compute_lambda_variables(unit_t lambda, int totalGenes) {
@@ -385,11 +385,11 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     update_tumor_data(dataTable.tumorData, intersectionBuffer, tumorUnits,
                       numGenes);
 
-    updateNt(Nt, intersectionBuffer);
+    updateNt(Nt, intersectionBuffer, dataTable.numTumor);
     if (rank == 0) {
-      // std::cout << "Current Nt value: " << Nt << std::endl;
       write_output(rank, outfile, globalBestComb, globalResult.f);
     }
+    break;
   }
   if (rank == 0) {
     outfile.close();
