@@ -299,6 +299,7 @@ void execute_role(int rank, int size_minus_one, unit_t num_Comb,
 }
 
 std::array<int, NUMHITS> initialize_local_comb_and_f(double &f) {
+  f = 0;
   std::array<int, NUMHITS> comb;
   comb.fill(-1);
   return comb;
@@ -355,7 +356,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outputFileWriteError(outfile);
   }
 
-  // std::cout << "Current Nt value: " << Nt << std::endl;
   while (!all_bits_set(droppedSamples, CALCULATE_BIT_UNITS(Nt))) {
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
@@ -389,7 +389,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, globalResult.f);
     }
-    break;
+    // break;
   }
   if (rank == 0) {
     outfile.close();
