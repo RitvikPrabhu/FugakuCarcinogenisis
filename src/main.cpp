@@ -6,10 +6,9 @@
 #include <set>
 #include <vector>
 
-#include "constants.h"
-#include "four_hit.h"
-#include "utils.h"
 #include "set_ops.h"
+#include "fourHit.h"
+#include "readFile.h"
 
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
@@ -25,13 +24,7 @@ bool parse_arguments(int argc, char *argv[]) {
   }
   return true;
 }
-
-void initialize_mpi(int &rank, int &size) {
-  MPI_Init(nullptr, nullptr);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-}
-
+/**
 void gather_and_write_timings(int rank, int size, double elapsed_times[],
                               const char *outputMetricFile) {
   double all_times[size][6];
@@ -42,29 +35,25 @@ void gather_and_write_timings(int rank, int size, double elapsed_times[],
   if (rank == 0) {
     write_timings_to_file(all_times, size, outputMetricFile);
   }
-}
+}**/
 
-void cleanup(unsigned long long *tumorSamples, unsigned long long **tumorData,
-             unsigned long long **normalData) {
-  delete[] tumorData;
-  delete[] normalData;
-  delete[] tumorSamples;
-  MPI_Finalize();
+void cleanup(sets_t dataTable) {
+  delete[] dataTable.normalData;
+  delete[] dataTable.tumorData;
 }
 
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
 
   int rank, size;
-  initialize_mpi(rank, size);
+  MPI_Init(nullptr, nullptr);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
   if (!parse_arguments(argc, argv)) {
     MPI_Finalize();
     return 1;
   }
-
-  const char *dataFile = argv[1];
-  const char *outputMetricFile = argv[2];
-  const char *prunedDataOutputFile = argv[3];
 
   START_TIMING(overall_execution)
 
@@ -74,34 +63,26 @@ int main(int argc, char *argv[]) {
   double elapsed_times[6] = {0.0};
 
   START_TIMING(loading)
-  int numGenes, numSamples, numTumor, numNormal;
-  unsigned long long *tumorSamples = nullptr;
-  unsigned long long **tumorData = nullptr;
-  unsigned long long **normalData = nullptr;
 
-  std::string *geneIdArray =
-      read_data(argv[1], numGenes, numSamples, numTumor, numNormal,
-                tumorSamples, tumorData, normalData, rank);
+  sets_t dataTable = read_data(argv[1], rank);
+
   END_TIMING(loading, elapsed_time_loading);
 
   START_TIMING(function_execution)
-
-  distribute_tasks(rank, size, numGenes, tumorData, normalData, numTumor,
-                   numNormal, prunedDataOutputFile, tumorSamples, geneIdArray,
-                   elapsed_times);
+  distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
   END_TIMING(function_execution, elapsed_time_func);
 
   END_TIMING(overall_execution, elapsed_time_total);
 
-  elapsed_times[OVERALL_FILE_LOAD] = elapsed_time_loading;
-  elapsed_times[OVERALL_DISTRIBUTE_FUNCTION] = elapsed_time_func;
-  elapsed_times[OVERALL_TOTAL] = elapsed_time_total;
+  // elapsed_times[OVERALL_FILE_LOAD] = elapsed_time_loading;
+  // elapsed_times[OVERALL_DISTRIBUTE_FUNCTION] = elapsed_time_func;
+  // elapsed_times[OVERALL_TOTAL] = elapsed_time_total;
 
 #ifdef ENABLE_TIMING
-  gather_and_write_timings(rank, size, elapsed_times, outputMetricFile);
+  // gather_and_write_timings(rank, size, elapsed_times, argv[2]);
 #endif
 
-  cleanup(tumorSamples, tumorData, normalData);
-
+  cleanup(dataTable);
+  MPI_Finalize();
   return 0;
 }
