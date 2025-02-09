@@ -115,10 +115,6 @@ unit_t *initialize_dropped_samples(size_t units) {
   return droppedSamples;
 }
 
-void updateNt(int &Nt, unit_t *sampleToCover, int numTumor) {
-  Nt -= bitCollection_size(sampleToCover, numTumor);
-}
-
 LambdaComputed compute_lambda_variables(unit_t lambda, int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
@@ -221,6 +217,7 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
 
         int TP = bitCollection_size(intersectionBuffer, dataTable.numTumor);
 
+        // TODO: Use seperated intersectionBuffer
         const unit_t *rowIN = dataTable.normalData + computed.i * normalUnits;
         const unit_t *rowJN = dataTable.normalData + computed.j * normalUnits;
         const unit_t *rowKN = dataTable.normalData + k * normalUnits;
@@ -385,7 +382,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     update_tumor_data(dataTable.tumorData, intersectionBuffer, tumorUnits,
                       numGenes);
 
-    updateNt(Nt, intersectionBuffer, dataTable.numTumor);
+    Nt -= bitCollection_size(intersectionBuffer, dataTable.numTumor);
+
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, globalResult.f);
     }
