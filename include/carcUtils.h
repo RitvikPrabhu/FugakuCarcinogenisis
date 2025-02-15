@@ -65,7 +65,7 @@ inline bool is_empty(unit_t *buf, size_t validBits) {
 
 inline int bitCollection_size(
     unit_t *buf,
-    size_t validBits) { // only works on 64 bits....need to replace
+    size_t validBits) { // only works on 64 bits....TODO: need to replace
                         // __builtin_popcountll
   size_t fullUnits = validBits / BITS_PER_UNIT;
   size_t remainder = validBits % BITS_PER_UNIT;

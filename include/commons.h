@@ -12,6 +12,8 @@
 
 #else
     typedef uint64_t unit_t;
+    #define MPI_UNIT_T MPI_UINT64_T
+
     typedef unit_t SET;
     typedef unit_t* SET_COLLECTION;
 

@@ -4,6 +4,7 @@
 #include <mpi.h>
 
 #include "readFile.h"
+#include "commons.h"
 
 // #########################HELPER###########################
 void handle_mpi_error(int rc, const char *context, int rank) {
