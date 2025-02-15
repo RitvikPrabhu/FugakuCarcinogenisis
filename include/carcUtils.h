@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "commons.h"
+
 #ifndef CARCUTILS_H
 #define CARCUTILS_H
 
@@ -16,16 +18,14 @@ enum time_stages {
   OVERALL_TOTAL
 };
 
-typedef uint64_t unit_t;
-#define MPI_UNIT_T MPI_UINT64_T
 
 struct sets_t {
   size_t numRows;
   size_t numTumor;
   size_t numNormal;
   size_t numCols;
-  unit_t *tumorData;
-  unit_t *normalData;
+  SET_COLLECTION tumorData;
+  SET_COLLECTION normalData;
 };
 
 // ############MACROS####################
