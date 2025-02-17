@@ -6,10 +6,10 @@
 #include <set>
 #include <vector>
 
-#include "set_ops.h"
+#include "commons.h"
 #include "fourHit.h"
 #include "readFile.h"
-#include "commons.h"
+#include "set_ops.h"
 
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
@@ -38,10 +38,10 @@ void gather_and_write_timings(int rank, int size, double elapsed_times[],
   }
 }**/
 
-void cleanup(sets_t dataTable) {
+/*void cleanup(sets_t dataTable) {
   delete[] dataTable.normalData;
   delete[] dataTable.tumorData;
-}
+} */
 
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
@@ -66,11 +66,24 @@ int main(int argc, char *argv[]) {
   START_TIMING(loading)
 
   sets_t dataTable = read_data(argv[1], rank);
+#ifdef USE_CPP_SET
+  std::cout << "Tumor vector size: " << dataTable.tumorData.size() << "\n";
+  if (!dataTable.tumorData.empty()) {
+    std::cout << "Number of elements in first tumor set: "
+              << dataTable.tumorData[0].size() << "\n";
+  }
+
+  std::cout << "Normal vector size: " << dataTable.normalData.size() << "\n";
+  if (!dataTable.normalData.empty()) {
+    std::cout << "Number of elements in first normal set: "
+              << dataTable.normalData[0].size() << "\n";
+  }
+#endif
 
   END_TIMING(loading, elapsed_time_loading);
 
   START_TIMING(function_execution)
-  distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
+  // distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
   END_TIMING(function_execution, elapsed_time_func);
 
   END_TIMING(overall_execution, elapsed_time_total);
@@ -83,7 +96,7 @@ int main(int argc, char *argv[]) {
   // gather_and_write_timings(rank, size, elapsed_times, argv[2]);
 #endif
 
-  cleanup(dataTable);
+  // cleanup(dataTable);
   MPI_Finalize();
   return 0;
 }

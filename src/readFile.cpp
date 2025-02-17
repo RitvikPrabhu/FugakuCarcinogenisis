@@ -3,8 +3,8 @@
 #include <iostream>
 #include <mpi.h>
 
-#include "readFile.h"
 #include "commons.h"
+#include "readFile.h"
 
 // #########################HELPER###########################
 void handle_mpi_error(int rc, const char *context, int rank) {
@@ -61,37 +61,14 @@ sets_t allocate_sets_from_header(const char *header_line, int rank) {
   table.numNormal = static_cast<size_t>(num_normal);
   table.numCols = static_cast<size_t>(num_cols);
 
-  size_t tumorRowUnits = CALCULATE_BIT_UNITS(table.numTumor);
-  size_t normalRowUnits = CALCULATE_BIT_UNITS(table.numNormal);
-
-  size_t totalTumorUnits = tumorRowUnits * table.numRows;
-  size_t totalNormalUnits = normalRowUnits * table.numRows;
-
-  table.tumorData = new unit_t[totalTumorUnits];
-  table.normalData = new unit_t[totalNormalUnits];
-  std::memset(table.tumorData, 0, totalTumorUnits * sizeof(unit_t));
-  std::memset(table.normalData, 0, totalNormalUnits * sizeof(unit_t));
-
+  INIT_DATA(table);
   return table;
 }
 
-inline void set_bit(unit_t *array, size_t row, size_t col,
-                    size_t row_size_in_bits) {
-  size_t idx = row * row_size_in_bits + col;
-  size_t unit_idx = idx / BITS_PER_UNIT;
-  size_t bit_in_unit = idx % BITS_PER_UNIT;
-  array[unit_idx] |= ((unit_t)1 << bit_in_unit);
-}
-
 void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
-  size_t tumorRowUnits = CALCULATE_BIT_UNITS(table.numTumor);
-  size_t normalRowUnits = CALCULATE_BIT_UNITS(table.numNormal);
 
   size_t row_index = 0;
   char *line = strtok(nullptr, "\n");
-
-  size_t rowUnits = CALCULATE_BIT_UNITS(table.numCols);
-  size_t row_size_in_bits = rowUnits * BITS_PER_UNIT;
 
   while (line != nullptr && row_index < table.numRows) {
     if (std::strlen(line) < table.numCols) {
@@ -101,14 +78,7 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
     }
     for (size_t c = 0; c < table.numCols; c++) {
       if (line[c] == '1') {
-        if (c < table.numTumor) {
-          size_t tumorRowSizeBits = tumorRowUnits * BITS_PER_UNIT;
-          set_bit(table.tumorData, row_index, c, tumorRowSizeBits);
-        } else {
-          size_t normalRowSizeBits = normalRowUnits * BITS_PER_UNIT;
-          size_t colInNormal = c - table.numTumor;
-          set_bit(table.normalData, row_index, colInNormal, normalRowSizeBits);
-        }
+        SET_DATA(table, row_index, c);
       }
     }
     row_index++;

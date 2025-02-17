@@ -1,8 +1,3 @@
-#include <climits>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-
 #include "commons.h"
 
 #ifndef CARCUTILS_H
@@ -18,16 +13,6 @@ enum time_stages {
   OVERALL_TOTAL
 };
 
-
-struct sets_t {
-  size_t numRows;
-  size_t numTumor;
-  size_t numNormal;
-  size_t numCols;
-  SET_COLLECTION tumorData;
-  SET_COLLECTION normalData;
-};
-
 // ############MACROS####################
 #ifdef ENABLE_TIMING
 #define START_TIMING(var) double var##_start = MPI_Wtime();
@@ -40,13 +25,7 @@ struct sets_t {
 #define START_TIMING(var)
 #define END_TIMING(var, accumulated_time)
 #endif
-
-#define BITS_PER_UNIT (sizeof(unit_t) * CHAR_BIT)
-
-#define ALL_BITS_SET (~(unit_t)0)
-
-#define UNITS_FOR_BITS(N) (((N) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
-
+/**
 inline bool is_empty(unit_t *buf, size_t validBits) {
   size_t fullUnits = validBits / BITS_PER_UNIT;
   size_t remainder = validBits % BITS_PER_UNIT;
@@ -120,7 +99,7 @@ inline void intersect_two_rows(unit_t *dest, unit_t *partial, unit_t *rowPtr,
   for (size_t b = 0; b < units; b++) {
     dest[b] = partial[b] & rowPtr[b];
   }
-}
+}**/
 
 #endif
 // ############MACROS####################
