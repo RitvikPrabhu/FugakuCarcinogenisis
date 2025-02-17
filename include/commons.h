@@ -8,8 +8,6 @@
 #include <set>
 #include <vector>
 
-#include "carcUtils.h"
-
 typedef std::set<int> SET;
 typedef std::vector<std::set<int>> SET_COLLECTION;
 
