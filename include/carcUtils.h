@@ -25,7 +25,7 @@ enum time_stages {
 #define START_TIMING(var)
 #define END_TIMING(var, accumulated_time)
 #endif
-/**
+
 inline bool is_empty(unit_t *buf, size_t validBits) {
   size_t fullUnits = validBits / BITS_PER_UNIT;
   size_t remainder = validBits % BITS_PER_UNIT;
@@ -99,7 +99,7 @@ inline void intersect_two_rows(unit_t *dest, unit_t *partial, unit_t *rowPtr,
   for (size_t b = 0; b < units; b++) {
     dest[b] = partial[b] & rowPtr[b];
   }
-}**/
+}
 
 #endif
 // ############MACROS####################

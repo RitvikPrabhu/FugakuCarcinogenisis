@@ -217,14 +217,21 @@ void process_lambda_interval(unit_t startComb, unit_t endComb,
 
         int TP = bitCollection_size(intersectionBuffer, dataTable.numTumor);
 
-        // TODO: Use seperated intersectionBuffer
-        const unit_t *rowIN = dataTable.normalData + computed.i * normalUnits;
-        const unit_t *rowJN = dataTable.normalData + computed.j * normalUnits;
-        const unit_t *rowKN = dataTable.normalData + k * normalUnits;
-        const unit_t *rowLN = dataTable.normalData + l * normalUnits;
+        unit_t *rowIN = dataTable.normalData + computed.i * normalUnits;
+        unit_t *rowJN = dataTable.normalData + computed.j * normalUnits;
+        unit_t *rowKN = dataTable.normalData + k * normalUnits;
+        unit_t *rowLN = dataTable.normalData + l * normalUnits;
+
+        intersect_two_rows(intersectionBuffer, rowIN, rowJN, normalUnits);
+        intersect_two_rows(intersectionBuffer, intersectionBuffer, rowKN,
+                           normalUnits);
+        intersect_two_rows(intersectionBuffer, intersectionBuffer, rowLN,
+                           normalUnits);
+
+        /*
         for (size_t b = 0; b < normalUnits; b++) {
           intersectionBuffer[b] = rowIN[b] & rowJN[b] & rowKN[b] & rowLN[b];
-        }
+        }*/
 
         int coveredNormal =
             bitCollection_size(intersectionBuffer, dataTable.numNormal);
@@ -338,8 +345,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   size_t maxUnits = std::max(tumorUnits, normalUnits);
 
   unit_t *intersectionBuffer = new unit_t[maxUnits];
-  unit_t *scratchBufferij = new unit_t[normalUnits];
-  unit_t *scratchBufferijk = new unit_t[tumorUnits];
+  unit_t *scratchBufferij = new unit_t[maxUnits];
+  unit_t *scratchBufferijk = new unit_t[maxUnits];
 
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
