@@ -78,13 +78,17 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
     }
     for (size_t c = 0; c < table.numCols; c++) {
       if (line[c] == '1') {
-        SET_DATA(table, row_index, c);
+        if (c < table.numTumor) {
+          SET_TUMOR(table, row_index, c);
+        } else {
+          SET_NORMAL(table, row_index, c);
+        }
       }
     }
     row_index++;
     line = strtok(nullptr, "\n");
   }
-
+  // hello
   if (row_index != table.numRows) {
     fprintf(stderr, "Rank %d: Error: expected %zu data lines but got %zu.\n",
             rank, table.numRows, row_index);

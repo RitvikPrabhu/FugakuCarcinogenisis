@@ -34,14 +34,11 @@ struct sets_t {
     (TABLE).normalData = SET_COLLECTION((TABLE).numRows);                      \
   } while (0)
 
-#define SET_DATA(TABLE, ROW_INDEX, C)                                          \
-  do {                                                                         \
-    if ((C) < (TABLE).numTumor) {                                              \
-      (TABLE).tumorData[(ROW_INDEX)].insert((C));                              \
-    } else {                                                                   \
-      (TABLE).normalData[(ROW_INDEX)].insert((C));                             \
-    }                                                                          \
-  } while (0)
+#define SET_TUMOR(TABLE, ROW_INDEX, C)                                         \
+  (TABLE).tumorData[(ROW_INDEX)].insert((C));
+
+#define SET_NORMAL(TABLE, ROW_INDEX, C)                                        \
+  (TABLE).normalData[(ROW_INDEX)].insert((C));
 
 #else
 #include <climits>
@@ -93,19 +90,20 @@ inline void set_bit(unit_t *array, size_t row, size_t col,
   array[unit_idx] |= ((unit_t)1 << bit_in_unit);
 }
 
-#define SET_DATA(TABLE, ROW_INDEX, C)                                          \
-  size_t __tumorRowUnits = CALCULATE_UNITS((TABLE).numTumor);                  \
-  size_t __normalRowUnits = CALCULATE_UNITS((TABLE).numNormal);                \
+#define SET_TUMOR(TABLE, ROW_INDEX, C)                                         \
   do {                                                                         \
-    if ((C) < (TABLE).numTumor) {                                              \
-      size_t __tumorRowSizeBits = (__tumorRowUnits) * BITS_PER_UNIT;           \
-      set_bit((TABLE).tumorData, (ROW_INDEX), (C), __tumorRowSizeBits);        \
-    } else {                                                                   \
-      size_t __normalRowSizeBits = (__normalRowUnits) * BITS_PER_UNIT;         \
-      size_t __colInNormal = (C) - (TABLE).numTumor;                           \
-      set_bit((TABLE).normalData, (ROW_INDEX), __colInNormal,                  \
-              __normalRowSizeBits);                                            \
-    }                                                                          \
+    size_t __tumorRowUnits = CALCULATE_UNITS((TABLE).numTumor);                \
+    size_t __tumorRowSizeBits = (__tumorRowUnits) * BITS_PER_UNIT;             \
+    set_bit((TABLE).tumorData, (ROW_INDEX), (C), __tumorRowSizeBits);          \
+  } while (0)
+
+#define SET_NORMAL(TABLE, ROW_INDEX, C)                                        \
+  do {                                                                         \
+    size_t __normalRowUnits = CALCULATE_UNITS((TABLE).numNormal);              \
+    size_t __normalRowSizeBits = (__normalRowUnits) * BITS_PER_UNIT;           \
+    size_t __colInNormal = (C) - (TABLE).numTumor;                             \
+    set_bit((TABLE).normalData, (ROW_INDEX), __colInNormal,                    \
+            __normalRowSizeBits);                                              \
   } while (0)
 
 #endif
