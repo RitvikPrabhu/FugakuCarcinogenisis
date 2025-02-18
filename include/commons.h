@@ -82,19 +82,19 @@ struct sets_t {
     std::memset((TABLE).normalData, 0, totalNormalUnits * sizeof(SET));        \
   } while (0)
 
-inline void set_bit(unit_t *array, size_t row, size_t col,
-                    size_t row_size_in_bits) {
-  size_t idx = row * row_size_in_bits + col;
-  size_t unit_idx = idx / BITS_PER_UNIT;
-  size_t bit_in_unit = idx % BITS_PER_UNIT;
-  array[unit_idx] |= ((unit_t)1 << bit_in_unit);
-}
+#define SET_BIT(array, row, col, row_size_in_bits)                             \
+  do {                                                                         \
+    size_t _idx = (row) * (row_size_in_bits) + (col);                          \
+    size_t _unit_idx = _idx / BITS_PER_UNIT;                                   \
+    size_t _bit_in_unit = _idx % BITS_PER_UNIT;                                \
+    (array)[_unit_idx] |= ((unit_t)1 << _bit_in_unit);                         \
+  } while (0)
 
 #define SET_TUMOR(TABLE, ROW_INDEX, C)                                         \
   do {                                                                         \
     size_t __tumorRowUnits = CALCULATE_UNITS((TABLE).numTumor);                \
     size_t __tumorRowSizeBits = (__tumorRowUnits) * BITS_PER_UNIT;             \
-    set_bit((TABLE).tumorData, (ROW_INDEX), (C), __tumorRowSizeBits);          \
+    SET_BIT((TABLE).tumorData, (ROW_INDEX), (C), __tumorRowSizeBits);          \
   } while (0)
 
 #define SET_NORMAL(TABLE, ROW_INDEX, C)                                        \
@@ -102,7 +102,7 @@ inline void set_bit(unit_t *array, size_t row, size_t col,
     size_t __normalRowUnits = CALCULATE_UNITS((TABLE).numNormal);              \
     size_t __normalRowSizeBits = (__normalRowUnits) * BITS_PER_UNIT;           \
     size_t __colInNormal = (C) - (TABLE).numTumor;                             \
-    set_bit((TABLE).normalData, (ROW_INDEX), __colInNormal,                    \
+    SET_BIT((TABLE).normalData, (ROW_INDEX), __colInNormal,                    \
             __normalRowSizeBits);                                              \
   } while (0)
 
