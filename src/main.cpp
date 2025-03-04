@@ -9,7 +9,6 @@
 #include "commons.h"
 #include "fourHit.h"
 #include "readFile.h"
-#include "set_ops.h"
 
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {

@@ -5,7 +5,8 @@
 #include <mpi.h>
 #include <string>
 
-#include "carcUtils.h"
+#include "commons.h"
+
 #define NUMHITS 4
 #define CHUNK_SIZE 100
 
