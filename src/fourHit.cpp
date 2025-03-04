@@ -374,9 +374,9 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     END_TIMING(all_reduce, all_reduce_time);
 
     LOAD_FIRST_TUMOR(intersectionBuffer, dataTable, globalBestComb[0]);
-    inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[1]);
-    inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[2]);
-    inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[3]);
+    INPLACE_INTERSECT_TUMOR(intersectionBuffer, dataTable, globalBestComb[1]);
+    INPLACE_INTERSECT_TUMOR(intersectionBuffer, dataTable, globalBestComb[2]);
+    INPLACE_INTERSECT_TUMOR(intersectionBuffer, dataTable, globalBestComb[3]);
 
     update_dropped_samples(droppedSamples, intersectionBuffer, tumorUnits);
 

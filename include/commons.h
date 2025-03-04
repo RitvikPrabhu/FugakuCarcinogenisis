@@ -81,6 +81,20 @@ struct sets_t {
     (SCRATCH) = (TABLE).tumorData[(GENE)];                                     \
   } while (0)
 
+#define INPLACE_INTERSECT_TUMOR(SCRATCH, TABLE, GENE)                          \
+  do {                                                                         \
+    /* Copy the target row from tumorData into a temporary set */              \
+    SET _tmp = (TABLE).tumorData[(GENE)];                                      \
+    /* For each element in SCRATCH, remove it if it is not in _tmp */          \
+    for (auto it = (SCRATCH).begin(); it != (SCRATCH).end();) {                \
+      if (_tmp.find(*it) == _tmp.end()) {                                      \
+        it = (SCRATCH).erase(it);                                              \
+      } else {                                                                 \
+        ++it;                                                                  \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 #else
 #include <climits>
 #include <cstddef>
@@ -216,6 +230,15 @@ struct sets_t {
     size_t __baseIdx = (GENE) * __rowUnits;                                    \
     std::memcpy((SCRATCH), &((TABLE).tumorData[__baseIdx]),                    \
                 __rowUnits * sizeof(unit_t));                                  \
+  } while (0)
+
+#define INPLACE_INTERSECT_TUMOR(SCRATCH, TABLE, GENE)                          \
+  do {                                                                         \
+    size_t __rowUnits = UNITS_FOR_BITS((TABLE).numTumor);                      \
+    size_t __baseIdx = (GENE) * __rowUnits;                                    \
+    for (size_t _b = 0; _b < __rowUnits; _b++) {                               \
+      (SCRATCH)[_b] &= (TABLE).tumorData[__baseIdx + _b];                      \
+    }                                                                          \
   } while (0)
 
 #endif
