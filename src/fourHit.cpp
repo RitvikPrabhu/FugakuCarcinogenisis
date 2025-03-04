@@ -48,7 +48,7 @@ void master_process(int num_workers, SET num_Comb) {
   }
 }
 
-inline SET nCr(int n, int r) {
+inline LAMBDA_TYPE nCr(int n, int r) {
   if (r > n)
     return 0;
   if (r == 0 || r == n)
@@ -96,10 +96,11 @@ void outputFileWriteError(std::ofstream &outfile) {
   }
 }
 
-std::pair<SET, SET> calculate_initial_chunk(int rank, SET num_Comb,
-                                            SET chunk_size) {
-  SET begin = (rank - 1) * chunk_size;
-  SET end = std::min(begin + chunk_size, num_Comb);
+std::pair<LAMBDA_TYPE, LAMBDA_TYPE>
+calculate_initial_chunk(int rank, LAMBDA_TYPE num_Comb,
+                        LAMBDA_TYPE chunk_size) {
+  LAMBDA_TYPE begin = (rank - 1) * chunk_size;
+  LAMBDA_TYPE end = std::min(begin + chunk_size, num_Comb);
   return {begin, end};
 }
 
@@ -110,7 +111,7 @@ void update_dropped_samples(SET_COLLECTION &droppedSamples,
   }
 }
 
-LambdaComputed compute_lambda_variables(SET lambda, int totalGenes) {
+LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda, int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
   if (computed.j > totalGenes - (NUMHITS - 2)) {
@@ -172,7 +173,7 @@ MPI_Datatype create_mpi_result_with_comb_type() {
   return MPI_RESULT_WITH_COMB;
 }
 
-void process_lambda_interval(SET startComb, SET endComb,
+void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
                              std::array<int, NUMHITS> &bestCombination,
                              double &maxF, sets_t dataTable,
                              SET_COLLECTION &intersectionBuffer,
@@ -183,7 +184,7 @@ void process_lambda_interval(SET startComb, SET endComb,
   size_t normalUnits = UNITS_FOR_BITS(dataTable.numNormal);
   int totalGenes = dataTable.numRows;
 
-  for (SET lambda = startComb; lambda <= endComb; lambda++) {
+  for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; lambda++) {
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
 
     SET_COLLECTION rowI = dataTable.tumorData + computed.i * tumorUnits;
@@ -223,11 +224,6 @@ void process_lambda_interval(SET startComb, SET endComb,
         intersect_two_rows(intersectionBuffer, intersectionBuffer, rowLN,
                            normalUnits);
 
-        /*
-        for (size_t b = 0; b < normalUnits; b++) {
-          intersectionBuffer[b] = rowIN[b] & rowJN[b] & rowKN[b] & rowLN[b];
-        }*/
-
         int coveredNormal =
             bitCollection_size(intersectionBuffer, dataTable.numNormal);
         int TN = dataTable.numNormal - coveredNormal;
@@ -243,8 +239,9 @@ void process_lambda_interval(SET startComb, SET endComb,
 }
 
 bool process_and_communicate(int rank, SET num_Comb, double &localBestMaxF,
-                             std::array<int, NUMHITS> &localComb, SET &begin,
-                             SET &end, MPI_Status &status, sets_t dataTable,
+                             std::array<int, NUMHITS> &localComb,
+                             LAMBDA_TYPE &begin, LAMBDA_TYPE &end,
+                             MPI_Status &status, sets_t dataTable,
                              SET_COLLECTION &intersectionBuffer,
                              SET_COLLECTION &scratchBufferij,
                              SET_COLLECTION &scratchBufferijk) {
@@ -266,16 +263,16 @@ bool process_and_communicate(int rank, SET num_Comb, double &localBestMaxF,
   return true;
 }
 
-void worker_process(int rank, SET num_Comb, double &localBestMaxF,
+void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
                     std::array<int, NUMHITS> &localComb, sets_t dataTable,
                     SET_COLLECTION &intersectionBuffer,
                     SET_COLLECTION &scratchBufferij,
                     SET_COLLECTION &scratchBufferijk) {
 
-  std::pair<SET, SET> chunk_indices =
+  std::pair<LAMBDA_TYPE, LAMBDA_TYPE> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
-  SET begin = chunk_indices.first;
-  SET end = chunk_indices.second;
+  LAMBDA_TYPE begin = chunk_indices.first;
+  LAMBDA_TYPE end = chunk_indices.second;
   MPI_Status status;
   while (end <= num_Comb) {
     bool has_next = process_and_communicate(
@@ -286,7 +283,7 @@ void worker_process(int rank, SET num_Comb, double &localBestMaxF,
   }
 }
 
-void execute_role(int rank, int size_minus_one, SET num_Comb,
+void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                   double &localBestMaxF, std::array<int, NUMHITS> &localComb,
                   sets_t dataTable, SET_COLLECTION &intersectionBuffer,
                   SET_COLLECTION &scratchBufferij,
@@ -343,7 +340,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
-  SET num_Comb = nCr(numGenes, 2);
+  LAMBDA_TYPE num_Comb = nCr(numGenes, 2);
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
   SET_COLLECTION droppedSamples;
   INIT_DROPPED_SAMPLES(droppedSamples, CALCULATE_BIT_UNITS(Nt));

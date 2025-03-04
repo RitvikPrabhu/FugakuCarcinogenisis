@@ -10,6 +10,7 @@
 
 typedef std::set<int> SET;
 typedef std::vector<std::set<int>> SET_COLLECTION;
+typedef long long LAMBDA_TYPE;
 
 struct sets_t {
   size_t numRows;
@@ -70,6 +71,7 @@ typedef uint64_t unit_t;
 
 typedef unit_t SET;
 typedef unit_t *SET_COLLECTION;
+typedef unit_t LAMBDA_TYPE;
 
 struct sets_t {
   size_t numRows;

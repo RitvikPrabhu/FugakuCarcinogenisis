@@ -13,6 +13,10 @@ enum time_stages {
   OVERALL_TOTAL
 };
 
+struct LambdaComputed {
+  int i, j;
+};
+
 // ############MACROS####################
 #ifdef ENABLE_TIMING
 #define START_TIMING(var) double var##_start = MPI_Wtime();

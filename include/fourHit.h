@@ -14,10 +14,6 @@ struct MPIResultWithComb {
   int comb[NUMHITS];
 };
 
-struct LambdaComputed {
-  int i, j;
-};
-
 struct MPIResult {
   double value;
   int rank;
