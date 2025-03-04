@@ -104,12 +104,12 @@ calculate_initial_chunk(int rank, LAMBDA_TYPE num_Comb,
   return {begin, end};
 }
 
-void update_dropped_samples(SET_COLLECTION &droppedSamples,
+/**void update_dropped_samples(SET_COLLECTION &droppedSamples,
                             SET_COLLECTION sampleToCover, size_t units) {
   for (size_t i = 0; i < units; ++i) {
     droppedSamples[i] |= sampleToCover[i];
   }
-}
+}**/
 
 inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
                                                int totalGenes) {
@@ -378,7 +378,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     INPLACE_INTERSECT_TUMOR(intersectionBuffer, dataTable, globalBestComb[2]);
     INPLACE_INTERSECT_TUMOR(intersectionBuffer, dataTable, globalBestComb[3]);
 
-    update_dropped_samples(droppedSamples, intersectionBuffer, tumorUnits);
+    UPDATE_DROPPED_SAMPLES(droppedSamples, intersectionBuffer, tumorUnits);
 
     update_tumor_data(dataTable.tumorData, intersectionBuffer, tumorUnits,
                       numGenes);

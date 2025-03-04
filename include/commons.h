@@ -95,6 +95,15 @@ struct sets_t {
     }                                                                          \
   } while (0)
 
+#define UPDATE_DROPPED_SAMPLES(DROPPED, COVER, UNITS)                          \
+  do {                                                                         \
+    for (size_t _i = 0; _i < (UNITS); _i++) {                                  \
+      for (const auto &val : (COVER)[_i]) {                                    \
+        (DROPPED)[_i].insert(val);                                             \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 #else
 #include <climits>
 #include <cstddef>
@@ -238,6 +247,13 @@ struct sets_t {
     size_t __baseIdx = (GENE) * __rowUnits;                                    \
     for (size_t _b = 0; _b < __rowUnits; _b++) {                               \
       (SCRATCH)[_b] &= (TABLE).tumorData[__baseIdx + _b];                      \
+    }                                                                          \
+  } while (0)
+
+#define UPDATE_DROPPED_SAMPLES(DROPPED, COVER, UNITS)                          \
+  do {                                                                         \
+    for (size_t _i = 0; _i < (UNITS); _i++) {                                  \
+      (DROPPED)[_i] |= (COVER)[_i];                                            \
     }                                                                          \
   } while (0)
 
