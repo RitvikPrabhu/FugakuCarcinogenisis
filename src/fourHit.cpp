@@ -212,12 +212,14 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         if (IS_EMPTY(intersectionBuffer, dataTable.numTumor))
           continue;
 
-        int TP = bitCollection_size(intersectionBuffer, dataTable.numTumor);
+        int TP = BIT_COLLECTION_SIZE(intersectionBuffer, dataTable.numTumor);
 
-        SET_COLLECTION rowIN = dataTable.normalData + computed.i * normalUnits;
-        SET_COLLECTION rowJN = dataTable.normalData + computed.j * normalUnits;
-        SET_COLLECTION rowKN = dataTable.normalData + k * normalUnits;
-        SET_COLLECTION rowLN = dataTable.normalData + l * normalUnits;
+        SET_COLLECTION rowIN =
+            GET_ROW(dataTable.normalData, computed.i, normalUnits);
+        SET_COLLECTION rowJN =
+            GET_ROW(dataTable.normalData, computed.j, normalUnits);
+        SET_COLLECTION rowKN = GET_ROW(dataTable.normalData, k, normalUnits);
+        SET_COLLECTION rowLN = GET_ROW(dataTable.normalData, l, normalUnits);
 
         INTERSECT_TWO_ROWS(intersectionBuffer, rowIN, rowJN, normalUnits);
         INTERSECT_TWO_ROWS(intersectionBuffer, intersectionBuffer, rowKN,
@@ -226,7 +228,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
                            normalUnits);
 
         int coveredNormal =
-            bitCollection_size(intersectionBuffer, dataTable.numNormal);
+            BIT_COLLECTION_SIZE(intersectionBuffer, dataTable.numNormal);
         int TN = dataTable.numNormal - coveredNormal;
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
@@ -381,7 +383,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     update_tumor_data(dataTable.tumorData, intersectionBuffer, tumorUnits,
                       numGenes);
 
-    Nt -= bitCollection_size(intersectionBuffer, dataTable.numTumor);
+    Nt -= BIT_COLLECTION_SIZE(intersectionBuffer, dataTable.numTumor);
 
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, globalResult.f);

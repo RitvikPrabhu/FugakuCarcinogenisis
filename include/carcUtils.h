@@ -30,26 +30,6 @@ struct LambdaComputed {
 #define END_TIMING(var, accumulated_time)
 #endif
 
-inline int bitCollection_size(
-    unit_t *buf,
-    size_t validBits) { // only works on 64 bits....TODO: need to replace
-                        // __builtin_popcountll
-  size_t fullUnits = validBits / BITS_PER_UNIT;
-  size_t remainder = validBits % BITS_PER_UNIT;
-  int count = 0;
-
-  for (size_t i = 0; i < fullUnits; i++) {
-    count += __builtin_popcountll(buf[i]);
-  }
-
-  if (remainder > 0) {
-    unit_t mask = ((unit_t)1 << remainder) - (unit_t)1;
-    count += __builtin_popcountll(buf[fullUnits] & mask);
-  }
-
-  return count;
-}
-
 inline void load_first_tumor(unit_t *scratch, sets_t &table, size_t gene) {
   size_t rowUnits = UNITS_FOR_BITS(table.numTumor);
   size_t baseIdx = gene * rowUnits;

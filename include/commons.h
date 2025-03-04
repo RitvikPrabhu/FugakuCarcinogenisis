@@ -74,6 +74,8 @@ struct sets_t {
 
 #define IS_EMPTY(BUF, VALID_BITS) ((BUF).empty())
 
+#define BIT_COLLECTION_SIZE(BUF, VALID_BITS) ((BUF).size())
+
 #else
 #include <climits>
 #include <cstddef>
@@ -184,6 +186,23 @@ struct sets_t {
         return false;                                                          \
     }                                                                          \
     return true;                                                               \
+  }())
+
+// only works on 64 bits....TODO: need to replace
+// __builtin_popcountll
+#define BIT_COLLECTION_SIZE(BUF, VALID_BITS)                                   \
+  ([&]() -> int {                                                              \
+    size_t _fullUnits = (VALID_BITS) / BITS_PER_UNIT;                          \
+    size_t _remainder = (VALID_BITS) % BITS_PER_UNIT;                          \
+    int _count = 0;                                                            \
+    for (size_t _i = 0; _i < _fullUnits; _i++) {                               \
+      _count += __builtin_popcountll((BUF)[_i]);                               \
+    }                                                                          \
+    if (_remainder > 0) {                                                      \
+      unit_t _mask = (((unit_t)1 << _remainder) - (unit_t)1);                  \
+      _count += __builtin_popcountll((BUF)[_fullUnits] & _mask);               \
+    }                                                                          \
+    return _count;                                                             \
   }())
 
 #endif
