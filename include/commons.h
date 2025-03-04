@@ -72,6 +72,8 @@ struct sets_t {
                           std::inserter((DEST), (DEST).begin()));              \
   } while (0)
 
+#define IS_EMPTY(BUF, VALID_BITS) ((BUF).empty())
+
 #else
 #include <climits>
 #include <cstddef>
@@ -167,6 +169,22 @@ struct sets_t {
       (DEST)[b] = (PARTIAL)[b] & (ROWPTR)[b];                                  \
     }                                                                          \
   } while (0)
+
+#define IS_EMPTY(BUF, VALID_BITS)                                              \
+  ([&]() -> bool {                                                             \
+    size_t _fullUnits = (VALID_BITS) / BITS_PER_UNIT;                          \
+    size_t _remainder = (VALID_BITS) % BITS_PER_UNIT;                          \
+    for (size_t _i = 0; _i < _fullUnits; _i++) {                               \
+      if ((BUF)[_i] != (unit_t)0)                                              \
+        return false;                                                          \
+    }                                                                          \
+    if (_remainder > 0) {                                                      \
+      unit_t _mask = (((unit_t)1 << _remainder) - (unit_t)1);                  \
+      if (((BUF)[_fullUnits] & _mask) != 0)                                    \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+  }())
 
 #endif
 #endif

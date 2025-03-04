@@ -193,7 +193,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
 
     INTERSECT_TWO_ROWS(scratchBufferij, rowI, rowJ, tumorUnits);
 
-    if (is_empty(scratchBufferij, dataTable.numTumor))
+    if (IS_EMPTY(scratchBufferij, dataTable.numTumor))
       continue;
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
@@ -201,7 +201,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
       SET_COLLECTION rowK = GET_ROW(dataTable.tumorData, k, tumorUnits);
       INTERSECT_TWO_ROWS(scratchBufferijk, scratchBufferij, rowK, tumorUnits);
 
-      if (is_empty(scratchBufferijk, dataTable.numTumor))
+      if (IS_EMPTY(scratchBufferijk, dataTable.numTumor))
         continue;
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
@@ -209,7 +209,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         INTERSECT_TWO_ROWS(intersectionBuffer, scratchBufferijk, rowL,
                            tumorUnits);
 
-        if (is_empty(intersectionBuffer, dataTable.numTumor))
+        if (IS_EMPTY(intersectionBuffer, dataTable.numTumor))
           continue;
 
         int TP = bitCollection_size(intersectionBuffer, dataTable.numTumor);

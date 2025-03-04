@@ -30,22 +30,6 @@ struct LambdaComputed {
 #define END_TIMING(var, accumulated_time)
 #endif
 
-inline bool is_empty(unit_t *buf, size_t validBits) {
-  size_t fullUnits = validBits / BITS_PER_UNIT;
-  size_t remainder = validBits % BITS_PER_UNIT;
-
-  for (size_t i = 0; i < fullUnits; i++) {
-    if (buf[i] != (unit_t)0)
-      return false;
-  }
-  if (remainder > 0) {
-    unit_t mask = ((unit_t)1 << remainder) - (unit_t)1;
-    if ((buf[fullUnits] & mask) != 0)
-      return false;
-  }
-  return true;
-}
-
 inline int bitCollection_size(
     unit_t *buf,
     size_t validBits) { // only works on 64 bits....TODO: need to replace
