@@ -110,12 +110,6 @@ void update_dropped_samples(SET_COLLECTION &droppedSamples,
   }
 }
 
-SET_COLLECTION initialize_dropped_samples(size_t units) {
-  SET_COLLECTION droppedSamples = new SET[units];
-  memset(droppedSamples, 0, units * sizeof(SET));
-  return droppedSamples;
-}
-
 LambdaComputed compute_lambda_variables(SET lambda, int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
@@ -331,11 +325,6 @@ extract_global_comb(const MPIResultWithComb &globalResult) {
   return globalBestComb;
 }
 
-bool all_bits_set(const SET_COLLECTION droppedSamples, size_t units) {
-  return std::all_of(droppedSamples, droppedSamples + units,
-                     [](SET val) { return val == ~static_cast<SET>(0); });
-}
-
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable) {
 
@@ -365,7 +354,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outputFileWriteError(outfile);
   }
 
-  while (!all_bits_set(droppedSamples, CALCULATE_BIT_UNITS(Nt))) {
+  while (!CHECK_ALL_BITS_SET(droppedSamples, CALCULATE_BIT_UNITS(Nt))) {
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
         initialize_local_comb_and_f(localBestMaxF);

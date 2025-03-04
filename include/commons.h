@@ -55,6 +55,10 @@ struct sets_t {
     (X) = SET_COLLECTION((UNITS));                                             \
   } while (0)
 
+#define CHECK_ALL_BITS_SET(DROPPED_SAMPLES, TARGET)                            \
+  (std::all_of((DROPPED_SAMPLES).begin(), (DROPPED_SAMPLES).end(),             \
+               [&TARGET](const SET &val) { return val == TARGET; }))
+
 #else
 #include <climits>
 #include <cstddef>
@@ -136,6 +140,10 @@ struct sets_t {
     (X) = new SET[(UNITS)];                                                    \
     memset((X), 0, (UNITS) * sizeof(SET));                                     \
   } while (0)
+
+#define CHECK_ALL_BITS_SET(DROPPED_SAMPLES, UNITS)                             \
+  (std::all_of((DROPPED_SAMPLES), (DROPPED_SAMPLES) + (UNITS),                 \
+               [](SET val) { return val == ~static_cast<SET>(0); }))
 
 #endif
 #endif
