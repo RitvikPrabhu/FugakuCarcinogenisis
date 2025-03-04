@@ -60,6 +60,8 @@ struct sets_t {
   (std::all_of((DROPPED_SAMPLES).begin(), (DROPPED_SAMPLES).end(),             \
                [&TARGET](const SET &val) { return val == TARGET; }))
 
+#define GET_ROW(COLLECTION, i, UNITS) ((COLLECTION)[(i)])
+
 #else
 #include <climits>
 #include <cstddef>
@@ -146,6 +148,8 @@ struct sets_t {
 #define CHECK_ALL_BITS_SET(DROPPED_SAMPLES, UNITS)                             \
   (std::all_of((DROPPED_SAMPLES), (DROPPED_SAMPLES) + (UNITS),                 \
                [](SET val) { return val == ~static_cast<SET>(0); }))
+
+#define GET_ROW(COLLECTION, i, UNITS) ((COLLECTION) + ((i) * (UNITS)))
 
 #endif
 #endif

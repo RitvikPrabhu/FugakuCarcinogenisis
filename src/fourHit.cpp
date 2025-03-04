@@ -111,7 +111,8 @@ void update_dropped_samples(SET_COLLECTION &droppedSamples,
   }
 }
 
-LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda, int totalGenes) {
+inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
+                                               int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
   if (computed.j > totalGenes - (NUMHITS - 2)) {
@@ -187,8 +188,8 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; lambda++) {
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
 
-    SET_COLLECTION rowI = dataTable.tumorData + computed.i * tumorUnits;
-    SET_COLLECTION rowJ = dataTable.tumorData + computed.j * tumorUnits;
+    SET_COLLECTION rowI = GET_ROW(dataTable.tumorData, computed.i, tumorUnits);
+    SET_COLLECTION rowJ = GET_ROW(dataTable.tumorData, computed.j, tumorUnits);
 
     intersect_two_rows(scratchBufferij, rowI, rowJ, tumorUnits);
 
@@ -197,14 +198,14 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
 
-      SET_COLLECTION rowK = dataTable.tumorData + k * tumorUnits;
+      SET_COLLECTION rowK = GET_ROW(dataTable.tumorData, k, tumorUnits);
       intersect_two_rows(scratchBufferijk, scratchBufferij, rowK, tumorUnits);
 
       if (is_empty(scratchBufferijk, dataTable.numTumor))
         continue;
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-        SET_COLLECTION rowL = dataTable.tumorData + l * tumorUnits;
+        SET_COLLECTION rowL = GET_ROW(dataTable.tumorData, l, tumorUnits);
         intersect_two_rows(intersectionBuffer, scratchBufferijk, rowL,
                            tumorUnits);
 
