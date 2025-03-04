@@ -26,6 +26,8 @@ struct sets_t {
 
 #define UNITS_FOR_BITS(N) 1
 
+#define CALCULATE_BIT_UNITS(N) (N)
+
 #define CALCULATE_UNITS(numSample) numSample
 
 #define INIT_DATA(TABLE)                                                       \
@@ -39,6 +41,19 @@ struct sets_t {
 
 #define SET_NORMAL(TABLE, ROW_INDEX, C)                                        \
   (TABLE).normalData[(ROW_INDEX)].insert((C));
+
+#define INIT_BUFFERS(INTERSECTION_BUFFER, SCRATCH_BUFFER_IJ,                   \
+                     SCRATCH_BUFFER_IJK, MAX_UNITS)                            \
+  do {                                                                         \
+    (INTERSECTION_BUFFER) = new SET_COLLECTION((MAX_UNITS));                   \
+    (SCRATCH_BUFFER_IJ) = new SET_COLLECTION((MAX_UNITS));                     \
+    (SCRATCH_BUFFER_IJK) = new SET_COLLECTION((MAX_UNITS));                    \
+  } while (0)
+
+#define INIT_DROPPED_SAMPLES(X, UNITS)                                         \
+  do {                                                                         \
+    (X) = SET_COLLECTION((UNITS));                                             \
+  } while (0)
 
 #else
 #include <climits>
@@ -66,6 +81,8 @@ struct sets_t {
 #define ALL_BITS_SET (~(unit_t)0)
 
 #define UNITS_FOR_BITS(N) (((N) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
+
+#define CALCULATE_BIT_UNITS(N) (((N) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
 
 #define CALCULATE_UNITS(numSample)                                             \
   (((numSample) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
@@ -104,6 +121,20 @@ struct sets_t {
     size_t __colInNormal = (C) - (TABLE).numTumor;                             \
     SET_BIT((TABLE).normalData, (ROW_INDEX), __colInNormal,                    \
             __normalRowSizeBits);                                              \
+  } while (0)
+
+#define INIT_BUFFERS(INTERSECTION_BUFFER, SCRATCH_BUFFER_IJ,                   \
+                     SCRATCH_BUFFER_IJK, MAX_UNITS)                            \
+  do {                                                                         \
+    (INTERSECTION_BUFFER) = new SET[(MAX_UNITS)];                              \
+    (SCRATCH_BUFFER_IJ) = new SET[(MAX_UNITS)];                                \
+    (SCRATCH_BUFFER_IJK) = new SET[(MAX_UNITS)];                               \
+  } while (0)
+
+#define INIT_DROPPED_SAMPLES(X, UNITS)                                         \
+  do {                                                                         \
+    (X) = new SET[(UNITS)];                                                    \
+    memset((X), 0, (UNITS) * sizeof(SET));                                     \
   } while (0)
 
 #endif

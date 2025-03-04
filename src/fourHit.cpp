@@ -347,16 +347,17 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   size_t normalUnits = UNITS_FOR_BITS(Nn);
   size_t maxUnits = std::max(tumorUnits, normalUnits);
 
-  SET_COLLECTION intersectionBuffer = new SET[maxUnits];
-  SET_COLLECTION scratchBufferij = new SET[maxUnits];
-  SET_COLLECTION scratchBufferijk = new SET[maxUnits];
+  SET_COLLECTION intersectionBuffer;
+  SET_COLLECTION scratchBufferij;
+  SET_COLLECTION scratchBufferijk;
+  INIT_BUFFERS(intersectionBuffer, scratchBufferij, scratchBufferijk, maxUnits);
 
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
   SET num_Comb = nCr(numGenes, 2);
   double master_worker_time = 0, all_reduce_time = 0, broadcast_time = 0;
-  SET_COLLECTION droppedSamples =
-      initialize_dropped_samples(CALCULATE_BIT_UNITS(Nt));
+  SET_COLLECTION droppedSamples;
+  INIT_DROPPED_SAMPLES(droppedSamples, CALCULATE_BIT_UNITS(Nt));
 
   std::ofstream outfile;
   if (rank == 0) {
@@ -398,7 +399,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, globalResult.f);
     }
-    // break;
   }
   if (rank == 0) {
     outfile.close();
