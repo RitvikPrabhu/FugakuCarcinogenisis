@@ -64,30 +64,6 @@ inline LAMBDA_TYPE nCr(int n, int r) {
   return result;
 }
 
-bool arrays_equal(const SET_COLLECTION a, const SET_COLLECTION b,
-                  size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    if (a[i] != b[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-double compute_F(int TP, int TN, double alpha, int Nt, int Nn) {
-  return (alpha * TP + TN) / (Nt + Nn);
-}
-
-void update_tumor_data(SET_COLLECTION &tumorData, SET_COLLECTION sampleToCover,
-                       size_t units, int numGenes) {
-  for (int gene = 0; gene < numGenes; ++gene) {
-    SET_COLLECTION geneRow = tumorData + gene * units;
-    for (size_t i = 0; i < units; ++i) {
-      geneRow[i] &= ~sampleToCover[i];
-    }
-  }
-}
-
 void outputFileWriteError(std::ofstream &outfile) {
 
   if (!outfile) {
@@ -103,13 +79,6 @@ calculate_initial_chunk(int rank, LAMBDA_TYPE num_Comb,
   LAMBDA_TYPE end = std::min(begin + chunk_size, num_Comb);
   return {begin, end};
 }
-
-/**void update_dropped_samples(SET_COLLECTION &droppedSamples,
-                            SET_COLLECTION sampleToCover, size_t units) {
-  for (size_t i = 0; i < units; ++i) {
-    droppedSamples[i] |= sampleToCover[i];
-  }
-}**/
 
 inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
                                                int totalGenes) {
@@ -380,7 +349,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     UPDATE_DROPPED_SAMPLES(droppedSamples, intersectionBuffer, tumorUnits);
 
-    update_tumor_data(dataTable.tumorData, intersectionBuffer, tumorUnits,
+    UPDATE_TUMOR_DATA(dataTable.tumorData, intersectionBuffer, tumorUnits,
                       numGenes);
 
     Nt -= BIT_COLLECTION_SIZE(intersectionBuffer, dataTable.numTumor);

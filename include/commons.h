@@ -104,6 +104,15 @@ struct sets_t {
     }                                                                          \
   } while (0)
 
+#define UPDATE_TUMOR_DATA(TUMORDATA, SAMPLE_TO_COVER, UNITS, NUMGENES)         \
+  do {                                                                         \
+    for (int _gene = 0; _gene < (NUMGENES); ++_gene) {                         \
+      for (const auto &elem : (SAMPLE_TO_COVER)[_gene]) {                      \
+        (TUMORDATA)[_gene].erase(elem);                                        \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 #else
 #include <climits>
 #include <cstddef>
@@ -254,6 +263,16 @@ struct sets_t {
   do {                                                                         \
     for (size_t _i = 0; _i < (UNITS); _i++) {                                  \
       (DROPPED)[_i] |= (COVER)[_i];                                            \
+    }                                                                          \
+  } while (0)
+
+#define UPDATE_TUMOR_DATA(TUMORDATA, SAMPLE_TO_COVER, UNITS, NUMGENES)         \
+  do {                                                                         \
+    for (int _gene = 0; _gene < (NUMGENES); ++_gene) {                         \
+      unit_t *_geneRow = (TUMORDATA) + _gene * (UNITS);                        \
+      for (size_t _i = 0; _i < (UNITS); ++_i) {                                \
+        _geneRow[_i] &= ~((SAMPLE_TO_COVER)[_i]);                              \
+      }                                                                        \
     }                                                                          \
   } while (0)
 
