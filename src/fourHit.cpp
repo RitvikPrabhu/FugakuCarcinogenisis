@@ -373,7 +373,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
     END_TIMING(all_reduce, all_reduce_time);
 
-    load_first_tumor(intersectionBuffer, dataTable, globalBestComb[0]);
+    LOAD_FIRST_TUMOR(intersectionBuffer, dataTable, globalBestComb[0]);
     inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[1]);
     inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[2]);
     inplace_intersect_tumor(intersectionBuffer, dataTable, globalBestComb[3]);

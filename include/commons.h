@@ -76,6 +76,11 @@ struct sets_t {
 
 #define BIT_COLLECTION_SIZE(BUF, VALID_BITS) ((BUF).size())
 
+#define LOAD_FIRST_TUMOR(SCRATCH, TABLE, GENE)                                 \
+  do {                                                                         \
+    (SCRATCH) = (TABLE).tumorData[(GENE)];                                     \
+  } while (0)
+
 #else
 #include <climits>
 #include <cstddef>
@@ -204,6 +209,14 @@ struct sets_t {
     }                                                                          \
     return _count;                                                             \
   }())
+
+#define LOAD_FIRST_TUMOR(SCRATCH, TABLE, GENE)                                 \
+  do {                                                                         \
+    size_t __rowUnits = UNITS_FOR_BITS((TABLE).numTumor);                      \
+    size_t __baseIdx = (GENE) * __rowUnits;                                    \
+    std::memcpy((SCRATCH), &((TABLE).tumorData[__baseIdx]),                    \
+                __rowUnits * sizeof(unit_t));                                  \
+  } while (0)
 
 #endif
 #endif
