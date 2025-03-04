@@ -191,7 +191,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
     SET_COLLECTION rowI = GET_ROW(dataTable.tumorData, computed.i, tumorUnits);
     SET_COLLECTION rowJ = GET_ROW(dataTable.tumorData, computed.j, tumorUnits);
 
-    intersect_two_rows(scratchBufferij, rowI, rowJ, tumorUnits);
+    INTERSECT_TWO_ROWS(scratchBufferij, rowI, rowJ, tumorUnits);
 
     if (is_empty(scratchBufferij, dataTable.numTumor))
       continue;
@@ -199,14 +199,14 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
 
       SET_COLLECTION rowK = GET_ROW(dataTable.tumorData, k, tumorUnits);
-      intersect_two_rows(scratchBufferijk, scratchBufferij, rowK, tumorUnits);
+      INTERSECT_TWO_ROWS(scratchBufferijk, scratchBufferij, rowK, tumorUnits);
 
       if (is_empty(scratchBufferijk, dataTable.numTumor))
         continue;
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
         SET_COLLECTION rowL = GET_ROW(dataTable.tumorData, l, tumorUnits);
-        intersect_two_rows(intersectionBuffer, scratchBufferijk, rowL,
+        INTERSECT_TWO_ROWS(intersectionBuffer, scratchBufferijk, rowL,
                            tumorUnits);
 
         if (is_empty(intersectionBuffer, dataTable.numTumor))
@@ -219,10 +219,10 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         SET_COLLECTION rowKN = dataTable.normalData + k * normalUnits;
         SET_COLLECTION rowLN = dataTable.normalData + l * normalUnits;
 
-        intersect_two_rows(intersectionBuffer, rowIN, rowJN, normalUnits);
-        intersect_two_rows(intersectionBuffer, intersectionBuffer, rowKN,
+        INTERSECT_TWO_ROWS(intersectionBuffer, rowIN, rowJN, normalUnits);
+        INTERSECT_TWO_ROWS(intersectionBuffer, intersectionBuffer, rowKN,
                            normalUnits);
-        intersect_two_rows(intersectionBuffer, intersectionBuffer, rowLN,
+        INTERSECT_TWO_ROWS(intersectionBuffer, intersectionBuffer, rowLN,
                            normalUnits);
 
         int coveredNormal =

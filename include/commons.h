@@ -2,9 +2,11 @@
 #define COMMONS_H
 
 #ifdef USE_CPP_SET
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <set>
 #include <vector>
 
@@ -61,6 +63,14 @@ struct sets_t {
                [&TARGET](const SET &val) { return val == TARGET; }))
 
 #define GET_ROW(COLLECTION, i, UNITS) ((COLLECTION)[(i)])
+
+#define INTERSECT_TWO_ROWS(DEST, PARTIAL, ROWPTR, UNITS)                       \
+  do {                                                                         \
+    (DEST).clear();                                                            \
+    std::set_intersection((PARTIAL).begin(), (PARTIAL).end(),                  \
+                          (ROWPTR).begin(), (ROWPTR).end(),                    \
+                          std::inserter((DEST), (DEST).begin()));              \
+  } while (0)
 
 #else
 #include <climits>
@@ -150,6 +160,13 @@ struct sets_t {
                [](SET val) { return val == ~static_cast<SET>(0); }))
 
 #define GET_ROW(COLLECTION, i, UNITS) ((COLLECTION) + ((i) * (UNITS)))
+
+#define INTERSECT_TWO_ROWS(DEST, PARTIAL, ROWPTR, UNITS)                       \
+  do {                                                                         \
+    for (size_t b = 0; b < (UNITS); b++) {                                     \
+      (DEST)[b] = (PARTIAL)[b] & (ROWPTR)[b];                                  \
+    }                                                                          \
+  } while (0)
 
 #endif
 #endif
