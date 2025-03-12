@@ -65,24 +65,11 @@ int main(int argc, char *argv[]) {
   START_TIMING(loading)
 
   sets_t dataTable = read_data(argv[1], rank);
-#ifdef USE_CPP_SET
-  std::cout << "Tumor vector size: " << dataTable.tumorData.size() << "\n";
-  if (!dataTable.tumorData.empty()) {
-    std::cout << "Number of elements in first tumor set: "
-              << dataTable.tumorData[0].size() << "\n";
-  }
-
-  std::cout << "Normal vector size: " << dataTable.normalData.size() << "\n";
-  if (!dataTable.normalData.empty()) {
-    std::cout << "Number of elements in first normal set: "
-              << dataTable.normalData[0].size() << "\n";
-  }
-#endif
 
   END_TIMING(loading, elapsed_time_loading);
 
   START_TIMING(function_execution)
-  distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
+  // distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
   END_TIMING(function_execution, elapsed_time_func);
 
   END_TIMING(overall_execution, elapsed_time_total);

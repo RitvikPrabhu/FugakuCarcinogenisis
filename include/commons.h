@@ -149,9 +149,8 @@ struct sets_t {
 typedef uint64_t unit_t;
 #define MPI_UNIT_T MPI_UINT64_T
 
-typedef unit_t SET;
+typedef unit_t *SET;
 typedef unit_t *SET_COLLECTION;
-typedef unit_t LAMBDA_TYPE;
 
 struct sets_t {
   size_t numRows;
@@ -179,8 +178,8 @@ struct sets_t {
     size_t normalRowUnits = CALCULATE_UNITS((TABLE).numNormal);                \
     size_t totalTumorUnits = tumorRowUnits * (TABLE).numRows;                  \
     size_t totalNormalUnits = normalRowUnits * (TABLE).numRows;                \
-    (TABLE).tumorData = new SET[totalTumorUnits];                              \
-    (TABLE).normalData = new SET[totalNormalUnits];                            \
+    (TABLE).tumorData = new unit_t[totalTumorUnits];                           \
+    (TABLE).normalData = new unit_t[totalNormalUnits];                         \
     std::memset((TABLE).tumorData, 0, totalTumorUnits * sizeof(SET));          \
     std::memset((TABLE).normalData, 0, totalNormalUnits * sizeof(SET));        \
   } while (0)
