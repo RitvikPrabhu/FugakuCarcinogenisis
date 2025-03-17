@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "commons.h"
+#include "utils.h"
 
 sets_t read_data(const char *filename, int rank);
 #endif

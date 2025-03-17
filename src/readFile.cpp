@@ -5,6 +5,7 @@
 
 #include "commons.h"
 #include "readFile.h"
+#include "utils.h"
 
 // #########################HELPER###########################
 void handle_mpi_error(int rc, const char *context, int rank) {
@@ -45,53 +46,53 @@ char *read_entire_file_into_buffer(const char *filename, MPI_Offset &file_size,
   return buffer;
 }
 
-sets_t allocate_sets_from_header(const char *header_line, int rank) {
-  long long num_cols = 0, num_rows = 0, not_used = 0, num_tumor = 0,
-            num_normal = 0;
-
-  int nvals = sscanf(header_line, "%lld %lld %lld %lld %lld", &num_rows,
-                     &num_cols, &not_used, &num_tumor, &num_normal);
-  if (nvals != 5) {
-    handle_parsing_error("Error parsing header line", rank);
+void allocate_sets_from_header(sets_t &table, const char *header_line,
+                               int rank) {
+  long long num_rows, num_cols, unused, numTumor, numNormal;
+  if (sscanf(header_line, "%lld %lld %lld %lld %lld", &num_rows, &num_cols,
+             &unused, &numTumor, &numNormal) != 5) {
+    fprintf(stderr, "Rank %d: Header parsing failed\n", rank);
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-  sets_t table;
   table.numRows = static_cast<size_t>(num_rows);
-  table.numTumor = static_cast<size_t>(num_tumor);
-  table.numNormal = static_cast<size_t>(num_normal);
   table.numCols = static_cast<size_t>(num_cols);
+  table.numTumor = static_cast<size_t>(numTumor);
+  table.numNormal = static_cast<size_t>(numNormal);
 
   INIT_DATA(table);
-  return table;
 }
 
 void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
-
-  size_t row_index = 0;
   char *line = strtok(nullptr, "\n");
+  size_t row_index = 0;
 
-  while (line != nullptr && row_index < table.numRows) {
-    if (std::strlen(line) < table.numCols) {
-      fprintf(stderr, "Rank %d: Error: line %zu has fewer than %zu bits.\n",
-              rank, row_index, table.numCols);
+  while (line && row_index < table.numRows) {
+    if (strlen(line) < table.numCols) {
+      fprintf(stderr, "Rank %d: Parsing error at line %zu\n", rank, row_index);
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    for (size_t c = 0; c < table.numCols; c++) {
-      if (line[c] == '1') {
-        if (c < table.numTumor) {
-          SET_TUMOR(table, row_index, c);
+
+    for (size_t col = 0; col < table.numCols; ++col) {
+      if (line[col] == '1') {
+        if (col < table.numTumor) {
+          size_t idx = row_index * table.numTumor + col;
+          SET_INSERT(table.tumorData, idx); // Bitwise mode expects single index
         } else {
-          SET_NORMAL(table, row_index, c);
+          size_t normal_idx = col - table.numTumor;
+          size_t idx = row_index * table.numNormal + normal_idx;
+          SET_INSERT(table.normalData, idx);
         }
       }
     }
+
     row_index++;
     line = strtok(nullptr, "\n");
   }
-  // hello
+
   if (row_index != table.numRows) {
-    fprintf(stderr, "Rank %d: Error: expected %zu data lines but got %zu.\n",
-            rank, table.numRows, row_index);
+    fprintf(stderr, "Rank %d: Expected %zu rows, got %zu\n", rank,
+            table.numRows, row_index);
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 }
@@ -103,10 +104,14 @@ sets_t read_data(const char *filename, int rank) {
   char *header_line = strtok(file_buffer, "\n");
   if (!header_line) {
     delete[] file_buffer;
-    handle_parsing_error("No lines in file.", rank);
+    fprintf(stderr, "Rank %d: Empty or malformed file\n", rank);
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  sets_t table = allocate_sets_from_header(header_line, rank);
+
+  sets_t table;
+  allocate_sets_from_header(table, header_line, rank);
   parse_and_populate(table, file_buffer, rank);
+
   delete[] file_buffer;
   return table;
 }

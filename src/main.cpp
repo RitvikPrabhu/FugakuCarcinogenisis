@@ -9,6 +9,7 @@
 #include "commons.h"
 #include "fourHit.h"
 #include "readFile.h"
+#include "utils.h"
 
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
@@ -55,24 +56,24 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  START_TIMING(overall_execution)
+  // START_TIMING(overall_execution)
 
   double elapsed_time_loading = 0.0;
   double elapsed_time_func = 0.0;
   double elapsed_time_total = 0.0;
   double elapsed_times[6] = {0.0};
 
-  START_TIMING(loading)
+  // START_TIMING(loading)
 
   sets_t dataTable = read_data(argv[1], rank);
 
-  END_TIMING(loading, elapsed_time_loading);
+  // END_TIMING(loading, elapsed_time_loading);
 
-  START_TIMING(function_execution)
-  // distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
-  END_TIMING(function_execution, elapsed_time_func);
+  // START_TIMING(function_execution)
+  //  distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
+  // END_TIMING(function_execution, elapsed_time_func);
 
-  END_TIMING(overall_execution, elapsed_time_total);
+  // END_TIMING(overall_execution, elapsed_time_total);
 
   // elapsed_times[OVERALL_FILE_LOAD] = elapsed_time_loading;
   // elapsed_times[OVERALL_DISTRIBUTE_FUNCTION] = elapsed_time_func;

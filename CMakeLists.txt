@@ -29,7 +29,7 @@ find_package(OpenMP REQUIRED)
 set(SOURCES
     src/main.cpp
     src/readFile.cpp
-    src/fourHit.cpp
+    #src/fourHit.cpp
 )
 
 add_executable(run ${SOURCES})
