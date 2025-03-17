@@ -59,9 +59,13 @@ void allocate_sets_from_header(sets_t &table, const char *header_line,
   table.numCols = static_cast<size_t>(num_cols);
   table.numTumor = static_cast<size_t>(numTumor);
   table.numNormal = static_cast<size_t>(numNormal);
+  table.tumorRowUnits = CEIL_DIV(numTumor, 64);
+  table.normalRowUnits = CEIL_DIV(numNormal, 64);
 
-  SET_COLLECTION_NEW(table.tumorData, table.numRows, table.numTumor);
-  SET_COLLECTION_NEW(table.normalData, table.numRows, table.numNormal);
+  SET_COLLECTION_NEW(table.tumorData, table.numRows, table.numTumor,
+                     table.tumorRowUnits);
+  SET_COLLECTION_NEW(table.normalData, table.numRows, table.numNormal,
+                     table.normalRowUnits);
 }
 
 void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
@@ -77,12 +81,12 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
     for (size_t col = 0; col < table.numCols; ++col) {
       if (line[col] == '1') {
         if (col < table.numTumor) {
-          SET_COLLECTION_INSERT(table.tumorData, row_index, col,
-                                table.numTumor);
+          SET_COLLECTION_INSERT(table.tumorData, row_index, col, table.numTumor,
+                                table.tumorRowUnits);
         } else {
           size_t normalIdx = col - table.numTumor;
           SET_COLLECTION_INSERT(table.normalData, row_index, normalIdx,
-                                table.numNormal);
+                                table.numNormal, table.normalRowUnits);
         }
       }
     }

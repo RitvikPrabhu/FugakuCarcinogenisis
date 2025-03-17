@@ -43,9 +43,8 @@ typedef unit_t *SET_COLLECTION;
     (set) = new unit_t[CEIL_DIV((size_in_bits), BITS_PER_UNIT)]();             \
   } while (0)
 
-#define SET_COLLECTION_NEW(collection, rowCount, colCount)                     \
+#define SET_COLLECTION_NEW(collection, rowCount, colCount, rowUnits)           \
   do {                                                                         \
-    size_t rowUnits = CEIL_DIV((colCount), BITS_PER_UNIT);                     \
     size_t totalUnits = rowUnits * (rowCount);                                 \
     size_t totalBits = totalUnits * BITS_PER_UNIT;                             \
     SET_NEW((collection), totalBits);                                          \
@@ -54,9 +53,8 @@ typedef unit_t *SET_COLLECTION;
 #define SET_INSERT(set, idx)                                                   \
   ((set)[(idx) / BITS_PER_UNIT] |= ((unit_t)1 << ((idx) % BITS_PER_UNIT)))
 
-#define SET_COLLECTION_INSERT(collection, row, col, rowWidth)                  \
+#define SET_COLLECTION_INSERT(collection, row, col, rowWidth, rowUnits)        \
   do {                                                                         \
-    size_t rowUnits = CEIL_DIV((rowWidth), 64);                                \
     size_t offset = (row * rowUnits * 64) + (col);                             \
     SET_INSERT((collection), offset);                                          \
   } while (0)
@@ -71,6 +69,8 @@ struct sets_t {
   size_t numTumor;
   size_t numNormal;
   size_t numCols;
+  size_t tumorRowUnits;
+  size_t normalRowUnits;
   SET_COLLECTION tumorData;
   SET_COLLECTION normalData;
 };
