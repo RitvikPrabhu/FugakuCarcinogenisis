@@ -59,8 +59,8 @@ void allocate_sets_from_header(sets_t &table, const char *header_line,
   table.numCols = static_cast<size_t>(num_cols);
   table.numTumor = static_cast<size_t>(numTumor);
   table.numNormal = static_cast<size_t>(numNormal);
-  table.tumorRowUnits = CEIL_DIV(numTumor, 64);
-  table.normalRowUnits = CEIL_DIV(numNormal, 64);
+  table.tumorRowUnits = CEIL_DIV(numTumor, BITS_PER_UNIT);
+  table.normalRowUnits = CEIL_DIV(numNormal, BITS_PER_UNIT);
 
   SET_COLLECTION_NEW(table.tumorData, table.numRows, table.numTumor,
                      table.tumorRowUnits);

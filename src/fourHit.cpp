@@ -146,60 +146,68 @@ MPI_Datatype create_mpi_result_with_comb_type() {
 
 void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
                              std::array<int, NUMHITS> &bestCombination,
-                             double &maxF, sets_t dataTable,
+                             double &maxF, sets_t &dataTable,
                              SET_COLLECTION &intersectionBuffer,
                              SET_COLLECTION &scratchBufferij,
                              SET_COLLECTION &scratchBufferijk) {
   double alpha = 0.1;
-  size_t tumorUnits = UNITS_FOR_BITS(dataTable.numTumor);
-  size_t normalUnits = UNITS_FOR_BITS(dataTable.numNormal);
   int totalGenes = dataTable.numRows;
+
+  size_t tumorBitsPerRow = dataTable.tumorRowUnits * BITS_PER_UNIT;
+  size_t normalBitsPerRow = dataTable.normalRowUnits * BITS_PER_UNIT;
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; lambda++) {
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
-
-    SET_COLLECTION rowI = GET_ROW(dataTable.tumorData, computed.i, tumorUnits);
-    SET_COLLECTION rowJ = GET_ROW(dataTable.tumorData, computed.j, tumorUnits);
-
-    INTERSECT_TWO_ROWS(scratchBufferij, rowI, rowJ, tumorUnits);
-
-    if (IS_EMPTY(scratchBufferij, dataTable.numTumor))
+    if (computed.j < 0) {
       continue;
+    }
+
+    auto rowI =
+        GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
+    auto rowJ =
+        GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
+
+    SET_INTERSECT(scratchBufferij, rowI, rowJ, tumorBitsPerRow);
+
+    if (SET_IS_EMPTY(scratchBufferij, tumorBitsPerRow)) {
+      continue;
+    }
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
+      auto rowK = GET_ROW(dataTable.tumorData, k, dataTable.tumorRowUnits);
 
-      SET_COLLECTION rowK = GET_ROW(dataTable.tumorData, k, tumorUnits);
-      INTERSECT_TWO_ROWS(scratchBufferijk, scratchBufferij, rowK, tumorUnits);
-
-      if (IS_EMPTY(scratchBufferijk, dataTable.numTumor))
+      SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK, tumorBitsPerRow);
+      if (SET_IS_EMPTY(scratchBufferijk, tumorBitsPerRow)) {
         continue;
+      }
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-        SET_COLLECTION rowL = GET_ROW(dataTable.tumorData, l, tumorUnits);
-        INTERSECT_TWO_ROWS(intersectionBuffer, scratchBufferijk, rowL,
-                           tumorUnits);
+        auto rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
 
-        if (IS_EMPTY(intersectionBuffer, dataTable.numTumor))
+        SET_INTERSECT(intersectionBuffer, scratchBufferijk, rowL,
+                      tumorBitsPerRow);
+        if (SET_IS_EMPTY(intersectionBuffer, tumorBitsPerRow)) {
           continue;
+        }
 
-        int TP = BIT_COLLECTION_SIZE(intersectionBuffer, dataTable.numTumor);
+        int TP = SET_COUNT(intersectionBuffer, tumorBitsPerRow);
 
-        SET_COLLECTION rowIN =
-            GET_ROW(dataTable.normalData, computed.i, normalUnits);
-        SET_COLLECTION rowJN =
-            GET_ROW(dataTable.normalData, computed.j, normalUnits);
-        SET_COLLECTION rowKN = GET_ROW(dataTable.normalData, k, normalUnits);
-        SET_COLLECTION rowLN = GET_ROW(dataTable.normalData, l, normalUnits);
+        auto rowIN =
+            GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
+        auto rowJN =
+            GET_ROW(dataTable.normalData, computed.j, dataTable.normalRowUnits);
+        auto rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
+        auto rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
 
-        INTERSECT_TWO_ROWS(intersectionBuffer, rowIN, rowJN, normalUnits);
-        INTERSECT_TWO_ROWS(intersectionBuffer, intersectionBuffer, rowKN,
-                           normalUnits);
-        INTERSECT_TWO_ROWS(intersectionBuffer, intersectionBuffer, rowLN,
-                           normalUnits);
+        SET_INTERSECT(intersectionBuffer, rowIN, rowJN, normalBitsPerRow);
+        SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowKN,
+                      normalBitsPerRow);
+        SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowLN,
+                      normalBitsPerRow);
 
-        int coveredNormal =
-            BIT_COLLECTION_SIZE(intersectionBuffer, dataTable.numNormal);
-        int TN = dataTable.numNormal - coveredNormal;
+        int coveredNormal = SET_COUNT(intersectionBuffer, normalBitsPerRow);
+        int TN = (int)dataTable.numNormal - coveredNormal;
+
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
         if (F >= maxF) {

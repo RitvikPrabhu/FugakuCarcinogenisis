@@ -1,34 +1,50 @@
 #ifndef COMMONS_H
 #define COMMONS_H
 
+#include <algorithm>
 #include <cassert>
 #include <climits>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <set>
 #include <vector>
+
+#define CEIL_DIV(a, b) (((a) + (b) - 1) / (b))
 
 #ifdef USE_CPP_SET
 
 typedef std::set<int> SET;
 typedef std::vector<SET> SET_COLLECTION;
 
+#define BITS_PER_UNIT 64
 #define SET_NEW(set, size_in_bits)                                             \
   {                                                                            \
   }
 
-#define SET_COLLECTION_NEW(collection, rowCount, colCount)                     \
+#define SET_COLLECTION_NEW(collection, rowCount, colCount, rowUnits)           \
   do {                                                                         \
     (collection).resize(rowCount);                                             \
   } while (0)
 
 #define SET_INSERT(set, idx) ((set).insert((idx)))
-#define SET_COLLECTION_INSERT(collection, row, col, rowWidth)                  \
+#define SET_COLLECTION_INSERT(collection, row, col, rowWidth, rowUnits)        \
   do {                                                                         \
     SET_INSERT((collection)[(row)], (col));                                    \
   } while (0)
 
-#define SET_TEST(set, idx) ((set).find(idx) != (set).end())
+#define GET_ROW(dataCollection, rowIndex, rowUnits) (dataCollection)[rowIndex]
+
+#define SET_INTERSECT(dest, A, B, size_in_bits)                                \
+  do {                                                                         \
+    (dest).clear();                                                            \
+    std::set_intersection((A).begin(), (A).end(), (B).begin(), (B).end(),      \
+                          std::inserter((dest), (dest).begin()));              \
+  } while (0)
+
+#define SET_IS_EMPTY(set, size_in_bits) ((set).empty())
+
+#define SET_COUNT(set, size_in_bits) ((int)((set).size()))
 
 #else
 
@@ -36,7 +52,6 @@ typedef int64_t unit_t;
 typedef unit_t *SET_COLLECTION;
 
 #define BITS_PER_UNIT (sizeof(unit_t) * CHAR_BIT)
-#define CEIL_DIV(a, b) (((a) + (b) - 1) / (b))
 
 #define SET_NEW(set, size_in_bits)                                             \
   do {                                                                         \
@@ -61,6 +76,41 @@ typedef unit_t *SET_COLLECTION;
 
 #define SET_TEST(set, idx)                                                     \
   (((set)[(idx) / BITS_PER_UNIT] & ((unit_t)1 << ((idx) % BITS_PER_UNIT))) != 0)
+
+#define GET_ROW(dataCollection, rowIndex, rowUnits)                            \
+  ((dataCollection) + ((rowIndex) * (rowUnits)))
+
+#define SET_INTERSECT(dest, A, B, size_in_bits)                                \
+  do {                                                                         \
+    size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                  \
+    for (size_t __i = 0; __i < __units; ++__i) {                               \
+      (dest)[__i] = (A)[__i] & (B)[__i];                                       \
+    }                                                                          \
+  } while (0)
+
+#define SET_IS_EMPTY(set, size_in_bits)                                        \
+  ([&]() {                                                                     \
+    size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                  \
+    for (size_t __i = 0; __i < __units; ++__i) {                               \
+      if ((set)[__i] != 0)                                                     \
+        return false;                                                          \
+    }                                                                          \
+    return true;                                                               \
+  }())
+
+#define SET_COUNT(set, size_in_bits)                                           \
+  ([&]() -> int {                                                              \
+    size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                  \
+    int __count = 0;                                                           \
+    for (size_t __i = 0; __i < __units; ++__i) {                               \
+      uint64_t __val = (set)[__i];                                             \
+      while (__val) {                                                          \
+        __val &= (__val - 1);                                                  \
+        __count++;                                                             \
+      }                                                                        \
+    }                                                                          \
+    return __count;                                                            \
+  }())
 
 #endif
 
