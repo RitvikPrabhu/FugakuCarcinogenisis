@@ -5,7 +5,6 @@
 
 #include "commons.h"
 #include "readFile.h"
-#include "utils.h"
 
 // #########################HELPER###########################
 void handle_mpi_error(int rc, const char *context, int rank) {

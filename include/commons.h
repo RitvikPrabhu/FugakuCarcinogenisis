@@ -46,11 +46,41 @@ typedef std::vector<SET> SET_COLLECTION;
 
 #define SET_COUNT(set, size_in_bits) ((int)((set).size()))
 
+#define CHECK_ALL_BITS_SET(set, size_in_bits)                                  \
+  ((int)((set).size()) == (size_in_bits))
+
+#define SET_COPY(dest, src, size_in_bits)                                      \
+  do {                                                                         \
+    (dest) = (src);                                                            \
+  } while (0)
+
+#define SET_UNION(dest, A, B, size_in_bits)                                    \
+  do {                                                                         \
+    (dest).clear();                                                            \
+    std::set_union((A).begin(), (A).end(), (B).begin(), (B).end(),             \
+                   std::inserter(dest, dest.begin()));                         \
+  } while (0)
+
+#define SET_FREE(set)                                                          \
+  do {                                                                         \
+  } while (0)
+
+#define UPDATE_SET_COLLECTION(dataCollection, mask, rowCount, rowUnits)        \
+  do {                                                                         \
+    for (size_t row_idx = 0; row_idx < (rowCount); row_idx++) {                \
+      SET &currentSet = (dataCollection)[row_idx];                             \
+      for (auto it = (mask).begin(); it != (mask).end(); ++it) {               \
+        currentSet.erase(*it);                                                 \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 #else
 
 typedef int64_t unit_t;
-typedef unit_t *SET_COLLECTION;
 
+typedef unit_t *SET;
+typedef unit_t *SET_COLLECTION;
 #define BITS_PER_UNIT (sizeof(unit_t) * CHAR_BIT)
 
 #define SET_NEW(set, size_in_bits)                                             \
@@ -111,6 +141,29 @@ typedef unit_t *SET_COLLECTION;
     }                                                                          \
     return __count;                                                            \
   }())
+
+#define CHECK_ALL_BITS_SET(set, size_in_bits)                                  \
+  (SET_COUNT(set, size_in_bits) == (size_in_bits))
+
+#define SET_COPY(dest, src, size_in_bits)                                      \
+  memcpy(dest, src, CEIL_DIV(size_in_bits, BITS_PER_UNIT) * sizeof(unit_t))
+
+#define SET_UNION(dest, A, B, size_in_bits)                                    \
+  for (size_t __i = 0, __units = CEIL_DIV(size_in_bits, BITS_PER_UNIT);        \
+       __i < __units; ++__i)                                                   \
+  (dest)[__i] = (A)[__i] | (B)[__i]
+
+#define SET_FREE(set) delete[] set
+
+#define UPDATE_SET_COLLECTION(dataCollection, mask, rowCount, rowUnits)        \
+  do {                                                                         \
+    for (size_t row_idx = 0; row_idx < (rowCount); row_idx++) {                \
+      SET currentRow = GET_ROW((dataCollection), row_idx, (rowUnits));         \
+      for (size_t unit_idx = 0; unit_idx < (rowUnits); unit_idx++) {           \
+        currentRow[unit_idx] &= (~(mask)[unit_idx]);                           \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
 
 #endif
 
