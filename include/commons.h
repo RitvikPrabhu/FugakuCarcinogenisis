@@ -150,7 +150,7 @@ typedef uint64_t unit_t;
 #define MPI_UNIT_T MPI_UINT64_T
 
 typedef unit_t *SET;
-typedef unit_t *SET_COLLECTION;
+typedef SET *SET_COLLECTION;
 
 struct sets_t {
   size_t numRows;
@@ -171,7 +171,7 @@ struct sets_t {
 
 #define CALCULATE_UNITS(numSample)                                             \
   (((numSample) + BITS_PER_UNIT - 1) / BITS_PER_UNIT)
-
+/**
 #define INIT_DATA(TABLE)                                                       \
   do {                                                                         \
     size_t tumorRowUnits = CALCULATE_UNITS((TABLE).numTumor);                  \
@@ -182,16 +182,40 @@ struct sets_t {
     (TABLE).normalData = new unit_t[totalNormalUnits];                         \
     std::memset((TABLE).tumorData, 0, totalTumorUnits * sizeof(SET));          \
     std::memset((TABLE).normalData, 0, totalNormalUnits * sizeof(SET));        \
+  } while (0)**/
+
+#define INIT_DATA(TABLE)                                                       \
+  do {                                                                         \
+    size_t tumorRowUnits = CALCULATE_UNITS((TABLE).numTumor);                  \
+    size_t normalRowUnits = CALCULATE_UNITS((TABLE).numNormal);                \
+    (TABLE).tumorData = new SET[(TABLE).numRows];                              \
+    (TABLE).normalData = new SET[(TABLE).numRows];                             \
+                                                                               \
+    for (size_t _r = 0; _r < (TABLE).numRows; ++_r) {                          \
+      (TABLE).tumorData[_r] = new unit_t[tumorRowUnits];                       \
+      std::memset((TABLE).tumorData[_r], 0, tumorRowUnits * sizeof(unit_t));   \
+    }                                                                          \
+    for (size_t _r = 0; _r < (TABLE).numRows; ++_r) {                          \
+      (TABLE).normalData[_r] = new unit_t[normalRowUnits];                     \
+      std::memset((TABLE).normalData[_r], 0, normalRowUnits * sizeof(unit_t)); \
+    }                                                                          \
   } while (0)
 
+#define SET_BIT(rowPtr, bitIndex)                                              \
+  do {                                                                         \
+    size_t __unitIdx = (bitIndex) / BITS_PER_UNIT;                             \
+    size_t __bitInUnit = (bitIndex) % BITS_PER_UNIT;                           \
+    (rowPtr)[__unitIdx] |= ((unit_t)1 << __bitInUnit);                         \
+  } while (0)
+/**
 #define SET_BIT(array, row, col, row_size_in_bits)                             \
   do {                                                                         \
     size_t _idx = (row) * (row_size_in_bits) + (col);                          \
     size_t _unit_idx = _idx / BITS_PER_UNIT;                                   \
     size_t _bit_in_unit = _idx % BITS_PER_UNIT;                                \
     (array)[_unit_idx] |= ((unit_t)1 << _bit_in_unit);                         \
-  } while (0)
-
+  } while (0)**/
+/**
 #define SET_TUMOR(TABLE, ROW_INDEX, C)                                         \
   do {                                                                         \
     size_t __tumorRowUnits = CALCULATE_UNITS((TABLE).numTumor);                \
@@ -206,6 +230,23 @@ struct sets_t {
     size_t __colInNormal = (C) - (TABLE).numTumor;                             \
     SET_BIT((TABLE).normalData, (ROW_INDEX), __colInNormal,                    \
             __normalRowSizeBits);                                              \
+  } while (0)**/
+
+#define SET_TUMOR(TABLE, ROW_INDEX, C)                                         \
+  do {                                                                         \
+    size_t _tumorRowUnits = CALCULATE_UNITS((TABLE).numTumor);                 \
+    size_t _tumorRowSizeBits = _tumorRowUnits * BITS_PER_UNIT;                 \
+    unit_t *_rowPtr = (TABLE).tumorData[(ROW_INDEX)];                          \
+    SET_BIT(_rowPtr, (C));                                                     \
+  } while (0)
+
+#define SET_NORMAL(TABLE, ROW_INDEX, C)                                        \
+  do {                                                                         \
+    size_t _normalRowUnits = CALCULATE_UNITS((TABLE).numNormal);               \
+    size_t _normalRowSizeBits = _normalRowUnits * BITS_PER_UNIT;               \
+    size_t _colInNormal = (C) - (TABLE).numTumor;                              \
+    unit_t *_rowPtr = (TABLE).normalData[(ROW_INDEX)];                         \
+    SET_BIT(_rowPtr, _colInNormal);                                            \
   } while (0)
 
 #define INIT_BUFFERS(INTERSECTION_BUFFER, SCRATCH_BUFFER_IJ,                   \
