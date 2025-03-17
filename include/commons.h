@@ -33,13 +33,14 @@ typedef std::vector<SET> SET_COLLECTION;
     SET_INSERT((collection)[(row)], (col));                                    \
   } while (0)
 
-#define GET_ROW(dataCollection, rowIndex, rowUnits) (dataCollection)[rowIndex]
+#define GET_ROW(dataCollection, rowIndex, rowUnits) ((dataCollection)[rowIndex])
 
 #define SET_INTERSECT(dest, A, B, size_in_bits)                                \
   do {                                                                         \
-    (dest).clear();                                                            \
+    SET _tmp;                                                                  \
     std::set_intersection((A).begin(), (A).end(), (B).begin(), (B).end(),      \
-                          std::inserter((dest), (dest).begin()));              \
+                          std::inserter(_tmp, _tmp.begin()));                  \
+    (dest).swap(_tmp);                                                         \
   } while (0)
 
 #define SET_IS_EMPTY(set, size_in_bits) ((set).empty())

@@ -89,7 +89,7 @@ inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
     computed.j = -1;
     return computed;
   }
-  computed.i = static_cast<int>(lambda - (computed.j * (computed.j - 1)) / 2);
+  computed.i = lambda - (computed.j * (computed.j - 1)) / 2;
   return computed;
 }
 
@@ -161,9 +161,9 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
       continue;
     }
 
-    auto rowI =
+    SET rowI =
         GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
-    auto rowJ =
+    SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
 
     SET_INTERSECT(scratchBufferij, rowI, rowJ, tumorBitsPerRow);
@@ -173,15 +173,16 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
     }
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-      auto rowK = GET_ROW(dataTable.tumorData, k, dataTable.tumorRowUnits);
+      SET rowK = GET_ROW(dataTable.tumorData, k, dataTable.tumorRowUnits);
 
       SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK, tumorBitsPerRow);
+
       if (SET_IS_EMPTY(scratchBufferijk, tumorBitsPerRow)) {
         continue;
       }
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-        auto rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
+        SET rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
 
         SET_INTERSECT(intersectionBuffer, scratchBufferijk, rowL,
                       tumorBitsPerRow);
@@ -191,12 +192,12 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
 
         int TP = SET_COUNT(intersectionBuffer, tumorBitsPerRow);
 
-        auto rowIN =
+        SET rowIN =
             GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
-        auto rowJN =
+        SET rowJN =
             GET_ROW(dataTable.normalData, computed.j, dataTable.normalRowUnits);
-        auto rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
-        auto rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
+        SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
+        SET rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
 
         SET_INTERSECT(intersectionBuffer, rowIN, rowJN, normalBitsPerRow);
         SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowKN,
@@ -206,13 +207,19 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
 
         int coveredNormal = SET_COUNT(intersectionBuffer, normalBitsPerRow);
         int TN = (int)dataTable.numNormal - coveredNormal;
-
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
         if (F >= maxF) {
           maxF = F;
           bestCombination = {computed.i, computed.j, k, l};
         }
+
+        std::cout << "DEBUG: Combination (" << computed.i << ", " << computed.j
+                  << ", " << k << ", " << l << ") maxF = " << maxF << ","
+                  << " F: " << F << ", "
+                  << "TP: " << TP << ", " << "TN: " << TN << ", "
+                  << "numTumor: " << dataTable.numTumor << ", "
+                  << "numNormal: " << dataTable.numNormal << "\n";
       }
     }
   }
@@ -365,6 +372,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
+    break;
   }
 
   if (rank == 0)
