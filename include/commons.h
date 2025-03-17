@@ -17,10 +17,9 @@ typedef std::vector<SET> SET_COLLECTION;
   {                                                                            \
   }
 
-#define INIT_DATA(TABLE)                                                       \
+#define SET_COLLECTION_NEW(collection, rowCount, colCount)                     \
   do {                                                                         \
-    (TABLE).tumorData.resize((TABLE).numRows);                                 \
-    (TABLE).normalData.resize((TABLE).numRows);                                \
+    (collection).resize(rowCount);                                             \
   } while (0)
 
 #define SET_INSERT(set, idx) ((set).insert((idx)))
@@ -44,12 +43,10 @@ typedef unit_t *SET_COLLECTION;
     (set) = new unit_t[CEIL_DIV((size_in_bits), BITS_PER_UNIT)]();             \
   } while (0)
 
-#define INIT_DATA(TABLE)                                                       \
+#define SET_COLLECTION_NEW(collection, rowCount, colCount)                     \
   do {                                                                         \
-    size_t totalTumorBits = (TABLE).numRows * (TABLE).numTumor;                \
-    size_t totalNormalBits = (TABLE).numRows * (TABLE).numNormal;              \
-    SET_NEW((TABLE).tumorData, totalTumorBits);                                \
-    SET_NEW((TABLE).normalData, totalNormalBits);                              \
+    size_t totalBits = (rowCount) * (colCount);                                \
+    SET_NEW((collection), totalBits);                                          \
   } while (0)
 
 #define SET_INSERT(set, idx)                                                   \

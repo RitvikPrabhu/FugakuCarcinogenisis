@@ -60,7 +60,8 @@ void allocate_sets_from_header(sets_t &table, const char *header_line,
   table.numTumor = static_cast<size_t>(numTumor);
   table.numNormal = static_cast<size_t>(numNormal);
 
-  INIT_DATA(table);
+  SET_COLLECTION_NEW(table.tumorData, table.numRows, table.numTumor);
+  SET_COLLECTION_NEW(table.normalData, table.numRows, table.numNormal);
 }
 
 void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
