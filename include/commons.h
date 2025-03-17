@@ -16,11 +16,21 @@ typedef std::vector<SET> SET_COLLECTION;
 #define SET_NEW(set, size_in_bits)                                             \
   {                                                                            \
   }
-#define SET_INSERT(set, row, idx) ((set)[(row)].insert((idx)))
+
+#define INIT_DATA(TABLE)                                                       \
+  do {                                                                         \
+    (TABLE).tumorData.resize((TABLE).numRows);                                 \
+    (TABLE).normalData.resize((TABLE).numRows);                                \
+  } while (0)
+
+#define SET_INSERT(set, idx) ((set).insert((idx)))
 #define SET_COLLECTION_INSERT(collection, row, col, rowWidth)                  \
   do {                                                                         \
     SET_INSERT((collection)[(row)], (col));                                    \
   } while (0)
+
+#define SET_TEST(set, idx) ((set).find(idx) != (set).end())
+
 #else
 
 typedef int64_t unit_t;
@@ -34,6 +44,14 @@ typedef unit_t *SET_COLLECTION;
     (set) = new unit_t[CEIL_DIV((size_in_bits), BITS_PER_UNIT)]();             \
   } while (0)
 
+#define INIT_DATA(TABLE)                                                       \
+  do {                                                                         \
+    size_t totalTumorBits = (TABLE).numRows * (TABLE).numTumor;                \
+    size_t totalNormalBits = (TABLE).numRows * (TABLE).numNormal;              \
+    SET_NEW((TABLE).tumorData, totalTumorBits);                                \
+    SET_NEW((TABLE).normalData, totalNormalBits);                              \
+  } while (0)
+
 #define SET_INSERT(set, idx)                                                   \
   ((set)[(idx) / BITS_PER_UNIT] |= ((unit_t)1 << ((idx) % BITS_PER_UNIT)))
 
@@ -42,6 +60,9 @@ typedef unit_t *SET_COLLECTION;
     size_t offset = (row) * (rowWidth) + (col);                                \
     SET_INSERT((collection), offset);                                          \
   } while (0)
+
+#define SET_TEST(set, idx)                                                     \
+  (((set)[(idx) / BITS_PER_UNIT] & ((unit_t)1 << ((idx) % BITS_PER_UNIT))) != 0)
 
 #endif
 
@@ -53,13 +74,5 @@ struct sets_t {
   SET_COLLECTION tumorData;
   SET_COLLECTION normalData;
 };
-
-#define INIT_DATA(TABLE)                                                       \
-  do {                                                                         \
-    size_t totalTumorBits = (TABLE).numRows * (TABLE).numTumor;                \
-    size_t totalNormalBits = (TABLE).numRows * (TABLE).numNormal;              \
-    SET_NEW((TABLE).tumorData, totalTumorBits);                                \
-    SET_NEW((TABLE).normalData, totalNormalBits);                              \
-  } while (0)
 
 #endif

@@ -9,7 +9,6 @@
 #include "commons.h"
 #include "fourHit.h"
 #include "readFile.h"
-#include "utils.h"
 
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
@@ -25,6 +24,7 @@ bool parse_arguments(int argc, char *argv[]) {
   }
   return true;
 }
+
 /**
 void gather_and_write_timings(int rank, int size, double elapsed_times[],
                               const char *outputMetricFile) {
