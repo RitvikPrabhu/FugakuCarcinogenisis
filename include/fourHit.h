@@ -20,6 +20,12 @@ struct MPIResult {
   int rank;
 };
 
+struct LambdaComputed {
+  int i, j;
+};
+
+using LAMBDA_TYPE = long long;
+
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable);
 #endif

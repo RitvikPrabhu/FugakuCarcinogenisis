@@ -13,12 +13,12 @@
 
 #include "fourHit.h"
 
-SET calculate_initial_index(int num_workers) {
-  return num_workers * CHUNK_SIZE;
+inline LAMBDA_TYPE calculate_initial_index(int num_workers) {
+  return static_cast<LAMBDA_TYPE>(num_workers) * CHUNK_SIZE;
 }
 
-void distribute_work(int num_workers, SET num_Comb, SET &next_idx) {
-
+inline void distribute_work(int num_workers, LAMBDA_TYPE num_Comb,
+                            LAMBDA_TYPE &next_idx) {
   while (next_idx < num_Comb) {
     MPI_Status status;
     int flag;
@@ -38,10 +38,11 @@ void distribute_work(int num_workers, SET num_Comb, SET &next_idx) {
   }
 }
 
-void master_process(int num_workers, SET num_Comb) {
-  SET next_idx = calculate_initial_index(num_workers);
+inline void master_process(int num_workers, LAMBDA_TYPE num_Comb) {
+  LAMBDA_TYPE next_idx = calculate_initial_index(num_workers);
   distribute_work(num_workers, num_Comb, next_idx);
-  SET termination_signal = -1;
+
+  LAMBDA_TYPE termination_signal = -1;
   for (int workerRank = 1; workerRank <= num_workers; ++workerRank) {
     MPI_Send(&termination_signal, 1, MPI_LONG_LONG_INT, workerRank, 2,
              MPI_COMM_WORLD);
@@ -54,9 +55,9 @@ inline LAMBDA_TYPE nCr(int n, int r) {
   if (r == 0 || r == n)
     return 1;
   if (r > n - r)
-    r = n - r; // Because C(n, r) == C(n, n-r)
+    r = n - r; // Because C(n, r) = C(n, n-r)
 
-  SET result = 1;
+  LAMBDA_TYPE result = 1;
   for (int i = 1; i <= r; ++i) {
     result *= (n - r + i);
     result /= i;
@@ -88,7 +89,7 @@ inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
     computed.j = -1;
     return computed;
   }
-  computed.i = lambda - (computed.j * (computed.j - 1)) / 2;
+  computed.i = static_cast<int>(lambda - (computed.j * (computed.j - 1)) / 2);
   return computed;
 }
 
