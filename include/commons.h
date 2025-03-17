@@ -45,7 +45,9 @@ typedef unit_t *SET_COLLECTION;
 
 #define SET_COLLECTION_NEW(collection, rowCount, colCount)                     \
   do {                                                                         \
-    size_t totalBits = (rowCount) * (colCount);                                \
+    size_t rowUnits = CEIL_DIV((colCount), BITS_PER_UNIT);                     \
+    size_t totalUnits = rowUnits * (rowCount);                                 \
+    size_t totalBits = totalUnits * BITS_PER_UNIT;                             \
     SET_NEW((collection), totalBits);                                          \
   } while (0)
 
@@ -54,7 +56,8 @@ typedef unit_t *SET_COLLECTION;
 
 #define SET_COLLECTION_INSERT(collection, row, col, rowWidth)                  \
   do {                                                                         \
-    size_t offset = (row) * (rowWidth) + (col);                                \
+    size_t rowUnits = CEIL_DIV((rowWidth), 64);                                \
+    size_t offset = (row * rowUnits * 64) + (col);                             \
     SET_INSERT((collection), offset);                                          \
   } while (0)
 
