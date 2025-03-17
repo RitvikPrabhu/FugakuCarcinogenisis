@@ -76,12 +76,12 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
     for (size_t col = 0; col < table.numCols; ++col) {
       if (line[col] == '1') {
         if (col < table.numTumor) {
-          size_t idx = row_index * table.numTumor + col;
-          SET_INSERT(table.tumorData, idx); // Bitwise mode expects single index
+          SET_COLLECTION_INSERT(table.tumorData, row_index, col,
+                                table.numTumor);
         } else {
-          size_t normal_idx = col - table.numTumor;
-          size_t idx = row_index * table.numNormal + normal_idx;
-          SET_INSERT(table.normalData, idx);
+          size_t normalIdx = col - table.numTumor;
+          SET_COLLECTION_INSERT(table.normalData, row_index, normalIdx,
+                                table.numNormal);
         }
       }
     }

@@ -17,6 +17,10 @@ typedef std::vector<SET> SET_COLLECTION;
   {                                                                            \
   }
 #define SET_INSERT(set, row, idx) ((set)[(row)].insert((idx)))
+#define SET_COLLECTION_INSERT(collection, row, col, rowWidth)                  \
+  do {                                                                         \
+    SET_INSERT((collection)[(row)], (col));                                    \
+  } while (0)
 #else
 
 typedef int64_t unit_t;
@@ -32,6 +36,12 @@ typedef unit_t *SET_COLLECTION;
 
 #define SET_INSERT(set, idx)                                                   \
   ((set)[(idx) / BITS_PER_UNIT] |= ((unit_t)1 << ((idx) % BITS_PER_UNIT)))
+
+#define SET_COLLECTION_INSERT(collection, row, col, rowWidth)                  \
+  do {                                                                         \
+    size_t offset = (row) * (rowWidth) + (col);                                \
+    SET_INSERT((collection), offset);                                          \
+  } while (0)
 
 #endif
 
