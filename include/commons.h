@@ -108,9 +108,6 @@ typedef unit_t *SET_COLLECTION;
     SET_INSERT((collection), offset);                                          \
   } while (0)
 
-#define SET_TEST(set, idx)                                                     \
-  (((set)[(idx) / BITS_PER_UNIT] & ((unit_t)1 << ((idx) % BITS_PER_UNIT))) != 0)
-
 #define GET_ROW(dataCollection, rowIndex, rowUnits)                            \
   ((dataCollection) + ((rowIndex) * (rowUnits)))
 
