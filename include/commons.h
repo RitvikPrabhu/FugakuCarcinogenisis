@@ -37,10 +37,14 @@ typedef std::vector<SET> SET_COLLECTION;
 
 #define SET_INTERSECT(dest, A, B, size_in_bits)                                \
   do {                                                                         \
-    SET _tmp;                                                                  \
-    std::set_intersection((A).begin(), (A).end(), (B).begin(), (B).end(),      \
-                          std::inserter(_tmp, _tmp.begin()));                  \
-    (dest).swap(_tmp);                                                         \
+    (dest) = (A);                                                              \
+    for (auto it = (dest).begin(); it != (dest).end();) {                      \
+      if ((B).find(*it) == (B).end()) {                                        \
+        it = (dest).erase(it);                                                 \
+      } else {                                                                 \
+        ++it;                                                                  \
+      }                                                                        \
+    }                                                                          \
   } while (0)
 
 #define SET_IS_EMPTY(set, size_in_bits) ((set).empty())
@@ -57,9 +61,9 @@ typedef std::vector<SET> SET_COLLECTION;
 
 #define SET_UNION(dest, A, B, size_in_bits)                                    \
   do {                                                                         \
-    (dest).clear();                                                            \
-    std::set_union((A).begin(), (A).end(), (B).begin(), (B).end(),             \
-                   std::inserter(dest, dest.begin()));                         \
+    for (const auto &elem : (B)) {                                             \
+      (dest).insert(elem);                                                     \
+    }                                                                          \
   } while (0)
 
 #define SET_FREE(set)                                                          \
@@ -68,10 +72,9 @@ typedef std::vector<SET> SET_COLLECTION;
 
 #define UPDATE_SET_COLLECTION(dataCollection, mask, rowCount, rowUnits)        \
   do {                                                                         \
-    for (size_t row_idx = 0; row_idx < (rowCount); row_idx++) {                \
-      SET &currentSet = (dataCollection)[row_idx];                             \
-      for (auto it = (mask).begin(); it != (mask).end(); ++it) {               \
-        currentSet.erase(*it);                                                 \
+    for (auto &tumorSet : (dataCollection)) {                                  \
+      for (const int sample : (mask)) {                                        \
+        tumorSet.erase(sample);                                                \
       }                                                                        \
     }                                                                          \
   } while (0)

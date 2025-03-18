@@ -213,13 +213,6 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
           maxF = F;
           bestCombination = {computed.i, computed.j, k, l};
         }
-
-        std::cout << "DEBUG: Combination (" << computed.i << ", " << computed.j
-                  << ", " << k << ", " << l << ") maxF = " << maxF << ","
-                  << " F: " << F << ", "
-                  << "TP: " << TP << ", " << "TN: " << TN << ", "
-                  << "numTumor: " << dataTable.numTumor << ", "
-                  << "numNormal: " << dataTable.numNormal << "\n";
       }
     }
   }
@@ -372,7 +365,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
-    break;
   }
 
   if (rank == 0)
