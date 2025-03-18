@@ -16,13 +16,15 @@
 /// Here chose to uncomment one of these lines to
 // switch between hierarchical or vanilla MPI_Allreduce function 
 #define ALL_REDUCE_HIERARCHICAL 1
-// #undef  ALL_REDUCE_HIERARCHICAL
+//#undef  ALL_REDUCE_HIERARCHICAL
 
 
 //////////////////////////////  Start Allreduce_hierarchical  //////////////////////
-#ifdef ALL_REDUCE_HIERARCHICAL
 
+#ifdef ALL_REDUCE_HIERARCHICAL
 #include <unistd.h>
+
+#define ALL_REDUCE_FUNC Allreduce_hierarchical
 #define MAX_NAME_LEN 256
 
 int hash_hostname(const char *hostname) {
@@ -105,15 +107,15 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count, MPI_Datatyp
   free(local_result);
   if (local_rank == 0) free(global_result);
 }
+
+#else // Not using hierachical Allreduce
+
+#define ALL_REDUCE_FUNC  MPI_Allreduce
+
 #endif //ALL_REDUCE_HIERARCHICAL
 
 
 //////////////////////////////  End Allreduce_hierarchical //////////////////////
-
-
-
-
-
 
 
 unit_t calculate_initial_index(int num_workers) {
@@ -469,14 +471,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     START_TIMING(all_reduce)
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult;
-#ifdef ALL_REDUCE_HIERARCHICAL
-    Allreduce_hierarchical(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
+    ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                   MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
-#else
-    MPI_Allreduce(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
-                  MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
-#endif  ///ALL_REDUCE_HIERARCHICAL
-
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
     END_TIMING(all_reduce, all_reduce_time);
 
