@@ -4,6 +4,7 @@
 #include <mpi.h>
 #include <omp.h>
 #include <set>
+#include <unistd.h>
 #include <vector>
 
 #include "commons.h"
@@ -50,6 +51,9 @@ int main(int argc, char *argv[]) {
   MPI_Init(nullptr, nullptr);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  // std::cerr << "Process rank " << rank << " PID: " << getpid() << std::endl;
+  // sleep(30);
 
   if (!parse_arguments(argc, argv)) {
     MPI_Finalize();

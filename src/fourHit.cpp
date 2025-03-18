@@ -311,13 +311,12 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
   size_t tumorBits = dataTable.numTumor;
   size_t tumorUnits = dataTable.tumorRowUnits;
-  size_t normalUnits = dataTable.normalRowUnits;
-  size_t maxUnits = std::max(tumorUnits, normalUnits);
+  size_t maxBits = std::max(dataTable.numTumor, dataTable.numNormal);
 
   SET intersectionBuffer, scratchBufferij, scratchBufferijk;
-  SET_NEW(intersectionBuffer, tumorBits);
-  SET_NEW(scratchBufferij, tumorBits);
-  SET_NEW(scratchBufferijk, tumorBits);
+  SET_NEW(intersectionBuffer, maxBits);
+  SET_NEW(scratchBufferij, maxBits);
+  SET_NEW(scratchBufferijk, maxBits);
 
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
