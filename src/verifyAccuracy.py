@@ -8,7 +8,6 @@ import pandas as pd
 
 
 def get_data(gene_sample_file, normal_gene_list_file):
-    # Read and pivot the gene sample file
     gene_sample_df = pd.read_csv(
         gene_sample_file,
         sep=r"\s+",
@@ -19,10 +18,8 @@ def get_data(gene_sample_file, normal_gene_list_file):
     gene_sample_pivot = gene_sample_df.pivot(
         index="gene", columns="sample", values="mutation"
     ).fillna(0)
-    # Convert mutation values to binary (1 if > 0, else 0)
     gene_sample_pivot = gene_sample_pivot.apply(lambda x: x.map(lambda y: 1 if y > 0 else 0))
 
-    # Read the normal gene list file and construct a corresponding binary matrix
     normal_gene_list_df = pd.read_csv(
         normal_gene_list_file,
         sep=r"\s+",
@@ -41,20 +38,17 @@ def get_data(gene_sample_file, normal_gene_list_file):
         sample = f'normal_{row["sample"]}'
         normal_data.at[gene, sample] = 1
 
-    # Merge the two data sources into one binary matrix
     gene_sample_pivot = pd.concat([gene_sample_pivot, normal_data], axis=1).fillna(0).astype(int)
     return gene_sample_pivot, normal_data
 
 
 def sort_data(gene_sample_pivot):
-    # Identify columns that start with 'TCGA' (assumed to be tumor samples)
     tcga_columns = [col for col in gene_sample_pivot.columns if col.startswith("TCGA")]
 
     if not tcga_columns:
         print("No TCGA columns found. Skipping sorting step.")
         return gene_sample_pivot
 
-    # Count the number of 1's in TCGA columns for each gene and sort by that count
     gene_sample_pivot["tcga_count"] = gene_sample_pivot[tcga_columns].sum(axis=1)
     gene_sample_pivot = gene_sample_pivot.sort_values(by="tcga_count", ascending=True)
     return gene_sample_pivot.drop(columns=["tcga_count"])
@@ -65,7 +59,6 @@ def perform_coverage_analysis(gene_sample_pivot, solution_file):
     print("Number of rows (genes):", num_rows)
     print("Number of columns (samples):", num_cols)
 
-    # Identify tumor (TCGA) and normal columns in the data
     tcga_columns = set(col for col in gene_sample_pivot.columns if col.startswith("TCGA"))
     normal_columns = set(col for col in gene_sample_pivot.columns if col.startswith("normal"))
 
@@ -73,7 +66,6 @@ def perform_coverage_analysis(gene_sample_pivot, solution_file):
     unique_values_normal = set()
     line_count = 0
 
-    # Regex pattern to capture gene names inside parentheses
     pattern = re.compile(r"\((.*?)\)")
 
     with open(solution_file, "r") as file:
@@ -83,7 +75,6 @@ def perform_coverage_analysis(gene_sample_pivot, solution_file):
                 print(f"Could not extract genes from line: {line.strip()}")
                 continue
 
-            # Extract and clean up gene names
             genes_str = match.group(1)
             row_names = [gene.strip() for gene in genes_str.split(",")]
             try:
@@ -92,7 +83,6 @@ def perform_coverage_analysis(gene_sample_pivot, solution_file):
                 print(f"Error: One or more genes in {row_names} not found in the data.")
                 continue
 
-            # Find columns where all genes in the list have a mutation (value > 0)
             intersection = set(filtered_df.columns[(filtered_df > 0).all()])
             unique_values_tumor.update(intersection)
             unique_values_normal.update(intersection)
@@ -103,18 +93,15 @@ def perform_coverage_analysis(gene_sample_pivot, solution_file):
             print(f"Line {line_count}: Tumor coverage: {tumor_coverage} / {len(tcga_columns)}, "
                   f"Normal coverage: {normal_coverage} / {len(normal_columns)}")
 
-            # If all TCGA columns are covered, exit early
             if tcga_columns.issubset(unique_values_tumor):
                 print(f"All TCGA columns are covered at line {line_count}.")
                 break
 
-    # Final coverage report for tumor samples
     if tcga_columns.issubset(unique_values_tumor):
         print("All TCGA columns are covered.")
     else:
         print(f"Some TCGA columns are missing. Covered: {len(unique_values_tumor & tcga_columns)} / {len(tcga_columns)}")
 
-    # Final coverage report for normal samples
     total_normal = len(normal_columns)
     if normal_columns.issubset(unique_values_normal):
         print("All normal columns are covered.")
