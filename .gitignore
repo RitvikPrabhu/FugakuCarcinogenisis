@@ -1,4 +1,5 @@
 build
 .cache
 data/.ipynb_checkpoints
+*~
 

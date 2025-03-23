@@ -4,8 +4,10 @@
 #include <mpi.h>
 #include <omp.h>
 #include <set>
+#include <unistd.h>
 #include <vector>
 
+#include "commons.h"
 #include "fourHit.h"
 #include "readFile.h"
 
@@ -23,6 +25,7 @@ bool parse_arguments(int argc, char *argv[]) {
   }
   return true;
 }
+
 /**
 void gather_and_write_timings(int rank, int size, double elapsed_times[],
                               const char *outputMetricFile) {
@@ -36,10 +39,10 @@ void gather_and_write_timings(int rank, int size, double elapsed_times[],
   }
 }**/
 
-void cleanup(sets_t dataTable) {
+/*void cleanup(sets_t dataTable) {
   delete[] dataTable.normalData;
   delete[] dataTable.tumorData;
-}
+} */
 
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
@@ -49,29 +52,32 @@ int main(int argc, char *argv[]) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+  // std::cerr << "Process rank " << rank << " PID: " << getpid() << std::endl;
+  // sleep(30);
+
   if (!parse_arguments(argc, argv)) {
     MPI_Finalize();
     return 1;
   }
 
-  START_TIMING(overall_execution)
+  // START_TIMING(overall_execution)
 
   double elapsed_time_loading = 0.0;
   double elapsed_time_func = 0.0;
   double elapsed_time_total = 0.0;
   double elapsed_times[6] = {0.0};
 
-  START_TIMING(loading)
+  // START_TIMING(loading)
 
   sets_t dataTable = read_data(argv[1], rank);
 
-  END_TIMING(loading, elapsed_time_loading);
+  // END_TIMING(loading, elapsed_time_loading);
 
-  START_TIMING(function_execution)
+  // START_TIMING(function_execution)
   distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
-  END_TIMING(function_execution, elapsed_time_func);
+  // END_TIMING(function_execution, elapsed_time_func);
 
-  END_TIMING(overall_execution, elapsed_time_total);
+  // END_TIMING(overall_execution, elapsed_time_total);
 
   // elapsed_times[OVERALL_FILE_LOAD] = elapsed_time_loading;
   // elapsed_times[OVERALL_DISTRIBUTE_FUNCTION] = elapsed_time_func;
@@ -81,7 +87,7 @@ int main(int argc, char *argv[]) {
   // gather_and_write_timings(rank, size, elapsed_times, argv[2]);
 #endif
 
-  cleanup(dataTable);
+  // cleanup(dataTable);
   MPI_Finalize();
   return 0;
 }
