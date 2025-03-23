@@ -11,6 +11,11 @@ if(ENABLE_TIMING)
     add_definitions(-DENABLE_TIMING)
 endif()
 
+option(USE_CPP_SET "Use C++ Set implementation" OFF)
+if(USE_CPP_SET)
+    add_definitions(-DUSE_CPP_SET)
+endif()
+
 # Include directories
 include_directories(include)
 
