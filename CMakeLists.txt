@@ -16,6 +16,11 @@ if(USE_CPP_SET)
     add_definitions(-DUSE_CPP_SET)
 endif()
 
+option(USE_SVE_BIT "Use C++ Set implementation" OFF)
+if(USE_SVE_BIT)
+    add_definitions(-DUSE_SVE_BIT)
+endif()
+
 # Include directories
 include_directories(include)
 
