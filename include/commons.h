@@ -125,7 +125,7 @@ typedef unit_t *SET_COLLECTION;
       svst1(__pg, reinterpret_cast<uint64_t *>(&(dest)[__i]), __vr);           \
       __i += svcntd();                                                         \
     }                                                                          \
-    while (0)
+  } while (0)
 
 #define SET_IS_EMPTY(set, size_in_bits)                                        \
   ([&]() {                                                                     \
@@ -138,24 +138,26 @@ typedef unit_t *SET_COLLECTION;
   }())
 
 #define SET_COUNT(set, size_in_bits)                                           \
-  ([&]() -> int {                                                              \
-    size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                  \
-    int __count = 0;                                                           \
-    uint64_t __totalCount = 0;                                                 \
-    size_t __i = 0;                                                            \
-    while (__i < __units) {                                                    \
-      svbool_t __pg = svwhilelt_b64(__i, __units);                             \
-      svuint64_t __v64 =                                                       \
-          svld1(__pg, reinterpret_cast<const uint64_t *>(&(set)[__i]));        \
-      svuint8_t __asBytes = svreinterpret_u8(__v64);                           \
-      svuint8_t __popc = svcnt_u8_x(__pg, __asBytes);                          \
-      uint64_t __partial = svaddv_u8(__pg, __popc);                            \
-      __totalCount += __partial;                                               \
-      __i += svcntd();                                                         \
-    }                                                                          \
-    __count = static_cast<int>(__totalCount);                                  \
-    return __count;                                                            \
-  }())
+  do {                                                                         \
+    ([&]() -> int {                                                            \
+      size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                \
+      int __count = 0;                                                         \
+      uint64_t __totalCount = 0;                                               \
+      size_t __i = 0;                                                          \
+      while (__i < __units) {                                                  \
+        svbool_t __pg = svwhilelt_b64(__i, __units);                           \
+        svuint64_t __v64 =                                                     \
+            svld1(__pg, reinterpret_cast<const uint64_t *>(&(set)[__i]));      \
+        svuint8_t __asBytes = svreinterpret_u8(__v64);                         \
+        svuint8_t __popc = svcnt_u8_x(__pg, __asBytes);                        \
+        uint64_t __partial = svaddv_u8(__pg, __popc);                          \
+        __totalCount += __partial;                                             \
+        __i += svcntd();                                                       \
+      }                                                                        \
+      __count = static_cast<int>(__totalCount);                                \
+      return __count;                                                          \
+    }())                                                                       \
+  } while (0)
 
 #define CHECK_ALL_BITS_SET(set, size_in_bits)                                  \
   (SET_COUNT(set, size_in_bits) == (size_in_bits))
