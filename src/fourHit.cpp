@@ -448,7 +448,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                  intersectionBuffer, scratchBufferij, scratchBufferijk);
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
-    MPIResultWithComb globalResult;
+    MPIResultWithComb globalResult = {};
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
 
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
