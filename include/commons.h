@@ -256,8 +256,8 @@ typedef unit_t *SET_COLLECTION;
 #define CHECK_ALL_BITS_SET(set, size_in_bits)                                  \
   (SET_COUNT(set, size_in_bits) == (size_in_bits))
 
-#define SET_COPY(dest, src, size_in_bits)                                      \
-  memcpy(dest, src, CEIL_DIV(size_in_bits, BITS_PER_UNIT) * sizeof(unit_t))
+#define SET_COPY(dest, src, size_in_units)                                     \
+  memcpy((dest), (src), (size_in_units) * sizeof(unit_t))
 
 #define SET_UNION(dest, A, B, size_in_bits)                                    \
   for (size_t __i = 0, __units = CEIL_DIV(size_in_bits, BITS_PER_UNIT);        \

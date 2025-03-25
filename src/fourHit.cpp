@@ -454,7 +454,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     SET_COPY(intersectionBuffer,
              GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
-             tumorBits);
+             dataTable.tumorRowUnits);
 
     for (int i = 1; i < NUMHITS; ++i)
       SET_INTERSECT(intersectionBuffer, intersectionBuffer,
