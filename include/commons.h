@@ -51,7 +51,7 @@ typedef std::vector<SET> SET_COLLECTION;
 
 #define SET_COUNT(set, size_in_bits) ((int)((set).size()))
 
-#define CHECK_ALL_BITS_SET(set, size_in_bits)                                  \
+#define CHECK_ALL_BITS_SET(set, size_in_bits, size_in_units)                   \
   ((int)((set).size()) == (size_in_bits))
 
 #define SET_COPY(dest, src, size_in_bits)                                      \
