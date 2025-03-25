@@ -271,7 +271,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
 
     SET_INTERSECT(scratchBufferij, rowI, rowJ, dataTable.tumorRowUnits);
 
-    if (SET_IS_EMPTY(scratchBufferij, tumorBitsPerRow)) {
+    if (SET_IS_EMPTY(scratchBufferij, dataTable.tumorRowUnits)) {
       continue;
     }
 
@@ -281,7 +281,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
       SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK,
                     dataTable.tumorRowUnits);
 
-      if (SET_IS_EMPTY(scratchBufferijk, tumorBitsPerRow)) {
+      if (SET_IS_EMPTY(scratchBufferijk, dataTable.tumorRowUnits)) {
         continue;
       }
 
@@ -290,7 +290,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
 
         SET_INTERSECT(intersectionBuffer, scratchBufferijk, rowL,
                       dataTable.tumorRowUnits);
-        if (SET_IS_EMPTY(intersectionBuffer, tumorBitsPerRow)) {
+        if (SET_IS_EMPTY(intersectionBuffer, dataTable.tumorRowUnits)) {
           continue;
         }
 

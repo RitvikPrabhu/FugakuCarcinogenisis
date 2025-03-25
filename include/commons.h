@@ -230,10 +230,9 @@ typedef unit_t *SET_COLLECTION;
     }                                                                          \
   } while (0)
 
-#define SET_IS_EMPTY(set, size_in_bits)                                        \
+#define SET_IS_EMPTY(set, size_in_units)                                       \
   ([&]() {                                                                     \
-    size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                  \
-    for (size_t __i = 0; __i < __units; ++__i) {                               \
+    for (size_t __i = 0; __i < size_in_units; ++__i) {                         \
       if ((set)[__i] != 0)                                                     \
         return false;                                                          \
     }                                                                          \
