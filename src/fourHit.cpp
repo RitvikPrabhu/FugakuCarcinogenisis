@@ -461,7 +461,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits),
                     dataTable.tumorRowUnits);
 
-    SET_UNION(droppedSamples, droppedSamples, intersectionBuffer, tumorBits);
+    SET_UNION(droppedSamples, droppedSamples, intersectionBuffer,
+              dataTable.tumorRowUnits);
     UPDATE_SET_COLLECTION(dataTable.tumorData, intersectionBuffer,
                           dataTable.numRows, dataTable.tumorRowUnits);
     Nt -= SET_COUNT(intersectionBuffer, tumorBits);
