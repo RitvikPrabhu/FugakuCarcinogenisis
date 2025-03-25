@@ -238,11 +238,10 @@ typedef unit_t *SET_COLLECTION;
     return true;                                                               \
   }())
 
-#define SET_COUNT(set, size_in_bits)                                           \
+#define SET_COUNT(set, size_in_units)                                          \
   ([&]() -> int {                                                              \
-    size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                  \
     int __count = 0;                                                           \
-    for (size_t __i = 0; __i < __units; ++__i) {                               \
+    for (size_t __i = 0; __i < (size_in_units); ++__i) {                       \
       uint64_t __val = (set)[__i];                                             \
       while (__val) {                                                          \
         __val &= (__val - 1);                                                  \
@@ -252,8 +251,8 @@ typedef unit_t *SET_COLLECTION;
     return __count;                                                            \
   }())
 
-#define CHECK_ALL_BITS_SET(set, size_in_bits)                                  \
-  (SET_COUNT(set, size_in_bits) == (size_in_bits))
+#define CHECK_ALL_BITS_SET(set, size_in_bits, size_in_units)                   \
+  (SET_COUNT(set, size_in_units) == (size_in_bits))
 
 #define SET_COPY(dest, src, size_in_units)                                     \
   memcpy((dest), (src), (size_in_units) * sizeof(unit_t))

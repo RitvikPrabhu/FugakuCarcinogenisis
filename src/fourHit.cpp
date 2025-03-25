@@ -294,7 +294,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
           continue;
         }
 
-        int TP = SET_COUNT(intersectionBuffer, tumorBitsPerRow);
+        int TP = SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
 
         SET rowIN =
             GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
@@ -310,7 +310,8 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowLN,
                       dataTable.normalRowUnits);
 
-        int coveredNormal = SET_COUNT(intersectionBuffer, normalBitsPerRow);
+        int coveredNormal =
+            SET_COUNT(intersectionBuffer, dataTable.normalRowUnits);
         int TN = (int)dataTable.numNormal - coveredNormal;
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
@@ -437,7 +438,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outputFileWriteError(outfile);
   }
 
-  while (!CHECK_ALL_BITS_SET(droppedSamples, tumorBits)) {
+  while (
+      !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
         initialize_local_comb_and_f(localBestMaxF);
@@ -465,7 +467,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
               dataTable.tumorRowUnits);
     UPDATE_SET_COLLECTION(dataTable.tumorData, intersectionBuffer,
                           dataTable.numRows, dataTable.tumorRowUnits);
-    Nt -= SET_COUNT(intersectionBuffer, tumorBits);
+    Nt -= SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
