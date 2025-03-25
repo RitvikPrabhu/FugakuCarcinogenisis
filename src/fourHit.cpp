@@ -416,12 +416,12 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
   size_t tumorBits = dataTable.numTumor;
   size_t tumorUnits = dataTable.tumorRowUnits;
-  size_t maxBits = std::max(dataTable.numTumor, dataTable.numNormal);
+  size_t maxUnits = std::max(dataTable.tumorRowUnits, dataTable.normalRowUnits);
 
   SET intersectionBuffer, scratchBufferij, scratchBufferijk;
-  SET_NEW(intersectionBuffer, maxBits);
-  SET_NEW(scratchBufferij, maxBits);
-  SET_NEW(scratchBufferijk, maxBits);
+  SET_NEW(intersectionBuffer, maxUnits);
+  SET_NEW(scratchBufferij, maxUnits);
+  SET_NEW(scratchBufferijk, maxUnits);
 
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
@@ -429,7 +429,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   LAMBDA_TYPE num_Comb = nCr(numGenes, 2);
 
   SET droppedSamples;
-  SET_NEW(droppedSamples, tumorBits);
+  SET_NEW(droppedSamples, tumorUnits);
 
   std::ofstream outfile;
   if (rank == 0) {

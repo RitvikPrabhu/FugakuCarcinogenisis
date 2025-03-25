@@ -199,16 +199,15 @@ typedef unit_t *SET;
 typedef unit_t *SET_COLLECTION;
 #define BITS_PER_UNIT (sizeof(unit_t) * CHAR_BIT)
 
-#define SET_NEW(set, size_in_bits)                                             \
+#define SET_NEW(set, size_in_units)                                            \
   do {                                                                         \
-    (set) = new unit_t[CEIL_DIV((size_in_bits), BITS_PER_UNIT)]();             \
+    (set) = new unit_t[size_in_units]();                                       \
   } while (0)
 
 #define SET_COLLECTION_NEW(collection, rowCount, colCount, rowUnits)           \
   do {                                                                         \
     size_t totalUnits = rowUnits * (rowCount);                                 \
-    size_t totalBits = totalUnits * BITS_PER_UNIT;                             \
-    SET_NEW((collection), totalBits);                                          \
+    SET_NEW((collection), totalUnits);                                         \
   } while (0)
 
 #define SET_INSERT(set, idx)                                                   \
