@@ -14,12 +14,12 @@
 #include "fourHit.h"
 
 /// Here chose to uncomment one of these lines to
-// switch between hierarchical or vanilla MPI_Allreduce function 
+// switch between hierarchical or vanilla MPI_Allreduce function
 #define ALL_REDUCE_HIERARCHICAL 1
-//#undef  ALL_REDUCE_HIERARCHICAL
+#undef ALL_REDUCE_HIERARCHICAL
 
-
-//////////////////////////////  Start Allreduce_hierarchical  //////////////////////
+//////////////////////////////  Start Allreduce_hierarchical
+/////////////////////////
 
 #ifdef ALL_REDUCE_HIERARCHICAL
 #include <unistd.h>
@@ -28,16 +28,16 @@
 #define MAX_NAME_LEN 256
 
 int hash_hostname(const char *hostname) {
-    int hash = 0;
-    while (*hostname) {
-        hash = (hash * 31) ^ (*hostname); // Prime-based hashing with XOR
-        hostname++;
-    }
-    return hash & 0x7FFFFFFF;  // Ensure positive value
+  int hash = 0;
+  while (*hostname) {
+    hash = (hash * 31) ^ (*hostname); // Prime-based hashing with XOR
+    hostname++;
+  }
+  return hash & 0x7FFFFFFF; // Ensure positive value
 }
 
-void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype,
-				MPI_Op op, MPI_Comm comm) {
+void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
+                            MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) {
 
   static MPI_Comm local_comm = MPI_COMM_NULL;
   static MPI_Comm global_comm = MPI_COMM_NULL;
@@ -45,8 +45,7 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count, MPI_Datatyp
   static int world_rank, world_size;
   static int global_rank = -1; // Only valid in global_comm
 
-  
-  if (local_comm == MPI_COMM_NULL){ // not Already initialized
+  if (local_comm == MPI_COMM_NULL) { // not Already initialized
 
     MPI_Comm_rank(comm, &world_rank);
     MPI_Comm_size(comm, &world_size);
@@ -58,13 +57,13 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count, MPI_Datatyp
     // Generate a unique color per node (hashing the hostname)
     int node_color = hash_hostname(node_name);
     /* int node_color = extract_number_from_hostname(node_name); */
-    printf("[%d] name: %s. Color: %d\n",world_rank, node_name, node_color);
-  
+    printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
+
     // Create local communicator
     MPI_Comm_split(comm, node_color, world_rank, &local_comm);
     MPI_Comm_rank(local_comm, &local_rank);
     MPI_Comm_size(local_comm, &local_size);
-    
+
     // Rank 0 of each local communicator joins the global communicator
     int global_color = (local_rank == 0) ? 0 : MPI_UNDEFINED;
     MPI_Comm_split(comm, global_color, world_rank, &global_comm);
@@ -75,12 +74,10 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count, MPI_Datatyp
     }
   }
 
-
   // Datatype size
   int datatype_size;
   MPI_Type_size(datatype, &datatype_size);
-  
-  
+
   // Allocate buffer for local reduction
   void *local_result = malloc(count * datatype_size);
 
@@ -95,7 +92,8 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count, MPI_Datatyp
 
   // Phase 2: Global Reduction (only rank 0 in each node participates)
   if (local_rank == 0) {
-    MPI_Allreduce(local_result, global_result, count, datatype, op, global_comm);
+    MPI_Allreduce(local_result, global_result, count, datatype, op,
+                  global_comm);
     // Copy the final result to recvbuf
     memcpy(recvbuf, global_result, count * datatype_size);
   }
@@ -105,21 +103,21 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count, MPI_Datatyp
 
   // Cleanup
   free(local_result);
-  if (local_rank == 0) free(global_result);
+  if (local_rank == 0)
+    free(global_result);
 }
 
 #else // Not using hierachical Allreduce
 
-#define ALL_REDUCE_FUNC  MPI_Allreduce
+#define ALL_REDUCE_FUNC MPI_Allreduce
 
-#endif //ALL_REDUCE_HIERARCHICAL
+#endif // ALL_REDUCE_HIERARCHICAL
 
-
-//////////////////////////////  End Allreduce_hierarchical //////////////////////
+//////////////////////////////  End Allreduce_hierarchical
+/////////////////////////
 
 inline LAMBDA_TYPE calculate_initial_index(int num_workers) {
   return static_cast<LAMBDA_TYPE>(num_workers) * CHUNK_SIZE;
-
 }
 
 inline void distribute_work(int num_workers, LAMBDA_TYPE num_Comb,
@@ -271,7 +269,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
 
-    SET_INTERSECT(scratchBufferij, rowI, rowJ, tumorBitsPerRow);
+    SET_INTERSECT(scratchBufferij, rowI, rowJ, dataTable.tumorRowUnits);
 
     if (SET_IS_EMPTY(scratchBufferij, tumorBitsPerRow)) {
       continue;
@@ -280,7 +278,8 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
       SET rowK = GET_ROW(dataTable.tumorData, k, dataTable.tumorRowUnits);
 
-      SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK, tumorBitsPerRow);
+      SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK,
+                    dataTable.tumorRowUnits);
 
       if (SET_IS_EMPTY(scratchBufferijk, tumorBitsPerRow)) {
         continue;
@@ -290,7 +289,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         SET rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
 
         SET_INTERSECT(intersectionBuffer, scratchBufferijk, rowL,
-                      tumorBitsPerRow);
+                      dataTable.tumorRowUnits);
         if (SET_IS_EMPTY(intersectionBuffer, tumorBitsPerRow)) {
           continue;
         }
@@ -304,11 +303,12 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
         SET rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
 
-        SET_INTERSECT(intersectionBuffer, rowIN, rowJN, normalBitsPerRow);
+        SET_INTERSECT(intersectionBuffer, rowIN, rowJN,
+                      dataTable.normalRowUnits);
         SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowKN,
-                      normalBitsPerRow);
+                      dataTable.normalRowUnits);
         SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowLN,
-                      normalBitsPerRow);
+                      dataTable.normalRowUnits);
 
         int coveredNormal = SET_COUNT(intersectionBuffer, normalBitsPerRow);
         int TN = (int)dataTable.numNormal - coveredNormal;
@@ -449,7 +449,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     MPIResultWithComb globalResult;
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
 
-                  MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
+                    MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
     SET_COPY(intersectionBuffer,
@@ -459,7 +459,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     for (int i = 1; i < NUMHITS; ++i)
       SET_INTERSECT(intersectionBuffer, intersectionBuffer,
                     GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits),
-                    tumorBits);
+                    dataTable.tumorRowUnits);
 
     SET_UNION(droppedSamples, droppedSamples, intersectionBuffer, tumorBits);
     UPDATE_SET_COLLECTION(dataTable.tumorData, intersectionBuffer,

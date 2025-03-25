@@ -223,10 +223,9 @@ typedef unit_t *SET_COLLECTION;
 #define GET_ROW(dataCollection, rowIndex, rowUnits)                            \
   ((dataCollection) + ((rowIndex) * (rowUnits)))
 
-#define SET_INTERSECT(dest, A, B, size_in_bits)                                \
+#define SET_INTERSECT(dest, A, B, size_in_units)                               \
   do {                                                                         \
-    size_t __units = CEIL_DIV((size_in_bits), BITS_PER_UNIT);                  \
-    for (size_t __i = 0; __i < __units; ++__i) {                               \
+    for (size_t __i = 0; __i < size_in_units; ++__i) {                         \
       (dest)[__i] = (A)[__i] & (B)[__i];                                       \
     }                                                                          \
   } while (0)
