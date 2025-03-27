@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef READFILE_H
+#define READFILE_H
 #include <set>
 #include <string>
 #include <utility>
