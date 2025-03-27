@@ -6,11 +6,13 @@
 #include <set>
 #include <unistd.h>
 #include <vector>
+#include <cmath>
+#include <fstream> 
 
 #include "commons.h"
 #include "fourHit.h"
 #include "readFile.h"
-
+#include "utils.h"
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
   if (argc < 4) {
@@ -26,23 +28,42 @@ bool parse_arguments(int argc, char *argv[]) {
   return true;
 }
 
-/**
-void gather_and_write_timings(int rank, int size, double elapsed_times[],
-                              const char *outputMetricFile) {
-  double all_times[size][6];
+void write_worker_time_metrics(const char* metricsFile,
+                               double* all_times, int size)
+{
+    double max_val = all_times[0];
+    double min_val = all_times[0];
+    double sum     = 0.0;
+    for (int i = 0; i < size; i++) {
+        if (all_times[i] > max_val) max_val = all_times[i];
+        if (all_times[i] < min_val) min_val = all_times[i];
+        sum += all_times[i];
+    }
+    double mean = sum / size;
 
-  MPI_Gather(elapsed_times, 6, MPI_DOUBLE, all_times, 6, MPI_DOUBLE, 0,
-             MPI_COMM_WORLD);
+    double variance = 0.0;
+    for (int i = 0; i < size; i++) {
+        double diff = all_times[i] - mean;
+        variance   += diff * diff;
+    }
+    variance /= size;     
+    double stddev = std::sqrt(variance);
+    double range  = max_val - min_val;
 
-  if (rank == 0) {
-    write_timings_to_file(all_times, size, outputMetricFile);
-  }
-}**/
+    std::ofstream ofs(metricsFile);
+    if (!ofs.is_open()) {
+        std::cerr << "Error opening metrics file: " << metricsFile << std::endl;
+        return;
+    }
 
-/*void cleanup(sets_t dataTable) {
-  delete[] dataTable.normalData;
-  delete[] dataTable.tumorData;
-} */
+    ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << "\n"
+        << "Max Worker Time: " << max_val << "\n"
+        << "Min Worker Time: " << min_val << "\n"
+        << "Range: " << range << "\n"
+        << "Mean: " << mean << "\n"
+        << "Std Dev: " << stddev << "\n";
+    ofs.close();
+}
 
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
@@ -52,42 +73,31 @@ int main(int argc, char *argv[]) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  // std::cerr << "Process rank " << rank << " PID: " << getpid() << std::endl;
-  // sleep(30);
-
   if (!parse_arguments(argc, argv)) {
     MPI_Finalize();
     return 1;
   }
-
-  // START_TIMING(overall_execution)
-
-  double elapsed_time_loading = 0.0;
-  double elapsed_time_func = 0.0;
-  double elapsed_time_total = 0.0;
-  double elapsed_times[6] = {0.0};
-
-  // START_TIMING(loading)
+	
+  double elapsed_times[TIMING_COUNT] = {0.0};
 
   sets_t dataTable = read_data(argv[1], rank);
 
-  // END_TIMING(loading, elapsed_time_loading);
-
-  // START_TIMING(function_execution)
   distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
-  // END_TIMING(function_execution, elapsed_time_func);
 
-  // END_TIMING(overall_execution, elapsed_time_total);
+  double local_worker_time = elapsed_times[WORKER_TIME];
+  std::vector<double> all_times;
+  if (rank == 0) {
+    all_times.resize(size);
+  }
 
-  // elapsed_times[OVERALL_FILE_LOAD] = elapsed_time_loading;
-  // elapsed_times[OVERALL_DISTRIBUTE_FUNCTION] = elapsed_time_func;
-  // elapsed_times[OVERALL_TOTAL] = elapsed_time_total;
+  MPI_Gather(&local_worker_time, 1, MPI_DOUBLE,
+             all_times.data(), 1, MPI_DOUBLE,
+             0, MPI_COMM_WORLD);
 
-#ifdef ENABLE_TIMING
-  // gather_and_write_timings(rank, size, elapsed_times, argv[2]);
-#endif
+if (rank == 0) {
+    write_worker_time_metrics(argv[2], all_times.data(), size);
+  }
 
-  // cleanup(dataTable);
   MPI_Finalize();
   return 0;
 }

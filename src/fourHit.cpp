@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "fourHit.h"
-
+#include "utils.h"
 /// Here chose to uncomment one of these lines to
 // switch between hierarchical or vanilla MPI_Allreduce function
 #define ALL_REDUCE_HIERARCHICAL 1
@@ -255,9 +255,6 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
   double alpha = 0.1;
   int totalGenes = dataTable.numRows;
 
-  size_t tumorBitsPerRow = dataTable.tumorRowUnits * BITS_PER_UNIT;
-  size_t normalBitsPerRow = dataTable.normalRowUnits * BITS_PER_UNIT;
-
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; lambda++) {
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0) {
@@ -331,10 +328,9 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                              MPI_Status &status, sets_t dataTable,
                              SET &intersectionBuffer, SET &scratchBufferij,
                              SET &scratchBufferijk) {
-  process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
+	process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
                           intersectionBuffer, scratchBufferij,
                           scratchBufferijk);
-
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
   LAMBDA_TYPE next_idx;
@@ -374,12 +370,14 @@ void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
 void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                   double &localBestMaxF, std::array<int, NUMHITS> &localComb,
                   sets_t dataTable, SET &intersectionBuffer,
-                  SET &scratchBufferij, SET &scratchBufferijk) {
+                  SET &scratchBufferij, SET &scratchBufferijk, double elapsed_times[]) {
   if (rank == 0) {
     master_process(size_minus_one, num_Comb);
   } else {
+	START_TIMING(worker_proc);
     worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable,
                    intersectionBuffer, scratchBufferij, scratchBufferijk);
+	END_TIMING(worker_proc, elapsed_times[WORKER_TIME]);
   }
 }
 
@@ -445,7 +443,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
         initialize_local_comb_and_f(localBestMaxF);
 
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
-                 intersectionBuffer, scratchBufferij, scratchBufferijk);
+                 intersectionBuffer, scratchBufferij, scratchBufferijk, elapsed_times);
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
