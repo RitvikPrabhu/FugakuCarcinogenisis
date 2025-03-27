@@ -29,26 +29,36 @@ bool parse_arguments(int argc, char *argv[]) {
 }
 
 void write_worker_time_metrics(const char* metricsFile,
-                               double* all_times, int size)
+                               double* all_times, int count)
 {
     double max_val = all_times[0];
     double min_val = all_times[0];
     double sum     = 0.0;
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < count; i++) {
         if (all_times[i] > max_val) max_val = all_times[i];
         if (all_times[i] < min_val) min_val = all_times[i];
         sum += all_times[i];
     }
-    double mean = sum / size;
+    double mean = sum / count;
 
     double variance = 0.0;
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < count; i++) {
         double diff = all_times[i] - mean;
         variance   += diff * diff;
     }
-    variance /= size;     
+    variance /= count;
     double stddev = std::sqrt(variance);
     double range  = max_val - min_val;
+
+    // Calculate the median:
+    std::vector<double> sorted_times(all_times, all_times + count);
+    std::sort(sorted_times.begin(), sorted_times.end());
+    double median;
+    if (count % 2 == 0) {
+        median = (sorted_times[count/2 - 1] + sorted_times[count/2]) / 2.0;
+    } else {
+        median = sorted_times[count/2];
+    }
 
     std::ofstream ofs(metricsFile);
     if (!ofs.is_open()) {
@@ -59,12 +69,12 @@ void write_worker_time_metrics(const char* metricsFile,
     ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << "\n"
         << "Max Worker Time: " << max_val << "\n"
         << "Min Worker Time: " << min_val << "\n"
+        << "Median Worker Time: " << median << "\n"
         << "Range: " << range << "\n"
         << "Mean: " << mean << "\n"
         << "Std Dev: " << stddev << "\n";
     ofs.close();
 }
-
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
 
@@ -95,7 +105,11 @@ int main(int argc, char *argv[]) {
              0, MPI_COMM_WORLD);
 
 if (rank == 0) {
-    write_worker_time_metrics(argv[2], all_times.data(), size);
+	std::vector<double> worker_times;
+    for (int i = 1; i < size; i++) {
+      worker_times.push_back(all_times[i]);
+    }
+	write_worker_time_metrics(argv[2], worker_times.data(), worker_times.size());
   }
 
   MPI_Finalize();
