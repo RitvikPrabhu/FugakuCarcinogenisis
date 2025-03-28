@@ -5,11 +5,13 @@
 
 #define MAX_BUF_SIZE 1024
 
-  enum time_stages {
-      WORKER_TIME = 0,
-      TIMING_COUNT = 1
-  };
-
+enum profile_out {
+  WORKER_TIME,
+  RUNNING_TIME,
+  IDLE_TIME,
+  TOTAL_TIME,
+  TIMING_COUNT
+};
 
 #ifdef ENABLE_TIMING
 #define START_TIMING(var) double var##_start = MPI_Wtime();

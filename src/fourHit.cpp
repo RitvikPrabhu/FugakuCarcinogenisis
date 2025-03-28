@@ -327,10 +327,13 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                              LAMBDA_TYPE &begin, LAMBDA_TYPE &end,
                              MPI_Status &status, sets_t dataTable,
                              SET &intersectionBuffer, SET &scratchBufferij,
-                             SET &scratchBufferijk) {
-	process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
+                             SET &scratchBufferijk, double elapsed_times[]) {
+  START_TIMING(run_time);
+  process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
                           intersectionBuffer, scratchBufferij,
                           scratchBufferijk);
+  END_TIMING(run_time, elapsed_times[RUNNING_TIME]);
+  START_TIMING(idle_time);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
   LAMBDA_TYPE next_idx;
@@ -342,13 +345,14 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
 
   begin = next_idx;
   end = std::min(begin + CHUNK_SIZE, num_Comb);
+  END_TIMING(idle_time, elapsed_times[IDLE_TIME]);
   return true;
 }
 
 void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
                     std::array<int, NUMHITS> &localComb, sets_t dataTable,
                     SET &intersectionBuffer, SET &scratchBufferij,
-                    SET &scratchBufferijk) {
+                    SET &scratchBufferijk, double elapsed_times[]) {
   std::pair<LAMBDA_TYPE, LAMBDA_TYPE> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
 
@@ -360,7 +364,7 @@ void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
   while (end <= num_Comb) {
     bool has_next = process_and_communicate(
         rank, num_Comb, localBestMaxF, localComb, begin, end, status, dataTable,
-        intersectionBuffer, scratchBufferij, scratchBufferijk);
+        intersectionBuffer, scratchBufferij, scratchBufferijk, elapsed_times);
     if (!has_next) {
       break;
     }
@@ -370,14 +374,16 @@ void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
 void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                   double &localBestMaxF, std::array<int, NUMHITS> &localComb,
                   sets_t dataTable, SET &intersectionBuffer,
-                  SET &scratchBufferij, SET &scratchBufferijk, double elapsed_times[]) {
+                  SET &scratchBufferij, SET &scratchBufferijk,
+                  double elapsed_times[]) {
   if (rank == 0) {
     master_process(size_minus_one, num_Comb);
   } else {
-	START_TIMING(worker_proc);
+    START_TIMING(worker_proc);
     worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable,
-                   intersectionBuffer, scratchBufferij, scratchBufferijk);
-	END_TIMING(worker_proc, elapsed_times[WORKER_TIME]);
+                   intersectionBuffer, scratchBufferij, scratchBufferijk,
+                   elapsed_times);
+    END_TIMING(worker_proc, elapsed_times[WORKER_TIME]);
   }
 }
 
@@ -443,7 +449,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
         initialize_local_comb_and_f(localBestMaxF);
 
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
-                 intersectionBuffer, scratchBufferij, scratchBufferijk, elapsed_times);
+                 intersectionBuffer, scratchBufferij, scratchBufferijk,
+                 elapsed_times);
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
