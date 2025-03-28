@@ -55,11 +55,12 @@ typedef std::vector<SET> SET_COLLECTION;
     (dest) = (src);                                                            \
   } while (0)
 
-#define SET_UNION(dest, A, B, size_in_bits)                                    \
+#define SET_UNION(dest, A, B, size_in_units)                                   \
   do {                                                                         \
-    for (const auto &elem : (B)) {                                             \
-      (dest).insert(elem);                                                     \
-    }                                                                          \
+    SET temp;                                                                  \
+    std::set_union((A).begin(), (A).end(), (B).begin(), (B).end(),             \
+                   std::inserter(temp, temp.begin()));                         \
+    (dest).swap(temp);                                                         \
   } while (0)
 
 #define SET_FREE(set)                                                          \
@@ -142,12 +143,8 @@ typedef unit_t *SET_COLLECTION;
   memcpy((dest), (src), (size_in_units) * sizeof(unit_t))
 
 #define SET_UNION(dest, A, B, size_in_units)                                   \
-  do {                                                                         \
-    SET temp;                                                                  \
-    std::set_union((A).begin(), (A).end(), (B).begin(), (B).end(),             \
-                   std::inserter(temp, temp.begin()));                         \
-    (dest).swap(temp);                                                         \
-  } while (0)
+  for (size_t __i = 0; __i < size_in_units; ++__i)                             \
+  (dest)[__i] = (A)[__i] | (B)[__i]
 
 #define SET_FREE(set) delete[] set
 

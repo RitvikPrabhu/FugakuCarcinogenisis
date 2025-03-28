@@ -300,12 +300,8 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
         SET rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
 
-        SET_INTERSECT(intersectionBuffer, rowIN, rowJN,
-                      dataTable.normalRowUnits);
-        SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowKN,
-                      dataTable.normalRowUnits);
-        SET_INTERSECT(intersectionBuffer, intersectionBuffer, rowLN,
-                      dataTable.normalRowUnits);
+        SET_INTERSECT4(intersectionBuffer, rowIN, rowJN, rowKN, rowLN,
+                       dataTable.normalRowUnits);
 
         int coveredNormal =
             SET_COUNT(intersectionBuffer, dataTable.normalRowUnits);
@@ -459,6 +455,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
+    /**
     SET_COPY(intersectionBuffer,
              GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
              dataTable.tumorRowUnits);
@@ -467,7 +464,13 @@ void distribute_tasks(int rank, int size, const char *outFilename,
       SET_INTERSECT(intersectionBuffer, intersectionBuffer,
                     GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits),
                     dataTable.tumorRowUnits);
-
+    **/
+    SET_INTERSECT4(intersectionBuffer,
+                   GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
+                   GET_ROW(dataTable.tumorData, globalBestComb[1], tumorUnits),
+                   GET_ROW(dataTable.tumorData, globalBestComb[2], tumorUnits),
+                   GET_ROW(dataTable.tumorData, globalBestComb[3], tumorUnits),
+                   dataTable.tumorRowUnits);
     SET_UNION(droppedSamples, droppedSamples, intersectionBuffer,
               dataTable.tumorRowUnits);
     UPDATE_SET_COLLECTION(dataTable.tumorData, intersectionBuffer,
