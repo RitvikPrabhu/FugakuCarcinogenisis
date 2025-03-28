@@ -37,14 +37,10 @@ typedef std::vector<SET> SET_COLLECTION;
 
 #define SET_INTERSECT(dest, A, B, size_in_bits)                                \
   do {                                                                         \
-    (dest) = (A);                                                              \
-    for (auto it = (dest).begin(); it != (dest).end();) {                      \
-      if ((B).find(*it) == (B).end()) {                                        \
-        it = (dest).erase(it);                                                 \
-      } else {                                                                 \
-        ++it;                                                                  \
-      }                                                                        \
-    }                                                                          \
+    SET temp;                                                                  \
+    std::set_intersection((A).begin(), (A).end(), (B).begin(), (B).end(),      \
+                          std::inserter(temp, temp.begin()));                  \
+    (dest).swap(temp);                                                         \
   } while (0)
 
 #define SET_IS_EMPTY(set, size_in_bits) ((set).empty())
