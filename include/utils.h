@@ -23,6 +23,8 @@ enum profile_out {
   MASTER_TIME,
 
   TOTAL_TIME,
+
+  COMBINATION_COUNT,
   TIMING_COUNT
 };
 
@@ -33,9 +35,14 @@ enum profile_out {
     double var##_end = MPI_Wtime();                                            \
     accumulated_time += var##_end - var##_start;                               \
   } while (0)
+#define INCREMENT_COMBO_COUNT(elapsedTimesArr)                                 \
+  do {                                                                         \
+    (elapsedTimesArr)[COMBINATION_COUNT] += 1.0;                               \
+  } while (0)
 #else
 #define START_TIMING(var)
 #define END_TIMING(var, accumulated_time)
+#define INCREMENT_COMBO_COUNT(elapsedTimesArr)
 #endif
 
 #endif

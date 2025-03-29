@@ -302,6 +302,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
         if (SET_IS_EMPTY(intersectionBuffer, dataTable.tumorRowUnits)) {
           continue;
         }
+        INCREMENT_COMBO_COUNT(elapsed_times);
 
         START_TIMING(proc_count_TP);
         int TP = SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);

@@ -28,6 +28,47 @@ bool parse_arguments(int argc, char *argv[]) {
   return true;
 }
 
+inline LAMBDA_TYPE nCr(int n, int r) {
+  if (r > n)
+    return 0;
+  if (r == 0 || r == n)
+    return 1;
+  if (r > n - r)
+    r = n - r; // Because C(n, r) = C(n, n-r)
+
+  LAMBDA_TYPE result = 1;
+  for (int i = 1; i <= r; ++i) {
+    result *= (n - r + i);
+    result /= i;
+  }
+  return result;
+}
+
+void write_combination_count(const char *metricsFile, const double *all_values,
+                             int count, sets_t dataTable) {
+
+  double sum = 0.0;
+
+  for (int i = 0; i < count; ++i) {
+    sum += all_values[i];
+  }
+
+  LAMBDA_TYPE possible_combinations = nCr(dataTable.numRows, NUMHITS);
+
+  std::ofstream ofs(metricsFile, std::ios_base::app);
+  if (!ofs.is_open()) {
+    std::cerr << "Error opening metrics file: " << metricsFile << std::endl;
+    return;
+  }
+
+  ofs << "===== Number of Combinations visited" << " =====\n";
+  ofs << "Pruned number of combinations: " << sum << " combinations\n";
+  ofs << "Total possible number of combinations: " << possible_combinations
+      << " combinations \n\n";
+
+  ofs.close();
+}
+
 void write_worker_time_metrics(const char *metricsFile, const double *all_times,
                                int count, const char *metric_name) {
   if (count <= 0) {
@@ -140,7 +181,8 @@ int main(int argc, char *argv[]) {
         master_time, total_times;
 
     std::vector<double> distAllreduceTimes, distSetIntersectTimes,
-        distSetUnionTimes, distUpdateCollectionTimes, distSetCountTimes;
+        distSetUnionTimes, distUpdateCollectionTimes, distSetCountTimes,
+        comboCount;
 
     for (int r = 1; r < size; r++) {
       worker_times.push_back(all_elapsed_times[r * TIMING_COUNT + WORKER_TIME]);
@@ -154,7 +196,6 @@ int main(int argc, char *argv[]) {
           all_elapsed_times[r * TIMING_COUNT + PROCESS_LAMBDA_GET_ROW]);
       processLambda_setCount.push_back(
           all_elapsed_times[r * TIMING_COUNT + PROCESS_LAMBDA_SET_COUNT]);
-      total_times.push_back(all_elapsed_times[r * TIMING_COUNT + TOTAL_TIME]);
     }
 
     for (int r = 0; r < size; r++) {
@@ -168,6 +209,9 @@ int main(int argc, char *argv[]) {
           all_elapsed_times[r * TIMING_COUNT + DIST_UPDATE_COLLECTION_TIME]);
       distSetCountTimes.push_back(
           all_elapsed_times[r * TIMING_COUNT + DIST_SET_COUNT_TIME]);
+      comboCount.push_back(
+          all_elapsed_times[r * TIMING_COUNT + COMBINATION_COUNT]);
+      total_times.push_back(all_elapsed_times[r * TIMING_COUNT + TOTAL_TIME]);
     }
     master_time.push_back(elapsed_times[MASTER_TIME]);
 
@@ -204,6 +248,9 @@ int main(int argc, char *argv[]) {
                               distSetCountTimes.size(), "DIST_SET_COUNT_TIME");
     write_master_time_metrics(argv[2], master_time.data(), master_time.size(),
                               "MASTER_TIME");
+    write_combination_count(argv[2], comboCount.data(), comboCount.size(),
+                            dataTable);
+
     write_worker_time_metrics(argv[2], total_times.data(), total_times.size(),
                               "TOTAL_TIME");
   }
