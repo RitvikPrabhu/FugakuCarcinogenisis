@@ -20,7 +20,7 @@ enum profile_out {
   TIMING_COUNT
 };
 
-#ifdef ENABLE_TIMING
+#ifdef ENABLE_PROFILE
 #define START_TIMING(var) double var##_start = MPI_Wtime();
 #define END_TIMING(var, accumulated_time)                                      \
   do {                                                                         \

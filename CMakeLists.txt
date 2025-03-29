@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Option to enable timing (if needed in the future)
-option(ENABLE_TIMING "Enable timing functionality" ON)
+option(ENABLE_PROFILE "Enable profiling" ON)
 if(ENABLE_TIMING)
     add_definitions(-DENABLE_TIMING)
 endif()
