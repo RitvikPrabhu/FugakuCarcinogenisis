@@ -251,7 +251,7 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
                              std::array<int, NUMHITS> &bestCombination,
                              double &maxF, sets_t &dataTable,
                              SET &intersectionBuffer, SET &scratchBufferij,
-                             SET &scratchBufferijk) {
+                             SET &scratchBufferijk, double elapsed_times[]) {
   double alpha = 0.1;
   int totalGenes = dataTable.numRows;
 
@@ -260,51 +260,73 @@ void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
     if (computed.j < 0) {
       continue;
     }
-
+    START_TIMING(proc_row_ij);
     SET rowI =
         GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
+    END_TIMING(proc_row_ij, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
+    START_TIMING(proc_intersect_ij);
     SET_INTERSECT(scratchBufferij, rowI, rowJ, dataTable.tumorRowUnits);
+    END_TIMING(proc_row_ij, elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
     if (SET_IS_EMPTY(scratchBufferij, dataTable.tumorRowUnits)) {
       continue;
     }
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
+      START_TIMING(proc_row_k);
       SET rowK = GET_ROW(dataTable.tumorData, k, dataTable.tumorRowUnits);
+      END_TIMING(proc_row_k, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
+      START_TIMING(proc_intersect_ijk);
       SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK,
                     dataTable.tumorRowUnits);
+      END_TIMING(proc_intersect_ijk, elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
       if (SET_IS_EMPTY(scratchBufferijk, dataTable.tumorRowUnits)) {
         continue;
       }
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
+        START_TIMING(proc_row_l);
         SET rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
+        END_TIMING(proc_row_l, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
+        START_TIMING(proc_intersect_ijkl);
         SET_INTERSECT(intersectionBuffer, scratchBufferijk, rowL,
                       dataTable.tumorRowUnits);
+        END_TIMING(proc_intersect_ijkl,
+                   elapsed_times[PROCESS_LAMBDA_INTERSECT]);
         if (SET_IS_EMPTY(intersectionBuffer, dataTable.tumorRowUnits)) {
           continue;
         }
 
+        START_TIMING(proc_count_TP);
         int TP = SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
+        END_TIMING(proc_count_TP, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
+        START_TIMING(proc_row_normal);
         SET rowIN =
             GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
         SET rowJN =
             GET_ROW(dataTable.normalData, computed.j, dataTable.normalRowUnits);
         SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
         SET rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
+        END_TIMING(proc_row_normal, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
+        START_TIMING(proc_intersect_normal);
         SET_INTERSECT4(intersectionBuffer, rowIN, rowJN, rowKN, rowLN,
                        dataTable.normalRowUnits);
+        END_TIMING(proc_intersect_normal,
+                   elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
+        START_TIMING(proc_count_coveredNormal);
         int coveredNormal =
             SET_COUNT(intersectionBuffer, dataTable.normalRowUnits);
+        END_TIMING(proc_count_coveredNormal,
+                   elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
         int TN = (int)dataTable.numNormal - coveredNormal;
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
@@ -326,8 +348,8 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                              SET &scratchBufferijk, double elapsed_times[]) {
   START_TIMING(run_time);
   process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
-                          intersectionBuffer, scratchBufferij,
-                          scratchBufferijk);
+                          intersectionBuffer, scratchBufferij, scratchBufferijk,
+                          elapsed_times);
   END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
   START_TIMING(idle_time);
   char signal = 'a';

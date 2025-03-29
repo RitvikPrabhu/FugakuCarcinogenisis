@@ -72,7 +72,7 @@ void write_worker_time_metrics(const char *metricsFile, const double *all_times,
   }
 
   ofs << "===== Metrics for: " << metric_name << " =====\n";
-  ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << " seconds \n";
+  ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << "\n";
   ofs << "Max: " << max_val << " seconds \n";
   ofs << "Min: " << min_val << " seconds \n";
   ofs << "Median: " << median << " seconds \n";
@@ -100,7 +100,7 @@ void write_master_time_metrics(const char *metricsFile, const double *all_times,
 
   ofs << "===== Metrics for: " << metric_name << " =====\n";
   ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << "\n";
-  ofs << "Time: " << time << "\n\n";
+  ofs << "Time: " << time << " seconds \n\n";
 
   ofs.close();
 }
@@ -135,15 +135,22 @@ int main(int argc, char *argv[]) {
              TIMING_COUNT, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
-    std::vector<double> worker_times, worker_runTimes, idle_times, master_time,
-        total_times;
+    std::vector<double> worker_times, worker_runTimes, worker_idletimes,
+        processLambda_intersect, processLambda_getRow, processLambda_setCount,
+        master_time, total_times;
 
     for (int r = 1; r < size; r++) {
       worker_times.push_back(all_elapsed_times[r * TIMING_COUNT + WORKER_TIME]);
       worker_runTimes.push_back(
           all_elapsed_times[r * TIMING_COUNT + WORKER_RUNNING_TIME]);
-      idle_times.push_back(
+      worker_idletimes.push_back(
           all_elapsed_times[r * TIMING_COUNT + WORKER_IDLE_TIME]);
+      processLambda_intersect.push_back(
+          all_elapsed_times[r * TIMING_COUNT + PROCESS_LAMBDA_INTERSECT]);
+      processLambda_getRow.push_back(
+          all_elapsed_times[r * TIMING_COUNT + PROCESS_LAMBDA_GET_ROW]);
+      processLambda_setCount.push_back(
+          all_elapsed_times[r * TIMING_COUNT + PROCESS_LAMBDA_SET_COUNT]);
       total_times.push_back(all_elapsed_times[r * TIMING_COUNT + TOTAL_TIME]);
     }
     master_time.push_back(elapsed_times[MASTER_TIME]);
@@ -155,9 +162,18 @@ int main(int argc, char *argv[]) {
     write_worker_time_metrics(argv[2], worker_times.data(), worker_times.size(),
                               "WORKER_TIME");
     write_worker_time_metrics(argv[2], worker_runTimes.data(),
-                              worker_runTimes.size(), "RUNNING_TIME");
-    write_worker_time_metrics(argv[2], idle_times.data(), idle_times.size(),
-                              "IDLE_TIME");
+                              worker_runTimes.size(), "WORKER_RUNNING_TIME");
+    write_worker_time_metrics(argv[2], worker_idletimes.data(),
+                              worker_idletimes.size(), "WORKER_IDLE_TIME");
+    write_worker_time_metrics(argv[2], processLambda_intersect.data(),
+                              processLambda_intersect.size(),
+                              "WORKER_PROCESS_LAMBDA_INTERSECT");
+    write_worker_time_metrics(argv[2], processLambda_getRow.data(),
+                              processLambda_getRow.size(),
+                              "WORKER_PROCESS_LAMBDA_ROW_FETCH");
+    write_worker_time_metrics(argv[2], processLambda_setCount.data(),
+                              processLambda_setCount.size(),
+                              "WORKER_PROCESS_LAMBDA_SET_COUNT");
     write_worker_time_metrics(argv[2], total_times.data(), total_times.size(),
                               "TOTAL_TIME");
     write_master_time_metrics(argv[2], master_time.data(), master_time.size(),
