@@ -6,9 +6,7 @@
 #include <string>
 
 #include "commons.h"
-
-#define NUMHITS 4
-#define CHUNK_SIZE 102400
+#include "utils.h"
 
 struct MPIResultWithComb {
   double f;

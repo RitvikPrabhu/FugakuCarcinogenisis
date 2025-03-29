@@ -10,9 +10,18 @@
 #include <vector>
 
 #include "commons.h"
-#include "fourHit.h"
 #include "readFile.h"
 #include "utils.h"
+
+#if NUMHITS == 4
+#include "fourHit.h"
+#elif NUMHITS == 5
+#include "fiveHit.h"
+#elif NUMHITS == 6
+#include "sixHit.h"
+#else
+#error "NUMHITS value not supported by the code!"
+#endif
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
   if (argc < 4) {
