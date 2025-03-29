@@ -328,7 +328,7 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
   process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
                           intersectionBuffer, scratchBufferij,
                           scratchBufferijk);
-  END_TIMING(run_time, elapsed_times[RUNNING_TIME]);
+  END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
   START_TIMING(idle_time);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
@@ -341,7 +341,7 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
 
   begin = next_idx;
   end = std::min(begin + CHUNK_SIZE, num_Comb);
-  END_TIMING(idle_time, elapsed_times[IDLE_TIME]);
+  END_TIMING(idle_time, elapsed_times[WORKER_IDLE_TIME]);
   return true;
 }
 
@@ -373,7 +373,9 @@ void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                   SET &scratchBufferij, SET &scratchBufferijk,
                   double elapsed_times[]) {
   if (rank == 0) {
+    START_TIMING(master_proc);
     master_process(size_minus_one, num_Comb);
+    END_TIMING(master_proc, elapsed_times[MASTER_TIME]);
   } else {
     START_TIMING(worker_proc);
     worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable,

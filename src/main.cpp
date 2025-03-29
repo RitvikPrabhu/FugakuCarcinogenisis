@@ -72,16 +72,39 @@ void write_worker_time_metrics(const char *metricsFile, const double *all_times,
   }
 
   ofs << "===== Metrics for: " << metric_name << " =====\n";
-  ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << "\n";
-  ofs << "Max: " << max_val << "\n";
-  ofs << "Min: " << min_val << "\n";
-  ofs << "Median: " << median << "\n";
-  ofs << "Range: " << range << "\n";
-  ofs << "Mean: " << mean << "\n";
-  ofs << "Std Dev: " << stddev << "\n\n";
+  ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << " seconds \n";
+  ofs << "Max: " << max_val << " seconds \n";
+  ofs << "Min: " << min_val << " seconds \n";
+  ofs << "Median: " << median << " seconds \n";
+  ofs << "Range: " << range << " seconds \n";
+  ofs << "Mean: " << mean << " seconds\n";
+  ofs << "Std Dev: " << stddev << " seconds \n\n";
 
   ofs.close();
 }
+
+void write_master_time_metrics(const char *metricsFile, const double *all_times,
+                               int count, const char *metric_name) {
+  if (count <= 0) {
+    std::cerr << "No data points provided for " << metric_name << "\n";
+    return;
+  }
+
+  double time = all_times[0];
+
+  std::ofstream ofs(metricsFile, std::ios_base::app);
+  if (!ofs.is_open()) {
+    std::cerr << "Error opening metrics file: " << metricsFile << std::endl;
+    return;
+  }
+
+  ofs << "===== Metrics for: " << metric_name << " =====\n";
+  ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << "\n";
+  ofs << "Time: " << time << "\n\n";
+
+  ofs.close();
+}
+
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
 
@@ -112,15 +135,18 @@ int main(int argc, char *argv[]) {
              TIMING_COUNT, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
-    std::vector<double> worker_times, worker_runTimes, idle_times, total_times;
+    std::vector<double> worker_times, worker_runTimes, idle_times, master_time,
+        total_times;
 
     for (int r = 1; r < size; r++) {
       worker_times.push_back(all_elapsed_times[r * TIMING_COUNT + WORKER_TIME]);
       worker_runTimes.push_back(
-          all_elapsed_times[r * TIMING_COUNT + RUNNING_TIME]);
-      idle_times.push_back(all_elapsed_times[r * TIMING_COUNT + IDLE_TIME]);
+          all_elapsed_times[r * TIMING_COUNT + WORKER_RUNNING_TIME]);
+      idle_times.push_back(
+          all_elapsed_times[r * TIMING_COUNT + WORKER_IDLE_TIME]);
       total_times.push_back(all_elapsed_times[r * TIMING_COUNT + TOTAL_TIME]);
     }
+    master_time.push_back(elapsed_times[MASTER_TIME]);
 
     std::ofstream ofs(argv[2]);
     ofs << "Performance Metrics\n";
@@ -134,6 +160,8 @@ int main(int argc, char *argv[]) {
                               "IDLE_TIME");
     write_worker_time_metrics(argv[2], total_times.data(), total_times.size(),
                               "TOTAL_TIME");
+    write_master_time_metrics(argv[2], master_time.data(), master_time.size(),
+                              "MASTER_TIME");
   }
 
   MPI_Finalize();
