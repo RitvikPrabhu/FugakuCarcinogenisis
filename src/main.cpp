@@ -139,6 +139,9 @@ int main(int argc, char *argv[]) {
         processLambda_intersect, processLambda_getRow, processLambda_setCount,
         master_time, total_times;
 
+    std::vector<double> distAllreduceTimes, distSetIntersectTimes,
+        distSetUnionTimes, distUpdateCollectionTimes, distSetCountTimes;
+
     for (int r = 1; r < size; r++) {
       worker_times.push_back(all_elapsed_times[r * TIMING_COUNT + WORKER_TIME]);
       worker_runTimes.push_back(
@@ -152,6 +155,19 @@ int main(int argc, char *argv[]) {
       processLambda_setCount.push_back(
           all_elapsed_times[r * TIMING_COUNT + PROCESS_LAMBDA_SET_COUNT]);
       total_times.push_back(all_elapsed_times[r * TIMING_COUNT + TOTAL_TIME]);
+    }
+
+    for (int r = 0; r < size; r++) {
+      distAllreduceTimes.push_back(
+          all_elapsed_times[r * TIMING_COUNT + DIST_ALLREDUCE_TIME]);
+      distSetIntersectTimes.push_back(
+          all_elapsed_times[r * TIMING_COUNT + DIST_SET_INTERSECT_TIME]);
+      distSetUnionTimes.push_back(
+          all_elapsed_times[r * TIMING_COUNT + DIST_SET_UNION_TIME]);
+      distUpdateCollectionTimes.push_back(
+          all_elapsed_times[r * TIMING_COUNT + DIST_UPDATE_COLLECTION_TIME]);
+      distSetCountTimes.push_back(
+          all_elapsed_times[r * TIMING_COUNT + DIST_SET_COUNT_TIME]);
     }
     master_time.push_back(elapsed_times[MASTER_TIME]);
 
@@ -174,10 +190,22 @@ int main(int argc, char *argv[]) {
     write_worker_time_metrics(argv[2], processLambda_setCount.data(),
                               processLambda_setCount.size(),
                               "WORKER_PROCESS_LAMBDA_SET_COUNT");
-    write_worker_time_metrics(argv[2], total_times.data(), total_times.size(),
-                              "TOTAL_TIME");
+    write_worker_time_metrics(argv[2], distAllreduceTimes.data(),
+                              distAllreduceTimes.size(), "DIST_ALLREDUCE_TIME");
+    write_worker_time_metrics(argv[2], distSetIntersectTimes.data(),
+                              distSetIntersectTimes.size(),
+                              "DIST_SET_INTERSECT_TIME");
+    write_worker_time_metrics(argv[2], distSetUnionTimes.data(),
+                              distSetUnionTimes.size(), "DIST_SET_UNION_TIME");
+    write_worker_time_metrics(argv[2], distUpdateCollectionTimes.data(),
+                              distUpdateCollectionTimes.size(),
+                              "DIST_UPDATE_COLLECTION_TIME");
+    write_worker_time_metrics(argv[2], distSetCountTimes.data(),
+                              distSetCountTimes.size(), "DIST_SET_COUNT_TIME");
     write_master_time_metrics(argv[2], master_time.data(), master_time.size(),
                               "MASTER_TIME");
+    write_worker_time_metrics(argv[2], total_times.data(), total_times.size(),
+                              "TOTAL_TIME");
   }
 
   MPI_Finalize();

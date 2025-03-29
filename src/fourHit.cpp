@@ -472,34 +472,36 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                  intersectionBuffer, scratchBufferij, scratchBufferijk,
                  elapsed_times);
 
+    START_TIMING(dist_allreduce);
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
-
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
+    END_TIMING(dist_allreduce, elapsed_times[DIST_ALLREDUCE_TIME]);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
-    /**
-    SET_COPY(intersectionBuffer,
-             GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
-             dataTable.tumorRowUnits);
-
-    for (int i = 1; i < NUMHITS; ++i)
-      SET_INTERSECT(intersectionBuffer, intersectionBuffer,
-                    GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits),
-                    dataTable.tumorRowUnits);
-    **/
+    START_TIMING(dist_set_intersect);
     SET_INTERSECT4(intersectionBuffer,
                    GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[1], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[2], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[3], tumorUnits),
                    dataTable.tumorRowUnits);
+    END_TIMING(dist_set_intersect, elapsed_times[DIST_SET_INTERSECT_TIME]);
+
+    START_TIMING(dist_set_union);
     SET_UNION(droppedSamples, droppedSamples, intersectionBuffer,
               dataTable.tumorRowUnits);
+    END_TIMING(dist_set_union, elapsed_times[DIST_SET_UNION_TIME]);
+
+    START_TIMING(dist_update_coll);
     UPDATE_SET_COLLECTION(dataTable.tumorData, intersectionBuffer,
                           dataTable.numRows, dataTable.tumorRowUnits);
+    END_TIMING(dist_update_coll, elapsed_times[DIST_UPDATE_COLLECTION_TIME]);
+
+    START_TIMING(dist_set_count);
     Nt -= SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
+    END_TIMING(dist_set_count, elapsed_times[DIST_SET_COUNT_TIME]);
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
