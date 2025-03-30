@@ -224,6 +224,30 @@ int main(int argc, char *argv[]) {
     }
     master_time.push_back(elapsed_times[MASTER_TIME]);
 
+    {
+      std::string metricsFilename(argv[2]);
+      std::string csvFilename = metricsFilename + ".csv";
+
+      std::ofstream csvFile(csvFilename);
+      if (!csvFile) {
+        std::cerr << "Could not open CSV file: " << csvFilename << std::endl;
+      }
+
+      csvFile << "Rank,WORKER_TIME,WORKER_RUNNING_TIME,WORKER_IDLE_TIME,TOTAL_"
+                 "TIME\n";
+
+      for (int r = 0; r < size; r++) {
+        csvFile << r << "," << all_elapsed_times[r * TIMING_COUNT + WORKER_TIME]
+                << ","
+                << all_elapsed_times[r * TIMING_COUNT + WORKER_RUNNING_TIME]
+                << "," << all_elapsed_times[r * TIMING_COUNT + WORKER_IDLE_TIME]
+                << "," << all_elapsed_times[r * TIMING_COUNT + TOTAL_TIME]
+                << "\n";
+      }
+
+      csvFile.close();
+    }
+
     std::ofstream ofs(argv[2]);
     ofs << "Performance Metrics\n";
     ofs.close();
