@@ -57,7 +57,7 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
     // Generate a unique color per node (hashing the hostname)
     int node_color = hash_hostname(node_name);
     /* int node_color = extract_number_from_hostname(node_name); */
-    printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
+    // printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
 
     // Create local communicator
     MPI_Comm_split(comm, node_color, world_rank, &local_comm);
