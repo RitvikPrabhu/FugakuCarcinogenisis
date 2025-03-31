@@ -353,9 +353,11 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                           elapsed_times);
   END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
   char signal = 'a';
+  START_TIMING(request_idle);
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
   LAMBDA_TYPE next_idx;
   MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, 0, 2, MPI_COMM_WORLD, &status);
+  END_TIMING(request_idle, elapsed_times[WORKER_IDLE_TIME]);
 
   if (next_idx == -1) {
     return false;
@@ -464,21 +466,27 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   int iterationCount = 0;
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
+#ifdef ENABLE_PROFILE
+    std::fill_n(elapsed_times, TIMING_COUNT - 2, 0.0);
+#endif
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
         initialize_local_comb_and_f(localBestMaxF);
 
+    START_TIMING(dist_erar);
+    START_TIMING(dist_er);
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
                  intersectionBuffer, scratchBufferij, scratchBufferijk,
                  elapsed_times);
 
+    END_TIMING(dist_er, elapsed_times[DIST_EXECUTEROLE_TIME]);
+    START_TIMING(dist_allreduce);
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
-    START_TIMING(dist_allreduce);
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
-    // idle = ER_ALLREDUCE - DIST_ER
     END_TIMING(dist_allreduce, elapsed_times[DIST_ALLREDUCE_TIME]);
+    END_TIMING(dist_erar, elapsed_times[DIST_EXECUTEROLE_ALLREDUCE_TIME]);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
     START_TIMING(dist_set_intersect);
@@ -518,6 +526,25 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
+      double globalMinAllreduce = 1e30;
+      for (int r = 0; r < size; r++) {
+        double val = all_elapsed_times[r * TIMING_COUNT + DIST_ALLREDUCE_TIME];
+        if (val < globalMinAllreduce) {
+          globalMinAllreduce = val;
+        }
+      }
+
+      for (int r = 0; r < size; r++) {
+        double era = all_elapsed_times[r * TIMING_COUNT +
+                                       DIST_EXECUTEROLE_ALLREDUCE_TIME];
+        double er = all_elapsed_times[r * TIMING_COUNT + DIST_EXECUTEROLE_TIME];
+        double idleVal = era - er - globalMinAllreduce;
+        if (idleVal < 0.0)
+          idleVal = 0.0;
+
+        all_elapsed_times[r * TIMING_COUNT + WORKER_IDLE_TIME] += idleVal;
+      }
+
       std::ofstream csvOut(csvFileName, std::ios::app);
 
       if (iterationCount == 0) {
