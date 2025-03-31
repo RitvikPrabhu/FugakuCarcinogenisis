@@ -16,7 +16,7 @@
 /// Here chose to uncomment one of these lines to
 // switch between hierarchical or vanilla MPI_Allreduce function
 #define ALL_REDUCE_HIERARCHICAL 1
-#undef ALL_REDUCE_HIERARCHICAL
+//#undef ALL_REDUCE_HIERARCHICAL
 
 //////////////////////////////  Start Allreduce_hierarchical
 /////////////////////////
@@ -57,7 +57,7 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
     // Generate a unique color per node (hashing the hostname)
     int node_color = hash_hostname(node_name);
     /* int node_color = extract_number_from_hostname(node_name); */
-    // printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
+    //printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
 
     // Create local communicator
     MPI_Comm_split(comm, node_color, world_rank, &local_comm);
@@ -352,7 +352,6 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                           intersectionBuffer, scratchBufferij, scratchBufferijk,
                           elapsed_times);
   END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
-  START_TIMING(idle_time);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
   LAMBDA_TYPE next_idx;
@@ -364,7 +363,6 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
 
   begin = next_idx;
   end = std::min(begin + CHUNK_SIZE, num_Comb);
-  END_TIMING(idle_time, elapsed_times[WORKER_IDLE_TIME]);
   return true;
 }
 
