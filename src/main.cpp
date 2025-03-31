@@ -53,22 +53,6 @@ inline LAMBDA_TYPE nCr(int n, int r) {
   return result;
 }
 
-void write_combination_count(const double *all_values, int count,
-                             sets_t dataTable) {
-
-  double sum = 0.0;
-  for (int i = 0; i < count; ++i) {
-    sum += all_values[i];
-  }
-
-  LAMBDA_TYPE possible_combinations = nCr(dataTable.numRows, NUMHITS);
-
-  std::cout << "===== Number of Combinations visited =====\n";
-  std::cout << "Pruned number of combinations: " << sum << " combinations\n";
-  std::cout << "Total possible number of combinations: "
-            << possible_combinations << " combinations\n\n";
-}
-
 // #########################MAIN###########################
 int main(int argc, char *argv[]) {
 
@@ -82,31 +66,20 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  double elapsed_times[TIMING_COUNT] = {0.0};
+  double program_time = 0.0;
 
   sets_t dataTable = read_data(argv[1], rank);
 
   START_TIMING(total_time);
-  distribute_tasks(rank, size, argv[3], argv[2], elapsed_times, dataTable);
-  END_TIMING(total_time, elapsed_times[TOTAL_TIME]);
+  distribute_tasks(rank, size, argv[3], argv[2], dataTable);
+  END_TIMING(total_time, program_time);
 
 #ifdef ENABLE_PROFILE
-  std::vector<double> all_elapsed_times;
-  if (rank == 0) {
-    all_elapsed_times.resize(size * TIMING_COUNT);
-  }
-
-  MPI_Gather(elapsed_times, TIMING_COUNT, MPI_DOUBLE, all_elapsed_times.data(),
-             TIMING_COUNT, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  std::vector<double> all_program_times(size, 0.0);
+  MPI_Gather(&program_time, 1, MPI_DOUBLE, all_program_times.data(), 1,
+             MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
-
-    std::vector<double> comboCount;
-
-    for (int r = 0; r < size; r++) {
-      comboCount.push_back(
-          all_elapsed_times[r * TIMING_COUNT + COMBINATION_COUNT]);
-    }
 
     {
       std::string metricsFilename(argv[2]);
@@ -120,14 +93,11 @@ int main(int argc, char *argv[]) {
       csvFile << "Rank,TOTAL_TIME\n";
 
       for (int r = 0; r < size; r++) {
-        csvFile << r << "," << all_elapsed_times[r * TIMING_COUNT + TOTAL_TIME]
-                << "\n";
+        csvFile << r << "," << all_program_times[r] << "\n";
       }
 
       csvFile.close();
     }
-
-    write_combination_count(comboCount.data(), comboCount.size(), dataTable);
   }
 #endif
 

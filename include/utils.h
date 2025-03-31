@@ -34,8 +34,6 @@ enum profile_out {
 
   MASTER_TIME,
 
-  TOTAL_TIME,
-
   COMBINATION_COUNT,
   TIMING_COUNT
 };
@@ -54,10 +52,10 @@ static const char *profileOutNames[TIMING_COUNT] = {
     "DIST_SET_UNION_TIME",
     "DIST_UPDATE_COLLECTION_TIME",
     "DIST_SET_COUNT_TIME",
+    "DIST_EXECUTEROLE_TIME",
+    "DIST_EXECUTEROLE_ALLREDUCE_TIME",
 
     "MASTER_TIME",
-
-    "TOTAL_TIME",
 
     "COMBINATION_COUNT"};
 

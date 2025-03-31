@@ -435,8 +435,7 @@ extract_global_comb(const MPIResultWithComb &globalResult) {
 }
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      const char *csvFileName, double elapsed_times[],
-                      sets_t dataTable) {
+                      const char *csvFileName, sets_t dataTable) {
 
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
@@ -464,10 +463,12 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outputFileWriteError(outfile);
   }
   int iterationCount = 0;
+  double elapsed_times[TIMING_COUNT] = {0.0};
+
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
 #ifdef ENABLE_PROFILE
-    std::fill_n(elapsed_times, TIMING_COUNT - 2, 0.0);
+    std::fill_n(elapsed_times, TIMING_COUNT, 0.0);
 #endif
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
@@ -549,7 +550,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
       if (iterationCount == 0) {
         csvOut << "Iteration,Rank";
-        for (int t = 0; t < TIMING_COUNT - 2; t++) {
+        for (int t = 0; t < TIMING_COUNT; t++) {
           csvOut << "," << profileOutNames[t];
         }
         csvOut << "\n";
@@ -557,7 +558,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
       for (int r = 0; r < size; r++) {
         csvOut << iterationCount << "," << r;
-        for (int t = 0; t < TIMING_COUNT - 2; t++) {
+        for (int t = 0; t < TIMING_COUNT; t++) {
           double val = all_elapsed_times[r * TIMING_COUNT + t];
           csvOut << "," << val;
         }

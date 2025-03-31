@@ -44,6 +44,5 @@ using LAMBDA_TYPE = long long;
 #endif
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      const char *csvFileName, double elapsed_times[],
-                      sets_t dataTable);
+                      const char *csvFileName, sets_t dataTable);
 #endif
