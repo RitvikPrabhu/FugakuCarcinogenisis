@@ -38,6 +38,27 @@ enum profile_out {
   TIMING_COUNT
 };
 
+static const char *profileOutNames[TIMING_COUNT] = {
+    "WORKER_TIME",
+    "WORKER_RUNNING_TIME",
+    "WORKER_IDLE_TIME",
+
+    "PROCESS_LAMBDA_GET_ROW",
+    "PROCESS_LAMBDA_INTERSECT",
+    "PROCESS_LAMBDA_SET_COUNT",
+
+    "DIST_ALLREDUCE_TIME",
+    "DIST_SET_INTERSECT_TIME",
+    "DIST_SET_UNION_TIME",
+    "DIST_UPDATE_COLLECTION_TIME",
+    "DIST_SET_COUNT_TIME",
+
+    "MASTER_TIME",
+
+    "TOTAL_TIME",
+
+    "COMBINATION_COUNT"};
+
 #ifdef ENABLE_PROFILE
 #define START_TIMING(var) double var##_start = MPI_Wtime();
 #define END_TIMING(var, accumulated_time)                                      \

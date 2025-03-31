@@ -16,7 +16,7 @@
 /// Here chose to uncomment one of these lines to
 // switch between hierarchical or vanilla MPI_Allreduce function
 #define ALL_REDUCE_HIERARCHICAL 1
-//#undef ALL_REDUCE_HIERARCHICAL
+// #undef ALL_REDUCE_HIERARCHICAL
 
 //////////////////////////////  Start Allreduce_hierarchical
 /////////////////////////
@@ -57,7 +57,7 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
     // Generate a unique color per node (hashing the hostname)
     int node_color = hash_hostname(node_name);
     /* int node_color = extract_number_from_hostname(node_name); */
-    //printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
+    // printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
 
     // Create local communicator
     MPI_Comm_split(comm, node_color, world_rank, &local_comm);
@@ -433,7 +433,8 @@ extract_global_comb(const MPIResultWithComb &globalResult) {
 }
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      double elapsed_times[], sets_t dataTable) {
+                      const char *csvFileName, double elapsed_times[],
+                      sets_t dataTable) {
 
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
@@ -460,27 +461,23 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outfile.open(outFilename);
     outputFileWriteError(outfile);
   }
-
+  int iterationCount = 0;
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
         initialize_local_comb_and_f(localBestMaxF);
 
-    START_TIMING(er_allreduce);
-    START_TIMING(dist_er);
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
                  intersectionBuffer, scratchBufferij, scratchBufferijk,
                  elapsed_times);
-    END_TIMING(dist_er, elapsed_times[DIST_ER]);
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
     START_TIMING(dist_allreduce);
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
-    END_TIMING(er_allreduce, elapsed_times[ER_ALLREDUCE]);
-	//idle = ER_ALLREDUCE - DIST_ER
+    // idle = ER_ALLREDUCE - DIST_ER
     END_TIMING(dist_allreduce, elapsed_times[DIST_ALLREDUCE_TIME]);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
@@ -509,6 +506,42 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
+
+#ifdef ENABLE_PROFILE
+    std::vector<double> all_elapsed_times;
+    if (rank == 0) {
+      all_elapsed_times.resize(size * TIMING_COUNT);
+    }
+
+    MPI_Gather(elapsed_times, TIMING_COUNT, MPI_DOUBLE,
+               (rank == 0 ? all_elapsed_times.data() : nullptr), TIMING_COUNT,
+               MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+      std::ofstream csvOut(csvFileName, std::ios::app);
+
+      if (iterationCount == 0) {
+        csvOut << "Iteration,Rank";
+        for (int t = 0; t < TIMING_COUNT - 2; t++) {
+          csvOut << "," << profileOutNames[t];
+        }
+        csvOut << "\n";
+      }
+
+      for (int r = 0; r < size; r++) {
+        csvOut << iterationCount << "," << r;
+        for (int t = 0; t < TIMING_COUNT - 2; t++) {
+          double val = all_elapsed_times[r * TIMING_COUNT + t];
+          csvOut << "," << val;
+        }
+        csvOut << "\n";
+      }
+
+      csvOut.close();
+    }
+#endif
+
+    iterationCount++;
   }
 
   if (rank == 0)
