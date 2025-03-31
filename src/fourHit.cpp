@@ -467,15 +467,20 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     std::array<int, NUMHITS> localComb =
         initialize_local_comb_and_f(localBestMaxF);
 
+    START_TIMING(er_allreduce);
+    START_TIMING(dist_er);
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
                  intersectionBuffer, scratchBufferij, scratchBufferijk,
                  elapsed_times);
+    END_TIMING(dist_er, elapsed_times[DIST_ER]);
 
-    START_TIMING(dist_allreduce);
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
+    START_TIMING(dist_allreduce);
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
+    END_TIMING(er_allreduce, elapsed_times[ER_ALLREDUCE]);
+	//idle = ER_ALLREDUCE - DIST_ER
     END_TIMING(dist_allreduce, elapsed_times[DIST_ALLREDUCE_TIME]);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
