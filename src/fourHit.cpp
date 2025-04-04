@@ -353,11 +353,9 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                           elapsed_times);
   END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
   char signal = 'a';
-  START_TIMING(request_idle);
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
   LAMBDA_TYPE next_idx;
   MPI_Recv(&next_idx, 1, MPI_LONG_LONG_INT, 0, 2, MPI_COMM_WORLD, &status);
-  END_TIMING(request_idle, elapsed_times[WORKER_IDLE_TIME]);
 
   if (next_idx == -1) {
     return false;
@@ -435,7 +433,8 @@ extract_global_comb(const MPIResultWithComb &globalResult) {
 }
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      const char *csvFileName, sets_t dataTable) {
+                      const char *csvFileName, sets_t dataTable,
+                      double *omit_time) {
 
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
@@ -517,6 +516,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
       write_output(rank, outfile, globalBestComb, globalResult.f);
 
 #ifdef ENABLE_PROFILE
+    START_TIMING(profile_time);
     std::vector<double> all_elapsed_times;
     if (rank == 0) {
       all_elapsed_times.resize(size * TIMING_COUNT);
@@ -567,6 +567,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
       csvOut.close();
     }
+    END_TIMING(profile_time, *omit_time);
 #endif
 
     iterationCount++;

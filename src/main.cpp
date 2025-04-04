@@ -67,13 +67,14 @@ int main(int argc, char *argv[]) {
   }
 
   double program_time = 0.0;
+  double omit_time = 0.0;
 
   sets_t dataTable = read_data(argv[1], rank);
 
   START_TIMING(total_time);
-  distribute_tasks(rank, size, argv[3], argv[2], dataTable);
+  distribute_tasks(rank, size, argv[3], argv[2], dataTable, &omit_time);
   END_TIMING(total_time, program_time);
-
+  program_time -= omit_time;
 #ifdef ENABLE_PROFILE
   std::vector<double> all_program_times(size, 0.0);
   MPI_Gather(&program_time, 1, MPI_DOUBLE, all_program_times.data(), 1,
