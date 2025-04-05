@@ -11,7 +11,7 @@
 #include <set>
 #include <vector>
 
-#include "fourHit.h"
+#include "threeHit.h"
 #include "utils.h"
 /// Here chose to uncomment one of these lines to
 // switch between hierarchical or vanilla MPI_Allreduce function
@@ -251,7 +251,7 @@ inline void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
                                     std::array<int, NUMHITS> &bestCombination,
                                     double &maxF, sets_t &dataTable,
                                     SET &intersectionBuffer,
-                                    SET &scratchBufferij, SET &scratchBufferijk,
+                                    SET &scratchBufferij,
                                     double elapsed_times[]) {
   double alpha = 0.1;
   int totalGenes = dataTable.numRows;
@@ -282,60 +282,44 @@ inline void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
       END_TIMING(proc_row_k, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
       START_TIMING(proc_intersect_ijk);
-      SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK,
+      SET_INTERSECT(intersectionBuffer, scratchBufferij, rowK,
                     dataTable.tumorRowUnits);
       END_TIMING(proc_intersect_ijk, elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
-      if (SET_IS_EMPTY(scratchBufferijk, dataTable.tumorRowUnits)) {
+      if (SET_IS_EMPTY(intersectionBuffer, dataTable.tumorRowUnits)) {
         continue;
       }
 
-      for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-        START_TIMING(proc_row_l);
-        SET rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
-        END_TIMING(proc_row_l, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
+      INCREMENT_COMBO_COUNT(elapsed_times);
 
-        START_TIMING(proc_intersect_ijkl);
-        SET_INTERSECT(intersectionBuffer, scratchBufferijk, rowL,
-                      dataTable.tumorRowUnits);
-        END_TIMING(proc_intersect_ijkl,
-                   elapsed_times[PROCESS_LAMBDA_INTERSECT]);
-        if (SET_IS_EMPTY(intersectionBuffer, dataTable.tumorRowUnits)) {
-          continue;
-        }
-        INCREMENT_COMBO_COUNT(elapsed_times);
+      START_TIMING(proc_count_TP);
+      int TP = SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
+      END_TIMING(proc_count_TP, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-        START_TIMING(proc_count_TP);
-        int TP = SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
-        END_TIMING(proc_count_TP, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
+      START_TIMING(proc_row_normal);
+      SET rowIN =
+          GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
+      SET rowJN =
+          GET_ROW(dataTable.normalData, computed.j, dataTable.normalRowUnits);
+      SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
+      END_TIMING(proc_row_normal, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-        START_TIMING(proc_row_normal);
-        SET rowIN =
-            GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
-        SET rowJN =
-            GET_ROW(dataTable.normalData, computed.j, dataTable.normalRowUnits);
-        SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
-        SET rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
-        END_TIMING(proc_row_normal, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
+      START_TIMING(proc_intersect_normal);
+      SET_INTERSECT3(intersectionBuffer, rowIN, rowJN, rowKN,
+                     dataTable.normalRowUnits);
+      END_TIMING(proc_intersect_normal,
+                 elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
-        START_TIMING(proc_intersect_normal);
-        SET_INTERSECT4(intersectionBuffer, rowIN, rowJN, rowKN, rowLN,
-                       dataTable.normalRowUnits);
-        END_TIMING(proc_intersect_normal,
-                   elapsed_times[PROCESS_LAMBDA_INTERSECT]);
-
-        START_TIMING(proc_count_coveredNormal);
-        int coveredNormal =
-            SET_COUNT(intersectionBuffer, dataTable.normalRowUnits);
-        END_TIMING(proc_count_coveredNormal,
-                   elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
-        int TN = (int)dataTable.numNormal - coveredNormal;
-        double F =
-            (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
-        if (F >= maxF) {
-          maxF = F;
-          bestCombination = {computed.i, computed.j, k, l};
-        }
+      START_TIMING(proc_count_coveredNormal);
+      int coveredNormal =
+          SET_COUNT(intersectionBuffer, dataTable.normalRowUnits);
+      END_TIMING(proc_count_coveredNormal,
+                 elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
+      int TN = (int)dataTable.numNormal - coveredNormal;
+      double F = (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
+      if (F >= maxF) {
+        maxF = F;
+        bestCombination = {computed.i, computed.j, k};
       }
     }
   }
@@ -347,11 +331,10 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                              LAMBDA_TYPE &begin, LAMBDA_TYPE &end,
                              MPI_Status &status, sets_t dataTable,
                              SET &intersectionBuffer, SET &scratchBufferij,
-                             SET &scratchBufferijk, double elapsed_times[]) {
+                             double elapsed_times[]) {
   START_TIMING(run_time);
   process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
-                          intersectionBuffer, scratchBufferij, scratchBufferijk,
-                          elapsed_times);
+                          intersectionBuffer, scratchBufferij, elapsed_times);
   END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
@@ -370,7 +353,7 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
 void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
                     std::array<int, NUMHITS> &localComb, sets_t dataTable,
                     SET &intersectionBuffer, SET &scratchBufferij,
-                    SET &scratchBufferijk, double elapsed_times[]) {
+                    double elapsed_times[]) {
   std::pair<LAMBDA_TYPE, LAMBDA_TYPE> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
 
@@ -382,7 +365,7 @@ void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
   while (end <= num_Comb) {
     bool has_next = process_and_communicate(
         rank, num_Comb, localBestMaxF, localComb, begin, end, status, dataTable,
-        intersectionBuffer, scratchBufferij, scratchBufferijk, elapsed_times);
+        intersectionBuffer, scratchBufferij, elapsed_times);
     if (!has_next) {
       break;
     }
@@ -392,8 +375,7 @@ void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
 void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                   double &localBestMaxF, std::array<int, NUMHITS> &localComb,
                   sets_t dataTable, SET &intersectionBuffer,
-                  SET &scratchBufferij, SET &scratchBufferijk,
-                  double elapsed_times[]) {
+                  SET &scratchBufferij, double elapsed_times[]) {
   if (rank == 0) {
     START_TIMING(master_proc);
     master_process(size_minus_one, num_Comb);
@@ -401,8 +383,7 @@ void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   } else {
     START_TIMING(worker_proc);
     worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable,
-                   intersectionBuffer, scratchBufferij, scratchBufferijk,
-                   elapsed_times);
+                   intersectionBuffer, scratchBufferij, elapsed_times);
     END_TIMING(worker_proc, elapsed_times[WORKER_TIME]);
   }
 }
@@ -444,10 +425,9 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   size_t tumorUnits = dataTable.tumorRowUnits;
   size_t maxUnits = std::max(dataTable.tumorRowUnits, dataTable.normalRowUnits);
 
-  SET intersectionBuffer, scratchBufferij, scratchBufferijk;
+  SET intersectionBuffer, scratchBufferij;
   SET_NEW(intersectionBuffer, maxUnits);
   SET_NEW(scratchBufferij, maxUnits);
-  SET_NEW(scratchBufferijk, maxUnits);
 
   MPI_Datatype MPI_RESULT_WITH_COMB = create_mpi_result_with_comb_type();
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
@@ -477,8 +457,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     START_TIMING(dist_erar);
     START_TIMING(dist_er);
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
-                 intersectionBuffer, scratchBufferij, scratchBufferijk,
-                 elapsed_times);
+                 intersectionBuffer, scratchBufferij, elapsed_times);
 
     END_TIMING(dist_er, elapsed_times[DIST_EXECUTEROLE_TIME]);
     START_TIMING(dist_allreduce);
@@ -491,11 +470,10 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
     START_TIMING(dist_set_intersect);
-    SET_INTERSECT4(intersectionBuffer,
+    SET_INTERSECT3(intersectionBuffer,
                    GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[1], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[2], tumorUnits),
-                   GET_ROW(dataTable.tumorData, globalBestComb[3], tumorUnits),
                    dataTable.tumorRowUnits);
     END_TIMING(dist_set_intersect, elapsed_times[DIST_SET_INTERSECT_TIME]);
 
@@ -579,7 +557,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
   SET_FREE(intersectionBuffer);
   SET_FREE(scratchBufferij);
-  SET_FREE(scratchBufferijk);
   SET_FREE(droppedSamples);
 
   MPI_Op_free(&MPI_MAX_F_WITH_COMB);
