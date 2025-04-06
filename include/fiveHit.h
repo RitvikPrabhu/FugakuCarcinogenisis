@@ -1,5 +1,5 @@
-#ifndef FOURHIT_H
-#define FOURHIT_H
+#ifndef FIVEHIT_H
+#define FIVEHIT_H
 
 #include <array>
 #include <mpi.h>
