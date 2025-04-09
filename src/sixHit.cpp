@@ -260,83 +260,57 @@ inline void process_lambda_interval(
     if (computed.j < 0) {
       continue;
     }
-    START_TIMING(proc_row_ij);
     SET rowI =
         GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
-    END_TIMING(proc_row_ij, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-    START_TIMING(proc_intersect_ij);
     SET_INTERSECT(scratchBufferij, rowI, rowJ, dataTable.tumorRowUnits);
-    END_TIMING(proc_row_ij, elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
     if (SET_IS_EMPTY(scratchBufferij, dataTable.tumorRowUnits)) {
       continue;
     }
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-      START_TIMING(proc_row_k);
       SET rowK = GET_ROW(dataTable.tumorData, k, dataTable.tumorRowUnits);
-      END_TIMING(proc_row_k, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-      START_TIMING(proc_intersect_ijk);
       SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK,
                     dataTable.tumorRowUnits);
-      END_TIMING(proc_intersect_ijk, elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
       if (SET_IS_EMPTY(scratchBufferijk, dataTable.tumorRowUnits)) {
         continue;
       }
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-        START_TIMING(proc_row_l);
         SET rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
-        END_TIMING(proc_row_l, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-        START_TIMING(proc_intersect_ijkl);
         SET_INTERSECT(scratchBufferijkl, scratchBufferijk, rowL,
                       dataTable.tumorRowUnits);
-        END_TIMING(proc_intersect_ijkl,
-                   elapsed_times[PROCESS_LAMBDA_INTERSECT]);
         if (SET_IS_EMPTY(scratchBufferijkl, dataTable.tumorRowUnits)) {
           continue;
         }
 
         for (int m = l + 1; m < totalGenes - (NUMHITS - 5); m++) {
-          START_TIMING(proc_row_m);
           SET rowM = GET_ROW(dataTable.tumorData, m, dataTable.tumorRowUnits);
-          END_TIMING(proc_row_m, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-          START_TIMING(proc_intersect_ijklm);
           SET_INTERSECT(scratchBufferijklm, scratchBufferijkl, rowM,
                         dataTable.tumorRowUnits);
-          END_TIMING(proc_intersect_ijklm,
-                     elapsed_times[PROCESS_LAMBDA_INTERSECT]);
           if (SET_IS_EMPTY(scratchBufferijklm, dataTable.tumorRowUnits)) {
             continue;
           }
           for (int n = m + 1; n < totalGenes - (NUMHITS - 6); n++) {
-            START_TIMING(proc_row_n);
             SET rowN = GET_ROW(dataTable.tumorData, n, dataTable.tumorRowUnits);
-            END_TIMING(proc_row_n, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-            START_TIMING(proc_intersect_ijklmn);
             SET_INTERSECT(intersectionBuffer, scratchBufferijklm, rowN,
                           dataTable.tumorRowUnits);
-            END_TIMING(proc_intersect_ijklmn,
-                       elapsed_times[PROCESS_LAMBDA_INTERSECT]);
             if (SET_IS_EMPTY(intersectionBuffer, dataTable.tumorRowUnits)) {
               continue;
             }
 
             INCREMENT_COMBO_COUNT(elapsed_times);
 
-            START_TIMING(proc_count_TP);
             int TP = SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
-            END_TIMING(proc_count_TP, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-            START_TIMING(proc_row_normal);
             SET rowIN = GET_ROW(dataTable.normalData, computed.i,
                                 dataTable.normalRowUnits);
             SET rowJN = GET_ROW(dataTable.normalData, computed.j,
@@ -350,20 +324,11 @@ inline void process_lambda_interval(
             SET rowNN =
                 GET_ROW(dataTable.normalData, n, dataTable.normalRowUnits);
 
-            END_TIMING(proc_row_normal,
-                       elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
-
-            START_TIMING(proc_intersect_normal);
             SET_INTERSECT6(intersectionBuffer, rowIN, rowJN, rowKN, rowLN,
                            rowMN, rowNN, dataTable.normalRowUnits);
-            END_TIMING(proc_intersect_normal,
-                       elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
-            START_TIMING(proc_count_coveredNormal);
             int coveredNormal =
                 SET_COUNT(intersectionBuffer, dataTable.normalRowUnits);
-            END_TIMING(proc_count_coveredNormal,
-                       elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
             int TN = (int)dataTable.numNormal - coveredNormal;
             double F =
                 (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
@@ -475,8 +440,7 @@ extract_global_comb(const MPIResultWithComb &globalResult) {
 }
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      const char *csvFileName, sets_t dataTable,
-                      double *omit_time) {
+                      double elapsed_times[], sets_t dataTable) {
 
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
@@ -506,35 +470,24 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outfile.open(outFilename);
     outputFileWriteError(outfile);
   }
-  int iterationCount = 0;
-  double elapsed_times[TIMING_COUNT] = {0.0};
 
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
-#ifdef ENABLE_PROFILE
-    std::fill_n(elapsed_times, TIMING_COUNT, 0.0);
-#endif
+
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
         initialize_local_comb_and_f(localBestMaxF);
 
-    START_TIMING(dist_erar);
-    START_TIMING(dist_er);
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
                  intersectionBuffer, scratchBufferij, scratchBufferijk,
                  scratchBufferijkl, scratchBufferijklm, elapsed_times);
 
-    END_TIMING(dist_er, elapsed_times[DIST_EXECUTEROLE_TIME]);
-    START_TIMING(dist_allreduce);
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
-    END_TIMING(dist_allreduce, elapsed_times[DIST_ALLREDUCE_TIME]);
-    END_TIMING(dist_erar, elapsed_times[DIST_EXECUTEROLE_ALLREDUCE_TIME]);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
-    START_TIMING(dist_set_intersect);
     SET_INTERSECT6(intersectionBuffer,
                    GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[1], tumorUnits),
@@ -543,81 +496,17 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                    GET_ROW(dataTable.tumorData, globalBestComb[4], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[5], tumorUnits),
                    dataTable.tumorRowUnits);
-    END_TIMING(dist_set_intersect, elapsed_times[DIST_SET_INTERSECT_TIME]);
 
-    START_TIMING(dist_set_union);
     SET_UNION(droppedSamples, droppedSamples, intersectionBuffer,
               dataTable.tumorRowUnits);
-    END_TIMING(dist_set_union, elapsed_times[DIST_SET_UNION_TIME]);
 
-    START_TIMING(dist_update_coll);
     UPDATE_SET_COLLECTION(dataTable.tumorData, intersectionBuffer,
                           dataTable.numRows, dataTable.tumorRowUnits);
-    END_TIMING(dist_update_coll, elapsed_times[DIST_UPDATE_COLLECTION_TIME]);
 
-    START_TIMING(dist_set_count);
     Nt -= SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
-    END_TIMING(dist_set_count, elapsed_times[DIST_SET_COUNT_TIME]);
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
-
-#ifdef ENABLE_PROFILE
-    START_TIMING(profile_time);
-    std::vector<double> all_elapsed_times;
-    if (rank == 0) {
-      all_elapsed_times.resize(size * TIMING_COUNT);
-    }
-
-    MPI_Gather(elapsed_times, TIMING_COUNT, MPI_DOUBLE,
-               (rank == 0 ? all_elapsed_times.data() : nullptr), TIMING_COUNT,
-               MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    if (rank == 0) {
-      double globalMinAllreduce = 1e30;
-      for (int r = 0; r < size; r++) {
-        double val = all_elapsed_times[r * TIMING_COUNT + DIST_ALLREDUCE_TIME];
-        if (val < globalMinAllreduce) {
-          globalMinAllreduce = val;
-        }
-      }
-
-      for (int r = 0; r < size; r++) {
-        double era = all_elapsed_times[r * TIMING_COUNT +
-                                       DIST_EXECUTEROLE_ALLREDUCE_TIME];
-        double er = all_elapsed_times[r * TIMING_COUNT + DIST_EXECUTEROLE_TIME];
-        double idleVal = era - er - globalMinAllreduce;
-        if (idleVal < 0.0)
-          idleVal = 0.0;
-
-        all_elapsed_times[r * TIMING_COUNT + WORKER_IDLE_TIME] += idleVal;
-      }
-
-      std::ofstream csvOut(csvFileName, std::ios::app);
-
-      if (iterationCount == 0) {
-        csvOut << "Iteration,Rank";
-        for (int t = 0; t < TIMING_COUNT; t++) {
-          csvOut << "," << profileOutNames[t];
-        }
-        csvOut << "\n";
-      }
-
-      for (int r = 0; r < size; r++) {
-        csvOut << iterationCount << "," << r;
-        for (int t = 0; t < TIMING_COUNT; t++) {
-          double val = all_elapsed_times[r * TIMING_COUNT + t];
-          csvOut << "," << val;
-        }
-        csvOut << "\n";
-      }
-
-      csvOut.close();
-    }
-    END_TIMING(profile_time, *omit_time);
-#endif
-
-    iterationCount++;
   }
 
   if (rank == 0)
