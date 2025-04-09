@@ -411,8 +411,7 @@ extract_global_comb(const MPIResultWithComb &globalResult) {
 }
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      const char *csvFileName, sets_t dataTable,
-                      double *omit_time) {
+                      double elapsed_times[], sets_t dataTable) {
 
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
@@ -439,32 +438,21 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outfile.open(outFilename);
     outputFileWriteError(outfile);
   }
-  int iterationCount = 0;
-  double elapsed_times[TIMING_COUNT] = {0.0};
 
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
-#ifdef ENABLE_PROFILE
-    std::fill_n(elapsed_times, TIMING_COUNT, 0.0);
-#endif
     double localBestMaxF;
     std::array<int, NUMHITS> localComb =
         initialize_local_comb_and_f(localBestMaxF);
 
-    START_TIMING(dist_erar);
-    START_TIMING(dist_er);
     execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
                  intersectionBuffer, scratchBufferij, scratchBufferijk,
                  elapsed_times);
 
-    END_TIMING(dist_er, elapsed_times[DIST_EXECUTEROLE_TIME]);
-    START_TIMING(dist_allreduce);
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
-    END_TIMING(dist_allreduce, elapsed_times[DIST_ALLREDUCE_TIME]);
-    END_TIMING(dist_erar, elapsed_times[DIST_EXECUTEROLE_ALLREDUCE_TIME]);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
     SET_INTERSECT4(intersectionBuffer,
@@ -484,63 +472,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
-
-#ifdef ENABLE_PROFILE
-    START_TIMING(profile_time);
-    std::vector<double> all_elapsed_times;
-    if (rank == 0) {
-      all_elapsed_times.resize(size * TIMING_COUNT);
-    }
-
-    MPI_Gather(elapsed_times, TIMING_COUNT, MPI_DOUBLE,
-               (rank == 0 ? all_elapsed_times.data() : nullptr), TIMING_COUNT,
-               MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    if (rank == 0) {
-      double globalMinAllreduce = 1e30;
-      for (int r = 0; r < size; r++) {
-        double val = all_elapsed_times[r * TIMING_COUNT + DIST_ALLREDUCE_TIME];
-        if (val < globalMinAllreduce) {
-          globalMinAllreduce = val;
-        }
-      }
-
-      for (int r = 0; r < size; r++) {
-        double era = all_elapsed_times[r * TIMING_COUNT +
-                                       DIST_EXECUTEROLE_ALLREDUCE_TIME];
-        double er = all_elapsed_times[r * TIMING_COUNT + DIST_EXECUTEROLE_TIME];
-        double idleVal = era - er - globalMinAllreduce;
-        if (idleVal < 0.0)
-          idleVal = 0.0;
-
-        all_elapsed_times[r * TIMING_COUNT + WORKER_IDLE_TIME] += idleVal;
-      }
-
-      std::ofstream csvOut(csvFileName, std::ios::app);
-
-      if (iterationCount == 0) {
-        csvOut << "Iteration,Rank";
-        for (int t = 0; t < TIMING_COUNT; t++) {
-          csvOut << "," << profileOutNames[t];
-        }
-        csvOut << "\n";
-      }
-
-      for (int r = 0; r < size; r++) {
-        csvOut << iterationCount << "," << r;
-        for (int t = 0; t < TIMING_COUNT; t++) {
-          double val = all_elapsed_times[r * TIMING_COUNT + t];
-          csvOut << "," << val;
-        }
-        csvOut << "\n";
-      }
-
-      csvOut.close();
-    }
-    END_TIMING(profile_time, *omit_time);
-#endif
-
-    iterationCount++;
   }
 
   if (rank == 0)
