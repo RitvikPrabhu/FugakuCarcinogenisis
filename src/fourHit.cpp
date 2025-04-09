@@ -261,74 +261,51 @@ inline void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
     if (computed.j < 0) {
       continue;
     }
-    START_TIMING(proc_row_ij);
     SET rowI =
         GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
-    END_TIMING(proc_row_ij, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-    START_TIMING(proc_intersect_ij);
     SET_INTERSECT(scratchBufferij, rowI, rowJ, dataTable.tumorRowUnits);
-    END_TIMING(proc_row_ij, elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
     if (SET_IS_EMPTY(scratchBufferij, dataTable.tumorRowUnits)) {
       continue;
     }
 
     for (int k = computed.j + 1; k < totalGenes - (NUMHITS - 3); k++) {
-      START_TIMING(proc_row_k);
       SET rowK = GET_ROW(dataTable.tumorData, k, dataTable.tumorRowUnits);
-      END_TIMING(proc_row_k, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-      START_TIMING(proc_intersect_ijk);
       SET_INTERSECT(scratchBufferijk, scratchBufferij, rowK,
                     dataTable.tumorRowUnits);
-      END_TIMING(proc_intersect_ijk, elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
       if (SET_IS_EMPTY(scratchBufferijk, dataTable.tumorRowUnits)) {
         continue;
       }
 
       for (int l = k + 1; l < totalGenes - (NUMHITS - 4); l++) {
-        START_TIMING(proc_row_l);
         SET rowL = GET_ROW(dataTable.tumorData, l, dataTable.tumorRowUnits);
-        END_TIMING(proc_row_l, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-        START_TIMING(proc_intersect_ijkl);
         SET_INTERSECT(intersectionBuffer, scratchBufferijk, rowL,
                       dataTable.tumorRowUnits);
-        END_TIMING(proc_intersect_ijkl,
-                   elapsed_times[PROCESS_LAMBDA_INTERSECT]);
         if (SET_IS_EMPTY(intersectionBuffer, dataTable.tumorRowUnits)) {
           continue;
         }
         INCREMENT_COMBO_COUNT(elapsed_times);
 
-        START_TIMING(proc_count_TP);
         int TP = SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
-        END_TIMING(proc_count_TP, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-        START_TIMING(proc_row_normal);
         SET rowIN =
             GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
         SET rowJN =
             GET_ROW(dataTable.normalData, computed.j, dataTable.normalRowUnits);
         SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
         SET rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
-        END_TIMING(proc_row_normal, elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
 
-        START_TIMING(proc_intersect_normal);
         SET_INTERSECT4(intersectionBuffer, rowIN, rowJN, rowKN, rowLN,
                        dataTable.normalRowUnits);
-        END_TIMING(proc_intersect_normal,
-                   elapsed_times[PROCESS_LAMBDA_INTERSECT]);
 
-        START_TIMING(proc_count_coveredNormal);
         int coveredNormal =
             SET_COUNT(intersectionBuffer, dataTable.normalRowUnits);
-        END_TIMING(proc_count_coveredNormal,
-                   elapsed_times[PROCESS_LAMBDA_SET_COUNT]);
         int TN = (int)dataTable.numNormal - coveredNormal;
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
@@ -490,28 +467,20 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     END_TIMING(dist_erar, elapsed_times[DIST_EXECUTEROLE_ALLREDUCE_TIME]);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
-    START_TIMING(dist_set_intersect);
     SET_INTERSECT4(intersectionBuffer,
                    GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[1], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[2], tumorUnits),
                    GET_ROW(dataTable.tumorData, globalBestComb[3], tumorUnits),
                    dataTable.tumorRowUnits);
-    END_TIMING(dist_set_intersect, elapsed_times[DIST_SET_INTERSECT_TIME]);
 
-    START_TIMING(dist_set_union);
     SET_UNION(droppedSamples, droppedSamples, intersectionBuffer,
               dataTable.tumorRowUnits);
-    END_TIMING(dist_set_union, elapsed_times[DIST_SET_UNION_TIME]);
 
-    START_TIMING(dist_update_coll);
     UPDATE_SET_COLLECTION(dataTable.tumorData, intersectionBuffer,
                           dataTable.numRows, dataTable.tumorRowUnits);
-    END_TIMING(dist_update_coll, elapsed_times[DIST_UPDATE_COLLECTION_TIME]);
 
-    START_TIMING(dist_set_count);
     Nt -= SET_COUNT(intersectionBuffer, dataTable.tumorRowUnits);
-    END_TIMING(dist_set_count, elapsed_times[DIST_SET_COUNT_TIME]);
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
