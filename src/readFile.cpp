@@ -24,24 +24,30 @@ void handle_parsing_error(const char *message, int rank, int abort_code = 1) {
 
 char *read_entire_file_into_buffer(const char *filename, MPI_Offset &file_size,
                                    int rank) {
-  MPI_File fh;
-  int rc = MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY,
-                         MPI_INFO_NULL, &fh);
-  handle_mpi_error(rc, "Error opening file", rank);
+  FILE *fp = fopen(filename, "rb");
+  if (!fp) {
+    fprintf(stderr, "Rank %d: Error opening file \"%s\"\n", rank, filename);
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
 
-  rc = MPI_File_get_size(fh, &file_size);
-  handle_mpi_error(rc, "Error getting file size", rank);
+  fseek(fp, 0, SEEK_END);
+  file_size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
 
   char *buffer = new char[file_size + 1];
+
+  size_t bytesRead = fread(buffer, 1, file_size, fp);
+  if (bytesRead < (size_t)file_size) {
+    fprintf(stderr,
+            "Rank %d: Could not read full file (only %zu of %lld bytes)\n",
+            rank, bytesRead, (long long)file_size);
+    fclose(fp);
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
   buffer[file_size] = '\0';
 
-  MPI_Status status;
-  rc = MPI_File_read_at_all(fh, 0, buffer, file_size, MPI_CHAR, &status);
-  handle_mpi_error(rc, "Error reading file", rank);
-
-  rc = MPI_File_close(&fh);
-  handle_mpi_error(rc, "Error closing file", rank);
-
+  fclose(fp);
   return buffer;
 }
 
