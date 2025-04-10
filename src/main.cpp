@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
                               "TOTAL_TIME");
   }
 #endif
-
+  FREE_DATA_TABLE(dataTable);
   MPI_Finalize();
   return 0;
 }

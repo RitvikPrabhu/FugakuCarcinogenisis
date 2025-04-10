@@ -76,6 +76,10 @@ typedef std::vector<SET> SET_COLLECTION;
     }                                                                          \
   } while (0)
 
+#define FREE_DATA_TABLE(dt)                                                    \
+  {                                                                            \
+  }
+
 #else
 
 typedef int64_t unit_t;
@@ -156,6 +160,12 @@ typedef unit_t *SET_COLLECTION;
         currentRow[unit_idx] &= (~(mask)[unit_idx]);                           \
       }                                                                        \
     }                                                                          \
+  } while (0)
+
+#define FREE_DATA_TABLE(dt)                                                    \
+  do {                                                                         \
+    SET_FREE((dt).tumorData);                                                  \
+    SET_FREE((dt).normalData);                                                 \
   } while (0)
 
 #endif
