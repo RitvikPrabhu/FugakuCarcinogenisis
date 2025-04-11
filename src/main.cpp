@@ -168,7 +168,7 @@ void write_master_time_metrics(const char *metricsFile, const double *all_times,
 int main(int argc, char *argv[]) {
 
   int rank, size;
-  MPI_Init(nullptr, nullptr);
+  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
