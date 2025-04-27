@@ -22,8 +22,7 @@ void handle_parsing_error(const char *message, int rank, int abort_code = 1) {
   MPI_Abort(MPI_COMM_WORLD, abort_code);
 }
 
-char *read_entire_file_into_buffer(const char *filename, MPI_Offset &file_size,
-                                   int rank) {
+char *read_entire_file_into_buffer(const char *filename, int rank) {
   FILE *fp = fopen(filename, "rb");
   if (!fp) {
     fprintf(stderr, "Rank %d: Error opening file \"%s\"\n", rank, filename);
@@ -31,7 +30,7 @@ char *read_entire_file_into_buffer(const char *filename, MPI_Offset &file_size,
   }
 
   fseek(fp, 0, SEEK_END);
-  file_size = ftell(fp);
+  long file_size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
   char *buffer = new char[file_size + 1];
@@ -107,21 +106,101 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
   }
 }
 
-sets_t read_data(const char *filename, int rank) {
-  MPI_Offset file_size;
-  char *file_buffer = read_entire_file_into_buffer(filename, file_size, rank);
+void broadcast_table(sets_t &table, int rank) {
+  char *buffer = nullptr;
+  size_t buffer_size;
 
-  char *header_line = strtok(file_buffer, "\n");
-  if (!header_line) {
-    delete[] file_buffer;
-    fprintf(stderr, "Rank %d: Empty or malformed file\n", rank);
-    MPI_Abort(MPI_COMM_WORLD, 1);
+  if (rank == 0) {
+    size_t tumorDataSize =
+        table.numRows * table.tumorRowUnits * sizeof(*(table.tumorData));
+    size_t normalDataSize =
+        table.numRows * table.normalRowUnits * sizeof(*(table.normalData));
+
+    buffer_size = sizeof(size_t) * 6 + tumorDataSize + normalDataSize;
+
+    buffer = new char[buffer_size];
+    char *ptr = buffer;
+
+    memcpy(ptr, &table.numRows, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(ptr, &table.numCols, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(ptr, &table.numTumor, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(ptr, &table.numNormal, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(ptr, &table.tumorRowUnits, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(ptr, &table.normalRowUnits, sizeof(size_t));
+    ptr += sizeof(size_t);
+
+    memcpy(ptr, table.tumorData, tumorDataSize);
+    ptr += tumorDataSize;
+    memcpy(ptr, table.normalData, normalDataSize);
   }
 
-  sets_t table;
-  allocate_sets_from_header(table, header_line, rank);
-  parse_and_populate(table, file_buffer, rank);
+  MPI_Bcast(&buffer_size, 1, MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
 
-  delete[] file_buffer;
+  if (rank != 0) {
+    buffer = new char[buffer_size];
+  }
+
+  MPI_Bcast(buffer, buffer_size, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+  if (rank != 0) {
+    char *ptr = buffer;
+
+    memcpy(&table.numRows, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(&table.numCols, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(&table.numTumor, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(&table.numNormal, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(&table.tumorRowUnits, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+    memcpy(&table.normalRowUnits, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+
+    SET_COLLECTION_NEW(table.tumorData, table.numRows, table.numTumor,
+                       table.tumorRowUnits);
+    SET_COLLECTION_NEW(table.normalData, table.numRows, table.numNormal,
+                       table.normalRowUnits);
+
+    size_t tumorDataSize =
+        table.numRows * table.tumorRowUnits * sizeof(*(table.tumorData));
+    size_t normalDataSize =
+        table.numRows * table.normalRowUnits * sizeof(*(table.normalData));
+
+    memcpy(table.tumorData, ptr, tumorDataSize);
+    ptr += tumorDataSize;
+    memcpy(table.normalData, ptr, normalDataSize);
+  }
+
+  delete[] buffer;
+}
+
+sets_t read_data(const char *filename, int rank) {
+  sets_t table = {0};
+
+  if (rank == 0) {
+    char *file_buffer = read_entire_file_into_buffer(filename, rank);
+
+    char *header_line = strtok(file_buffer, "\n");
+    if (!header_line) {
+      delete[] file_buffer;
+      fprintf(stderr, "Rank %d: Empty or malformed file\n", rank);
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    allocate_sets_from_header(table, header_line, rank);
+    parse_and_populate(table, file_buffer, rank);
+
+    delete[] file_buffer;
+  }
+
+  broadcast_table(table, rank);
+
   return table;
 }
