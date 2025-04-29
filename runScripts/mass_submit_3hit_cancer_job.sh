@@ -47,7 +47,7 @@ for NNODES in "${node_configs[@]}"; do
 llio_transfer ../build/run_3hit
 llio_transfer ../data/${cancer}.txt
 
-time mpirun ../build/run_3hit \\
+time mpiexec -mca common_tofu_num_mrq_entries 2097152 ../build/run_3hit \\
   ../data/${cancer}.txt \\
   $OUTPUT_DIR/${cancer}_3hit.csv \\
   $OUTPUT_DIR/${cancer}_3hit.out

@@ -6,47 +6,52 @@
 #include "commons.h"
 #include "readFile.h"
 
-// #########################HELPER###########################
-void handle_mpi_error(int rc, const char *context, int rank) {
-  if (rc != MPI_SUCCESS) {
-    char error_string[BUFSIZ];
-    int length_of_error_string;
-    MPI_Error_string(rc, error_string, &length_of_error_string);
-    fprintf(stderr, "Rank %d: %s: %s\n", rank, context, error_string);
-    MPI_Abort(MPI_COMM_WORLD, rc);
-  }
-}
+// constexpr size_t MAX_CHUNK_SIZE = 1 << 20; // 1MB chunk size
 
-void handle_parsing_error(const char *message, int rank, int abort_code = 1) {
-  fprintf(stderr, "Rank %d: %s\n", rank, message);
-  MPI_Abort(MPI_COMM_WORLD, abort_code);
-}
+char *broadcast_file_buffer(const char *filename, int rank,
+                            size_t &out_file_size, MPI_Comm comm) {
+  char *buffer = nullptr;
 
-char *read_entire_file_into_buffer(const char *filename, int rank) {
-  FILE *fp = fopen(filename, "rb");
-  if (!fp) {
-    fprintf(stderr, "Rank %d: Error opening file \"%s\"\n", rank, filename);
-    MPI_Abort(MPI_COMM_WORLD, 1);
-  }
+  if (rank == 0) {
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) {
+      fprintf(stderr, "Rank 0: Failed to open file %s\n", filename);
+      MPI_Abort(comm, 1);
+    }
 
-  fseek(fp, 0, SEEK_END);
-  long file_size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
+    fseek(fp, 0, SEEK_END);
+    out_file_size = ftell(fp);
+    rewind(fp);
 
-  char *buffer = new char[file_size + 1];
-
-  size_t bytesRead = fread(buffer, 1, file_size, fp);
-  if (bytesRead < (size_t)file_size) {
-    fprintf(stderr,
-            "Rank %d: Could not read full file (only %zu of %lld bytes)\n",
-            rank, bytesRead, (long long)file_size);
+    buffer = new char[out_file_size + 1];
+    size_t bytes_read = fread(buffer, 1, out_file_size, fp);
     fclose(fp);
-    MPI_Abort(MPI_COMM_WORLD, 1);
+
+    if (bytes_read != out_file_size) {
+      fprintf(stderr, "Rank 0: File read error\n");
+      MPI_Abort(comm, 1);
+    }
+    buffer[out_file_size] = '\0';
   }
 
-  buffer[file_size] = '\0';
+  MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, comm);
 
-  fclose(fp);
+  if (rank != 0) {
+    buffer = new char[out_file_size + 1];
+  }
+
+  /**
+  size_t offset = 0;
+  while (offset < out_file_size) {
+    size_t chunk_size = std::min(MAX_CHUNK_SIZE, out_file_size - offset);
+    MPI_Bcast(buffer + offset, chunk_size, MPI_CHAR, 0, comm);
+    offset += chunk_size;
+  }**/
+
+  MPI_Bcast(buffer, out_file_size, MPI_CHAR, 0, comm);
+
+  buffer[out_file_size] = '\0';
+
   return buffer;
 }
 
@@ -84,14 +89,13 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
 
     for (size_t col = 0; col < table.numCols; ++col) {
       if (line[col] == '1') {
-        if (col < table.numTumor) {
+        if (col < table.numTumor)
           SET_COLLECTION_INSERT(table.tumorData, row_index, col, table.numTumor,
                                 table.tumorRowUnits);
-        } else {
-          size_t normalIdx = col - table.numTumor;
-          SET_COLLECTION_INSERT(table.normalData, row_index, normalIdx,
-                                table.numNormal, table.normalRowUnits);
-        }
+        else
+          SET_COLLECTION_INSERT(table.normalData, row_index,
+                                col - table.numTumor, table.numNormal,
+                                table.normalRowUnits);
       }
     }
 
@@ -106,101 +110,23 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
   }
 }
 
-void broadcast_table(sets_t &table, int rank) {
-  char *buffer = nullptr;
-  size_t buffer_size;
-
-  if (rank == 0) {
-    size_t tumorDataSize =
-        table.numRows * table.tumorRowUnits * sizeof(*(table.tumorData));
-    size_t normalDataSize =
-        table.numRows * table.normalRowUnits * sizeof(*(table.normalData));
-
-    buffer_size = sizeof(size_t) * 6 + tumorDataSize + normalDataSize;
-
-    buffer = new char[buffer_size];
-    char *ptr = buffer;
-
-    memcpy(ptr, &table.numRows, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(ptr, &table.numCols, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(ptr, &table.numTumor, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(ptr, &table.numNormal, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(ptr, &table.tumorRowUnits, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(ptr, &table.normalRowUnits, sizeof(size_t));
-    ptr += sizeof(size_t);
-
-    memcpy(ptr, table.tumorData, tumorDataSize);
-    ptr += tumorDataSize;
-    memcpy(ptr, table.normalData, normalDataSize);
-  }
-
-  MPI_Bcast(&buffer_size, 1, MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
-
-  if (rank != 0) {
-    buffer = new char[buffer_size];
-  }
-
-  MPI_Bcast(buffer, buffer_size, MPI_CHAR, 0, MPI_COMM_WORLD);
-
-  if (rank != 0) {
-    char *ptr = buffer;
-
-    memcpy(&table.numRows, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(&table.numCols, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(&table.numTumor, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(&table.numNormal, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(&table.tumorRowUnits, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-    memcpy(&table.normalRowUnits, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-
-    SET_COLLECTION_NEW(table.tumorData, table.numRows, table.numTumor,
-                       table.tumorRowUnits);
-    SET_COLLECTION_NEW(table.normalData, table.numRows, table.numNormal,
-                       table.normalRowUnits);
-
-    size_t tumorDataSize =
-        table.numRows * table.tumorRowUnits * sizeof(*(table.tumorData));
-    size_t normalDataSize =
-        table.numRows * table.normalRowUnits * sizeof(*(table.normalData));
-
-    memcpy(table.tumorData, ptr, tumorDataSize);
-    ptr += tumorDataSize;
-    memcpy(table.normalData, ptr, normalDataSize);
-  }
-
-  delete[] buffer;
-}
-
 sets_t read_data(const char *filename, int rank) {
   sets_t table = {0};
+  size_t file_size;
 
-  if (rank == 0) {
-    char *file_buffer = read_entire_file_into_buffer(filename, rank);
+  char *file_buffer =
+      broadcast_file_buffer(filename, rank, file_size, MPI_COMM_WORLD);
 
-    char *header_line = strtok(file_buffer, "\n");
-    if (!header_line) {
-      delete[] file_buffer;
-      fprintf(stderr, "Rank %d: Empty or malformed file\n", rank);
-      MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
-    allocate_sets_from_header(table, header_line, rank);
-    parse_and_populate(table, file_buffer, rank);
-
-    delete[] file_buffer;
+  char *header_line = strtok(file_buffer, "\n");
+  if (!header_line) {
+    fprintf(stderr, "Rank %d: Malformed file, missing header\n", rank);
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-  broadcast_table(table, rank);
+  allocate_sets_from_header(table, header_line, rank);
+  parse_and_populate(table, file_buffer, rank);
+
+  delete[] file_buffer;
 
   return table;
 }

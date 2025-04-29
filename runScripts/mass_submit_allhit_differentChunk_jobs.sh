@@ -57,7 +57,7 @@ for num in "${hitNumbers[@]}"; do
 llio_transfer ${EXECUTABLE}
 llio_transfer ../data/${cancer}.combinedData_sorted_bin.txt
 mkdir -p "${OUTPUT_DIR}"
-time mpirun ${EXECUTABLE} ../data/${cancer}.combinedData_sorted_bin.txt ${OUTPUT_DIR}/${chunk}_${num}hit.csv ${OUTPUT_DIR}/${chunk}_${num}hit.out
+mpiexec -mca common_tofu_num_mrq_entries 2097152 ${EXECUTABLE} ../data/${cancer}.combinedData_sorted_bin.txt ${OUTPUT_DIR}/${chunk}_${num}hit.csv ${OUTPUT_DIR}/${chunk}_${num}hit.out
 EOF
       done
     done
