@@ -430,6 +430,14 @@ extract_global_comb(const MPIResultWithComb &globalResult) {
 
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable) {
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) {
+    double t1 = MPI_Wtime();
+    printf("All ranks in distribute_tasks\n");
+    fflush(stdout);
+  }
+
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
 
