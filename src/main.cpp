@@ -179,7 +179,14 @@ int main(int argc, char *argv[]) {
 
   double elapsed_times[TIMING_COUNT] = {0.0};
 
+  double t0 = MPI_Wtime();
   sets_t dataTable = read_data(argv[1], rank);
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) {
+    double t1 = MPI_Wtime();
+    printf("Rank %d elapsed: %.6f seconds\n", rank, t1 - t0);
+    fflush(stdout);
+  }
 
   START_TIMING(total_time);
   distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
