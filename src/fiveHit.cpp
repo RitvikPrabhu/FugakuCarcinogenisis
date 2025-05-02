@@ -135,6 +135,13 @@ inline void distribute_work(int num_workers, LAMBDA_TYPE num_Comb,
       if (message == 'a') {
         MPI_Send(&next_idx, 1, MPI_LONG_LONG_INT, workerRank, 2,
                  MPI_COMM_WORLD);
+        std::cout << "[" << std::fixed << std::setprecision(3) << MPI_Wtime()
+                  << "s] "
+                  << "Sent combos [" << next_idx << "–"
+                  << (std::min(next_idx + CHUNK_SIZE, num_Comb) - 1)
+                  << "] to rank " << workerRank << ". "
+                  << (num_Comb - std::min(next_idx + CHUNK_SIZE, num_Comb))
+                  << " combos left.\n";
         next_idx += CHUNK_SIZE;
       }
     }
