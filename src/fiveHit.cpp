@@ -140,7 +140,7 @@ inline void distribute_work(int num_workers, LAMBDA_TYPE num_Comb,
                   << (std::min(next_idx + CHUNK_SIZE, num_Comb) - 1)
                   << "] to rank " << workerRank << ". "
                   << (num_Comb - std::min(next_idx + CHUNK_SIZE, num_Comb))
-                  << " combos left.\n";
+                  << " combos left." << std::endl;
         next_idx += CHUNK_SIZE;
       }
     }
