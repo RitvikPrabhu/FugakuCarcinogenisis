@@ -4,8 +4,8 @@ project(run)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(NUMHITS "3" CACHE STRING "Number of hits in the pattern (e.g. 3, 4, 5, 6...)")
-set(CHUNK_SIZE "102400" CACHE STRING "Chunk size used in code")
+set(NUMHITS "4" CACHE STRING "Number of hits in the pattern (e.g. 3, 4, 5, 6...)")
+set(CHUNK_SIZE "2" CACHE STRING "Chunk size used in code")
 
 add_definitions(-DNUMHITS=${NUMHITS})
 add_definitions(-DCHUNK_SIZE=${CHUNK_SIZE})
@@ -21,11 +21,6 @@ if(USE_CPP_SET)
     add_definitions(-DUSE_CPP_SET)
 endif()
 
-option(USE_SVE_BIT "Use C++ Set implementation" OFF)
-if(USE_SVE_BIT)
-    add_definitions(-DUSE_SVE_BIT)
-endif()
-
 # Include directories
 include_directories(include)
 
@@ -39,7 +34,7 @@ find_package(OpenMP REQUIRED)
 set(SOURCES
     src/main.cpp
     src/readFile.cpp
-    src/threeHit.cpp
+    src/multiHit.cpp
 )
 
 add_executable(run ${SOURCES})
