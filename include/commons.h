@@ -80,6 +80,14 @@ typedef std::vector<SET> SET_COLLECTION;
   {                                                                            \
   }
 
+#define SET_INTERSECT_N(dest, sets_array, num_sets, size_in_units)             \
+  do {                                                                         \
+    SET_COPY(dest, sets_array[0], size_in_units);                              \
+    for (size_t idx = 1; idx < num_sets; ++idx) {                              \
+      SET_INTERSECT(dest, dest, sets_array[idx], size_in_units);               \
+    }                                                                          \
+  } while (0)
+
 #else
 
 typedef int64_t unit_t;
@@ -166,6 +174,15 @@ typedef unit_t *SET_COLLECTION;
   do {                                                                         \
     SET_FREE((dt).tumorData);                                                  \
     SET_FREE((dt).normalData);                                                 \
+  } while (0)
+
+#define SET_INTERSECT_N(dest, sets_array, num_sets, size_in_units)             \
+  do {                                                                         \
+    for (size_t __i = 0; __i < size_in_units; ++__i) {                         \
+      dest[__i] = sets_array[0][__i];                                          \
+      for (size_t idx = 1; idx < num_sets; ++idx)                              \
+        dest[__i] &= sets_array[idx][__i];                                     \
+    }                                                                          \
   } while (0)
 
 #endif

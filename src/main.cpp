@@ -10,28 +10,10 @@
 #include <vector>
 
 #include "commons.h"
+#include "multiHit.h"
 #include "readFile.h"
 #include "utils.h"
 
-#if NUMHITS == 2
-#include "twoHit.h"
-#elif NUMHITS == 3
-#include "threeHit.h"
-#elif NUMHITS == 4
-#include "fourHit.h"
-#elif NUMHITS == 5
-#include "fiveHit.h"
-#elif NUMHITS == 6
-#include "sixHit.h"
-#elif NUMHITS == 7
-#include "sevenHit.h"
-#elif NUMHITS == 8
-#include "eightHit.h"
-#elif NUMHITS == 9
-#include "nineHit.h"
-#else
-#error "NUMHITS value not supported by the code!"
-#endif
 // ###########################HELPER#########################
 bool parse_arguments(int argc, char *argv[]) {
   if (argc < 4) {
