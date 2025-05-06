@@ -252,7 +252,7 @@ inline void compute_inner_combination_recurse(
   if (combInd == NUMHITS + 1) {
     double alpha = 0.1;
     INCREMENT_COMBO_COUNT(elapsed_times);
-    int TP = SET_COUNT(buffers[combInd - 3], dataTable.tumorRowUnits);
+    int TP = SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
     SET normalRows[NUMHITS];
 
     for (int idx = 0; idx < NUMHITS; idx++) {
@@ -260,7 +260,8 @@ inline void compute_inner_combination_recurse(
                                 dataTable.normalRowUnits);
     }
 
-    SET_INTERSECT_N(buffers[2], normalRows, NUMHITS, dataTable.normalRowUnits);
+    SET_INTERSECT_N(buffers[NUMHITS - 2], normalRows, NUMHITS,
+                    dataTable.normalRowUnits);
 
     int coveredNormal =
         SET_COUNT(buffers[combInd - 3], dataTable.normalRowUnits);
