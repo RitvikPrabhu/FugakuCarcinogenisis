@@ -290,15 +290,19 @@ inline void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
 
         int TP = SET_COUNT(buffers[2], dataTable.tumorRowUnits);
 
-        SET rowIN =
-            GET_ROW(dataTable.normalData, computed.i, dataTable.normalRowUnits);
-        SET rowJN =
-            GET_ROW(dataTable.normalData, computed.j, dataTable.normalRowUnits);
-        SET rowKN = GET_ROW(dataTable.normalData, k, dataTable.normalRowUnits);
-        SET rowLN = GET_ROW(dataTable.normalData, l, dataTable.normalRowUnits);
+        int geneIndices[] = {computed.i, computed.j, k, l};
+        constexpr int numGenesToIntersect =
+            sizeof(geneIndices) / sizeof(geneIndices[0]);
 
-        SET_INTERSECT_N(buffers[2], dataTable.normalRowUnits, rowIN, rowJN,
-                        rowKN, rowLN);
+        SET normalRows[numGenesToIntersect];
+
+        for (int idx = 0; idx < numGenesToIntersect; ++idx) {
+          normalRows[idx] = GET_ROW(dataTable.normalData, geneIndices[idx],
+                                    dataTable.normalRowUnits);
+        }
+
+        SET_INTERSECT_N(buffers[2], normalRows, numGenesToIntersect,
+                        dataTable.normalRowUnits);
 
         int coveredNormal = SET_COUNT(buffers[2], dataTable.normalRowUnits);
         int TN = (int)dataTable.numNormal - coveredNormal;
@@ -443,12 +447,14 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
     std::array<int, NUMHITS> globalBestComb = extract_global_comb(globalResult);
 
-    SET_INTERSECT_N(
-        buffers[NUMHITS - 2], dataTable.tumorRowUnits,
-        GET_ROW(dataTable.tumorData, globalBestComb[0], tumorUnits),
-        GET_ROW(dataTable.tumorData, globalBestComb[1], tumorUnits),
-        GET_ROW(dataTable.tumorData, globalBestComb[2], tumorUnits),
-        GET_ROW(dataTable.tumorData, globalBestComb[3], tumorUnits));
+    SET intersectionSets[NUMHITS];
+    for (int i = 0; i < NUMHITS; ++i) {
+      intersectionSets[i] =
+          GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits);
+    }
+
+    SET_INTERSECT_N(buffers[NUMHITS - 2], intersectionSets, NUMHITS,
+                    tumorUnits);
 
     SET_UNION(droppedSamples, droppedSamples, buffers[NUMHITS - 2],
               dataTable.tumorRowUnits);
