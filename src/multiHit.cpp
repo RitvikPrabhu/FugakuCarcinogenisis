@@ -252,77 +252,85 @@ MPI_Datatype create_mpi_result_with_comb_type() {
   return MPI_RESULT_WITH_COMB;
 }
 
-inline void compute_inner_combination_recurse(
-    SET *buffers, int start, int combInd, sets_t &dataTable, int localComb[],
-    int bestCombination[], double &maxF, double elapsed_times[]) {
-  if (combInd == NUMHITS + 1) {
-    double alpha = 0.1;
-    INCREMENT_COMBO_COUNT(elapsed_times);
-    int TP = SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
-    SET normalRows[NUMHITS];
+static inline void process_lambda_interval(LAMBDA_TYPE startComb,
+                                           LAMBDA_TYPE endComb,
+                                           int bestCombination[], double &maxF,
+                                           sets_t &dataTable, SET *buffers,
+                                           double elapsed_times[]) {
 
-    for (int idx = 0; idx < NUMHITS; idx++) {
-      normalRows[idx] = GET_ROW(dataTable.normalData, localComb[idx],
-                                dataTable.normalRowUnits);
-    }
-
-    SET_INTERSECT_N(buffers[NUMHITS - 2], normalRows, NUMHITS,
-                    dataTable.normalRowUnits);
-
-    int coveredNormal =
-        SET_COUNT(buffers[combInd - 3], dataTable.normalRowUnits);
-    int TN = (int)dataTable.numNormal - coveredNormal;
-    double F = (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
-    if (F >= maxF) {
-      maxF = F;
-      for (int k = 0; k < NUMHITS; ++k)
-        bestCombination[k] = localComb[k];
-    }
-
-  } else {
-    int totalGenes = dataTable.numRows;
-    for (int ind = start; ind < totalGenes - (NUMHITS - combInd); ind++) {
-      SET row = GET_ROW(dataTable.tumorData, ind, dataTable.tumorRowUnits);
-      SET_INTERSECT(buffers[combInd - 2], buffers[combInd - 3], row,
-                    dataTable.tumorRowUnits);
-      if (SET_IS_EMPTY(buffers[combInd - 2], dataTable.tumorRowUnits)) {
-        continue;
-      }
-      localComb[combInd - 1] = ind;
-      compute_inner_combination_recurse(buffers, ind + 1, combInd + 1,
-                                        dataTable, localComb, bestCombination,
-                                        maxF, elapsed_times);
-    }
-  }
-}
-
-inline void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
-                                    int bestCombination[], double &maxF,
-                                    sets_t &dataTable, SET buffers[],
-                                    double elapsed_times[]) {
-  int totalGenes = dataTable.numRows;
+  const int totalGenes = dataTable.numRows;
+  const double alpha = 0.1;
   int localComb[NUMHITS] = {0};
 
-  for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; lambda++) {
+  for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
-    if (computed.j < 0) {
+    if (computed.j < 0)
       continue;
-    }
+
     SET rowI =
         GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
-
     SET_INTERSECT(buffers[0], rowI, rowJ, dataTable.tumorRowUnits);
-
-    if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits)) {
+    if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits))
       continue;
-    }
+
     localComb[0] = computed.i;
     localComb[1] = computed.j;
-    compute_inner_combination_recurse(buffers, computed.j + 1, 3, dataTable,
-                                      localComb, bestCombination, maxF,
-                                      elapsed_times);
+
+    int indices[NUMHITS];
+    indices[0] = computed.i;
+    indices[1] = computed.j;
+    indices[2] = computed.j + 1;
+    int level = 2;
+
+    while (level >= 2) {
+      int maxStart = totalGenes - (NUMHITS - (level + 1));
+      if (indices[level] >= maxStart) {
+        --level;
+        if (level >= 2) {
+          ++indices[level];
+        }
+        continue;
+      }
+
+      SET rowK =
+          GET_ROW(dataTable.tumorData, indices[level], dataTable.tumorRowUnits);
+      SET_INTERSECT(buffers[level - 1], buffers[level - 2], rowK,
+                    dataTable.tumorRowUnits);
+      if (SET_IS_EMPTY(buffers[level - 1], dataTable.tumorRowUnits)) {
+        ++indices[level];
+        continue;
+      }
+
+      localComb[level] = indices[level];
+
+      if (level == NUMHITS - 1) {
+        INCREMENT_COMBO_COUNT(elapsed_times);
+        int TP = SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
+        SET normalRows[NUMHITS];
+        for (int idx = 0; idx < NUMHITS; ++idx) {
+          normalRows[idx] = GET_ROW(dataTable.normalData, localComb[idx],
+                                    dataTable.normalRowUnits);
+        }
+        SET_INTERSECT_N(buffers[NUMHITS - 2], normalRows, NUMHITS,
+                        dataTable.normalRowUnits);
+        int coveredNormal =
+            SET_COUNT(buffers[NUMHITS - 2], dataTable.normalRowUnits);
+        int TN = (int)dataTable.numNormal - coveredNormal;
+        double F =
+            (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
+        if (F >= maxF) {
+          maxF = F;
+          for (int k = 0; k < NUMHITS; ++k)
+            bestCombination[k] = localComb[k];
+        }
+        ++indices[level];
+      } else {
+        ++level;
+        indices[level] = indices[level - 1] + 1;
+      }
+    }
   }
 }
 
