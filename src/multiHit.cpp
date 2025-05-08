@@ -27,7 +27,7 @@
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
 #define MAX_NAME_LEN 256
 
-int hash_hostname(const char *hostname) {
+static int hash_hostname(const char *hostname) {
   int hash = 0;
   while (*hostname) {
     hash = (hash * 31) ^ (*hostname); // Prime-based hashing with XOR
@@ -36,8 +36,9 @@ int hash_hostname(const char *hostname) {
   return hash & 0x7FFFFFFF; // Ensure positive value
 }
 
-void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
-                            MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) {
+static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
+                                   MPI_Datatype datatype, MPI_Op op,
+                                   MPI_Comm comm) {
 
   static MPI_Comm local_comm = MPI_COMM_NULL;
   static MPI_Comm global_comm = MPI_COMM_NULL;
@@ -116,12 +117,12 @@ void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
 //////////////////////////////  End Allreduce_hierarchical
 /////////////////////////
 
-inline LAMBDA_TYPE calculate_initial_index(int num_workers) {
+static inline LAMBDA_TYPE calculate_initial_index(int num_workers) {
   return static_cast<LAMBDA_TYPE>(num_workers) * CHUNK_SIZE;
 }
 
-inline void distribute_work(int num_workers, LAMBDA_TYPE num_Comb,
-                            LAMBDA_TYPE &next_idx) {
+static inline void distribute_work(int num_workers, LAMBDA_TYPE num_Comb,
+                                   LAMBDA_TYPE &next_idx) {
   while (next_idx < num_Comb) {
     MPI_Status status;
     int flag;
@@ -147,7 +148,7 @@ inline void distribute_work(int num_workers, LAMBDA_TYPE num_Comb,
   }
 }
 
-inline void master_process(int num_workers, LAMBDA_TYPE num_Comb) {
+static inline void master_process(int num_workers, LAMBDA_TYPE num_Comb) {
   LAMBDA_TYPE next_idx = calculate_initial_index(num_workers);
   distribute_work(num_workers, num_Comb, next_idx);
 
@@ -158,7 +159,7 @@ inline void master_process(int num_workers, LAMBDA_TYPE num_Comb) {
   }
 }
 
-inline LAMBDA_TYPE nCr(int n, int r) {
+static inline LAMBDA_TYPE nCr(int n, int r) {
   if (r > n)
     return 0;
   if (r == 0 || r == n)
@@ -174,7 +175,7 @@ inline LAMBDA_TYPE nCr(int n, int r) {
   return result;
 }
 
-void outputFileWriteError(std::ofstream &outfile) {
+static void outputFileWriteError(std::ofstream &outfile) {
 
   if (!outfile) {
     std::cerr << "Error: Could not open output file." << std::endl;
@@ -190,8 +191,8 @@ calculate_initial_chunk(int rank, LAMBDA_TYPE num_Comb,
   return {begin, end};
 }
 
-inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
-                                               int totalGenes) {
+static inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
+                                                      int totalGenes) {
   LambdaComputed computed;
   computed.j = static_cast<int>(std::floor(std::sqrt(0.25 + 2 * lambda) + 0.5));
   if (computed.j > totalGenes - (NUMHITS - 2)) {
@@ -202,8 +203,8 @@ inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
   return computed;
 }
 
-void write_output(int rank, std::ofstream &outfile, const int globalBestComb[],
-                  double F_max) {
+static void write_output(int rank, std::ofstream &outfile,
+                         const int globalBestComb[], double F_max) {
   outfile << "(";
   for (size_t idx = 0; idx < NUMHITS; ++idx) {
     outfile << globalBestComb[idx];
@@ -214,7 +215,8 @@ void write_output(int rank, std::ofstream &outfile, const int globalBestComb[],
   outfile << ")  F-max = " << F_max << std::endl;
 }
 
-void max_f_with_comb(void *in, void *inout, int *len, MPI_Datatype *type) {
+static void max_f_with_comb(void *in, void *inout, int *len,
+                            MPI_Datatype *type) {
   const MPIResultWithComb *in_vals = static_cast<const MPIResultWithComb *>(in);
   MPIResultWithComb *inout_vals = static_cast<MPIResultWithComb *>(inout);
 
@@ -228,13 +230,13 @@ void max_f_with_comb(void *in, void *inout, int *len, MPI_Datatype *type) {
   }
 }
 
-MPI_Op create_max_f_with_comb_op(MPI_Datatype MPI_RESULT_WITH_COMB) {
+static MPI_Op create_max_f_with_comb_op(MPI_Datatype MPI_RESULT_WITH_COMB) {
   MPI_Op MPI_MAX_F_WITH_COMB;
   MPI_Op_create(&max_f_with_comb, 1, &MPI_MAX_F_WITH_COMB);
   return MPI_MAX_F_WITH_COMB;
 }
 
-MPI_Datatype create_mpi_result_with_comb_type() {
+static MPI_Datatype create_mpi_result_with_comb_type() {
   MPI_Datatype MPI_RESULT_WITH_COMB;
 
   const int nitems = 2;
@@ -252,7 +254,7 @@ MPI_Datatype create_mpi_result_with_comb_type() {
   return MPI_RESULT_WITH_COMB;
 }
 
-inline void compute_inner_combination_recurse(
+static inline void compute_inner_combination_recurse(
     SET *buffers, int start, int combInd, sets_t &dataTable, int localComb[],
     int bestCombination[], double &maxF, double elapsed_times[]) {
   if (combInd == NUMHITS + 1) {
@@ -296,10 +298,11 @@ inline void compute_inner_combination_recurse(
   }
 }
 
-inline void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
-                                    int bestCombination[], double &maxF,
-                                    sets_t &dataTable, SET buffers[],
-                                    double elapsed_times[]) {
+static inline void process_lambda_interval(LAMBDA_TYPE startComb,
+                                           LAMBDA_TYPE endComb,
+                                           int bestCombination[], double &maxF,
+                                           sets_t &dataTable, SET buffers[],
+                                           double elapsed_times[]) {
   int totalGenes = dataTable.numRows;
   int localComb[NUMHITS] = {0};
 
@@ -326,11 +329,11 @@ inline void process_lambda_interval(LAMBDA_TYPE startComb, LAMBDA_TYPE endComb,
   }
 }
 
-bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
-                             double &localBestMaxF, int localComb[],
-                             LAMBDA_TYPE &begin, LAMBDA_TYPE &end,
-                             MPI_Status &status, sets_t dataTable, SET *buffers,
-                             double elapsed_times[]) {
+static bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
+                                    double &localBestMaxF, int localComb[],
+                                    LAMBDA_TYPE &begin, LAMBDA_TYPE &end,
+                                    MPI_Status &status, sets_t dataTable,
+                                    SET *buffers, double elapsed_times[]) {
   START_TIMING(run_time);
   process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
                           buffers, elapsed_times);
@@ -349,9 +352,10 @@ bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
   return true;
 }
 
-void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
-                    int localComb[], sets_t dataTable, SET *buffers,
-                    double elapsed_times[]) {
+static void worker_process(int rank, LAMBDA_TYPE num_Comb,
+                           double &localBestMaxF, int localComb[],
+                           sets_t dataTable, SET *buffers,
+                           double elapsed_times[]) {
   std::pair<LAMBDA_TYPE, LAMBDA_TYPE> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
 
@@ -370,9 +374,10 @@ void worker_process(int rank, LAMBDA_TYPE num_Comb, double &localBestMaxF,
   }
 }
 
-void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
-                  double &localBestMaxF, int localComb[], sets_t dataTable,
-                  SET *buffers, double elapsed_times[]) {
+static void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
+                         double &localBestMaxF, int localComb[],
+                         sets_t dataTable, SET *buffers,
+                         double elapsed_times[]) {
   if (rank == 0) {
     START_TIMING(master_proc);
     master_process(size_minus_one, num_Comb);
@@ -385,14 +390,14 @@ void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   }
 }
 
-inline void initialize_local_comb_and_f(double &f, int localComb[]) {
+static inline void initialize_local_comb_and_f(double &f, int localComb[]) {
   f = 0;
   for (int i = 0; i < NUMHITS; ++i) {
     localComb[i] = -1;
   }
 }
 
-MPIResultWithComb create_mpi_result(double f, const int comb[]) {
+static MPIResultWithComb create_mpi_result(double f, const int comb[]) {
   MPIResultWithComb result;
   result.f = f;
   for (int i = 0; i < NUMHITS; ++i) {
@@ -401,8 +406,8 @@ MPIResultWithComb create_mpi_result(double f, const int comb[]) {
   return result;
 }
 
-void extract_global_comb(int globalBestComb[],
-                         const MPIResultWithComb &globalResult) {
+static void extract_global_comb(int globalBestComb[],
+                                const MPIResultWithComb &globalResult) {
   for (int i = 0; i < NUMHITS; ++i) {
     globalBestComb[i] = globalResult.comb[i];
   }
