@@ -24,7 +24,7 @@ char *broadcast_file_buffer(const char *filename, int rank,
   MPI_Comm node_comm, leaders_comm;
   int node_rank, node_size;
 
-  char node_name[256];
+  char node_name[MAX_NAME_LEN];
   gethostname(node_name, sizeof(node_name));
 
   int node_color = hash_hostname(node_name);
