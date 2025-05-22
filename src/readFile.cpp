@@ -4,6 +4,15 @@
 #include <fstream>
 #include <iostream>
 #include <mpi.h>
+#include <unistd.h> // for gethostname
+
+int hash_hostname(const char *hostname) {
+  unsigned int hash = 0;
+  for (int i = 0; hostname[i] != '\0'; i++) {
+    hash = hash * 31 + hostname[i];
+  }
+  return (int)(hash % 1000000);
+}
 
 char *broadcast_file_buffer(const char *filename, int rank,
                             size_t &out_file_size, MPI_Comm comm) {
@@ -12,12 +21,16 @@ char *broadcast_file_buffer(const char *filename, int rank,
   MPI_Comm node_comm, leaders_comm;
   int node_rank, node_size;
 
-  MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL,
-                      &node_comm);
+  char node_name[256];
+  gethostname(node_name, sizeof(node_name));
+
+  int node_color = hash_hostname(node_name);
+
+  MPI_Comm_split(comm, node_color, rank, &node_comm);
   MPI_Comm_rank(node_comm, &node_rank);
   MPI_Comm_size(node_comm, &node_size);
 
-  int is_leader = (node_rank == 0) ? 1 : MPI_UNDEFINED;
+  int is_leader = (node_rank == 0) ? 0 : MPI_UNDEFINED;
   MPI_Comm_split(comm, is_leader, rank, &leaders_comm);
 
   if (rank == 0) {
@@ -39,7 +52,7 @@ char *broadcast_file_buffer(const char *filename, int rank,
     buffer[out_file_size] = '\0';
   }
 
-  if (is_leader == 1) {
+  if (is_leader == 0) { // Only node leaders participate
     MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, leaders_comm);
     if (node_rank == 0 && rank != 0) {
       buffer = new char[out_file_size + 1];
@@ -56,7 +69,7 @@ char *broadcast_file_buffer(const char *filename, int rank,
   buffer[out_file_size] = '\0';
 
   MPI_Comm_free(&node_comm);
-  if (is_leader == 1) {
+  if (is_leader == 0) { // Only leaders have valid leaders_comm
     MPI_Comm_free(&leaders_comm);
   }
 
