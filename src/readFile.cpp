@@ -9,21 +9,17 @@ char *broadcast_file_buffer(const char *filename, int rank,
                             size_t &out_file_size, MPI_Comm comm) {
   char *buffer = nullptr;
 
-  // Create node-level and leader communicators
   MPI_Comm node_comm, leaders_comm;
   int node_rank, node_size;
 
-  // Split into node-local communicator
   MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL,
                       &node_comm);
   MPI_Comm_rank(node_comm, &node_rank);
   MPI_Comm_size(node_comm, &node_size);
 
-  // Create leaders communicator (one rank per node)
   int is_leader = (node_rank == 0) ? 1 : MPI_UNDEFINED;
   MPI_Comm_split(comm, is_leader, rank, &leaders_comm);
 
-  // Stage 1: Rank 0 reads file and broadcasts to node leaders
   if (rank == 0) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
@@ -43,7 +39,6 @@ char *broadcast_file_buffer(const char *filename, int rank,
     buffer[out_file_size] = '\0';
   }
 
-  // Broadcast file size and content to node leaders first
   if (is_leader == 1) {
     MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, leaders_comm);
     if (node_rank == 0 && rank != 0) {
@@ -53,7 +48,6 @@ char *broadcast_file_buffer(const char *filename, int rank,
     buffer[out_file_size] = '\0';
   }
 
-  // Stage 2: Broadcast within each node
   MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, node_comm);
   if (node_rank != 0) {
     buffer = new char[out_file_size + 1];
@@ -61,7 +55,6 @@ char *broadcast_file_buffer(const char *filename, int rank,
   MPI_Bcast(buffer, out_file_size, MPI_CHAR, 0, node_comm);
   buffer[out_file_size] = '\0';
 
-  // Cleanup communicators
   MPI_Comm_free(&node_comm);
   if (is_leader == 1) {
     MPI_Comm_free(&leaders_comm);
