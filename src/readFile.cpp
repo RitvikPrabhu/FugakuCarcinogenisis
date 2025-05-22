@@ -6,12 +6,15 @@
 #include <mpi.h>
 #include <unistd.h> // for gethostname
 
+#define MAX_NAME_LEN 256
+
 int hash_hostname(const char *hostname) {
-  unsigned int hash = 0;
-  for (int i = 0; hostname[i] != '\0'; i++) {
-    hash = hash * 31 + hostname[i];
+  int hash = 0;
+  while (*hostname) {
+    hash = (hash * 31) ^ (*hostname); // Prime-based hashing with XOR
+    hostname++;
   }
-  return (int)(hash % 1000000);
+  return hash & 0x7FFFFFFF; // Ensure positive value
 }
 
 char *broadcast_file_buffer(const char *filename, int rank,
