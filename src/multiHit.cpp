@@ -375,7 +375,7 @@ static void extract_global_comb(int globalBestComb[],
 
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable,
-                      const CommsStruct &comms) {
+                      CommsStruct &comms) {
 
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
