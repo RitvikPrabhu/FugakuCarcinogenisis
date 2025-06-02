@@ -19,14 +19,14 @@
 //////////////////////////////  Start Allreduce_hierarchical
 /////////////////////////
 
-#ifdef ALL_REDUCE_HIERARCHICAL
+#ifdef HIERARCHICAL_COMMS
 #include <unistd.h>
 
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
 
 static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
                                    MPI_Datatype datatype, MPI_Op op,
-                                   HierarchicalComms &comms) {
+                                   CommsStruct &comms) {
 
   // Datatype size
   int datatype_size;
@@ -374,7 +374,8 @@ static void extract_global_comb(int globalBestComb[],
 }
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      double elapsed_times[], sets_t dataTable) {
+                      double elapsed_times[], sets_t dataTable,
+                      const CommsStruct &comms) {
 
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
@@ -414,7 +415,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
-                    MPI_MAX_F_WITH_COMB, MPI_COMM_WORLD);
+                    MPI_MAX_F_WITH_COMB, comms);
     int globalBestComb[NUMHITS];
     extract_global_comb(globalBestComb, globalResult);
 

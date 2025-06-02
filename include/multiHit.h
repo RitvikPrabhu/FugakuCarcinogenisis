@@ -56,5 +56,6 @@ struct WorkAdvertisement {
 };
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      double elapsed_times[], sets_t dataTable);
+                      double elapsed_times[], sets_t dataTable,
+                      const CommsStruct &comms);
 #endif
