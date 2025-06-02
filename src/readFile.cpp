@@ -30,7 +30,7 @@ char *broadcast_file_buffer(const char *filename, int rank,
     buffer[out_file_size] = '\0';
   }
 
-  if (comms.is_leader == 0) { // Only node leaders participate
+  if (comms.is_leader) { // Only node leaders participate
     MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, comms.global_comm);
     if (comms.local_rank == 0 && rank != 0) {
       buffer = new char[out_file_size + 1];
