@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
   double elapsed_times[TIMING_COUNT] = {0.0};
 
   double t0 = MPI_Wtime();
-  sets_t dataTable = read_data(argv[1], rank);
+  sets_t dataTable = read_data(argv[1], rank, comms);
   MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0) {
     double t1 = MPI_Wtime();
@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
   }
 
   START_TIMING(total_time);
-  distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
+  // distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
   END_TIMING(total_time, elapsed_times[TOTAL_TIME]);
 
 #ifdef ENABLE_PROFILE
@@ -285,6 +285,7 @@ int main(int argc, char *argv[]) {
   }
 #endif
   FREE_DATA_TABLE(dataTable);
+  cleanup_hierarchical_communicators(comms);
   MPI_Finalize();
   return 0;
 }

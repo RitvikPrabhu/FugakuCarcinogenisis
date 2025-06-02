@@ -4,6 +4,7 @@
 #include <chrono>
 #include <mpi.h>
 #define MAX_BUF_SIZE 1024
+#define MAX_NAME_LEN 256
 
 #ifndef NUMHITS
 #pragma message("NUMHITS was not provided, using default of 4")

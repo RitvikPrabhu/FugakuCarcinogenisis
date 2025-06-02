@@ -6,32 +6,16 @@
 #include <mpi.h>
 #include <unistd.h> // for gethostname
 
-#define MAX_NAME_LEN 256
-
 char *broadcast_file_buffer(const char *filename, int rank,
-                            size_t &out_file_size, MPI_Comm comm) {
+                            size_t &out_file_size,
+                            const HierarchicalComms &comms) {
   char *buffer = nullptr;
-
-  MPI_Comm node_comm, leaders_comm;
-  int node_rank, node_size;
-
-  char node_name[MAX_NAME_LEN];
-  gethostname(node_name, sizeof(node_name));
-
-  int node_color = hash_hostname(node_name);
-
-  MPI_Comm_split(comm, node_color, rank, &node_comm);
-  MPI_Comm_rank(node_comm, &node_rank);
-  MPI_Comm_size(node_comm, &node_size);
-
-  int is_leader = (node_rank == 0) ? 0 : MPI_UNDEFINED;
-  MPI_Comm_split(comm, is_leader, rank, &leaders_comm);
 
   if (rank == 0) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
       fprintf(stderr, "Rank 0: Failed to open file %s\n", filename);
-      MPI_Abort(comm, 1);
+      MPI_Abort(MPI_COMM_WORLD, 1);
     }
     fseek(fp, 0, SEEK_END);
     out_file_size = ftell(fp);
@@ -41,31 +25,26 @@ char *broadcast_file_buffer(const char *filename, int rank,
     fclose(fp);
     if (bytes_read != out_file_size) {
       fprintf(stderr, "Rank 0: File read error\n");
-      MPI_Abort(comm, 1);
+      MPI_Abort(MPI_COMM_WORLD, 1);
     }
     buffer[out_file_size] = '\0';
   }
 
-  if (is_leader == 0) { // Only node leaders participate
-    MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, leaders_comm);
-    if (node_rank == 0 && rank != 0) {
+  if (comms.is_leader == 0) { // Only node leaders participate
+    MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, comms.global_comm);
+    if (comms.local_rank == 0 && rank != 0) {
       buffer = new char[out_file_size + 1];
     }
-    MPI_Bcast(buffer, out_file_size, MPI_CHAR, 0, leaders_comm);
+    MPI_Bcast(buffer, out_file_size, MPI_CHAR, 0, comms.global_comm);
     buffer[out_file_size] = '\0';
   }
 
-  MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, node_comm);
-  if (node_rank != 0) {
+  MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, comms.local_comm);
+  if (comms.local_rank != 0) {
     buffer = new char[out_file_size + 1];
   }
-  MPI_Bcast(buffer, out_file_size, MPI_CHAR, 0, node_comm);
+  MPI_Bcast(buffer, out_file_size, MPI_CHAR, 0, comms.local_comm);
   buffer[out_file_size] = '\0';
-
-  MPI_Comm_free(&node_comm);
-  if (is_leader == 0) { // Only leaders have valid leaders_comm
-    MPI_Comm_free(&leaders_comm);
-  }
 
   return buffer;
 }
@@ -119,11 +98,11 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
   }
 }
 
-sets_t read_data(const char *filename, int rank) {
+sets_t read_data(const char *filename, int rank,
+                 const HierarchicalComms &comms) {
   sets_t table = {0};
   size_t file_size;
-  char *file_buffer =
-      broadcast_file_buffer(filename, rank, file_size, MPI_COMM_WORLD);
+  char *file_buffer = broadcast_file_buffer(filename, rank, file_size, comms);
   char *header_line = strtok(file_buffer, "\n");
   if (!header_line) {
     fprintf(stderr, "Rank %d: Malformed file, missing header\n", rank);
