@@ -48,7 +48,7 @@ static int hash_hostname(const char *hostname) {
 }
 
 #define HIERARCHICAL_COMMS 1
-// #undef HIERARCHICAL_COMMS
+#undef HIERARCHICAL_COMMS
 
 #ifdef ENABLE_PROFILE
 #define START_TIMING(var) double var##_start = MPI_Wtime();
