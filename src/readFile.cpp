@@ -7,8 +7,7 @@
 #include <unistd.h> // for gethostname
 
 char *broadcast_file_buffer(const char *filename, int rank,
-                            size_t &out_file_size,
-                            const HierarchicalComms &comms) {
+                            size_t &out_file_size, const CommsStruct &comms) {
   char *buffer = nullptr;
 
   if (rank == 0) {
@@ -30,6 +29,7 @@ char *broadcast_file_buffer(const char *filename, int rank,
     buffer[out_file_size] = '\0';
   }
 
+#ifdef HIERARCHICAL_COMMS
   if (comms.is_leader) { // Only node leaders participate
     MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, comms.global_comm);
     if (comms.local_rank == 0 && rank != 0) {
@@ -38,6 +38,7 @@ char *broadcast_file_buffer(const char *filename, int rank,
     MPI_Bcast(buffer, out_file_size, MPI_CHAR, 0, comms.global_comm);
     buffer[out_file_size] = '\0';
   }
+#endif
 
   MPI_Bcast(&out_file_size, 1, MPI_UNSIGNED_LONG_LONG, 0, comms.local_comm);
   if (comms.local_rank != 0) {
@@ -98,8 +99,7 @@ void parse_and_populate(sets_t &table, char *file_buffer, int rank) {
   }
 }
 
-sets_t read_data(const char *filename, int rank,
-                 const HierarchicalComms &comms) {
+sets_t read_data(const char *filename, int rank, const CommsStruct &comms) {
   sets_t table = {0};
   size_t file_size;
   char *file_buffer = broadcast_file_buffer(filename, rank, file_size, comms);

@@ -27,7 +27,7 @@ enum profile_out {
   TIMING_COUNT
 };
 
-struct HierarchicalComms {
+struct CommsStruct {
   MPI_Comm local_comm;
   MPI_Comm global_comm;
   int local_rank;
@@ -46,6 +46,9 @@ static int hash_hostname(const char *hostname) {
   }
   return hash & 0x7FFFFFFF;
 }
+
+#define HIERARCHICAL_COMMS 1
+// #undef HIERARCHICAL_COMMS
 
 #ifdef ENABLE_PROFILE
 #define START_TIMING(var) double var##_start = MPI_Wtime();

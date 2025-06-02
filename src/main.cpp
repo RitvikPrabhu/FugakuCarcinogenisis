@@ -43,9 +43,8 @@ inline LAMBDA_TYPE nCr(int n, int r) {
   return result;
 }
 
-HierarchicalComms setup_hierarchical_communicators(int world_rank,
-                                                   int world_size) {
-  HierarchicalComms comms;
+CommsStruct setup_hierarchical_communicators(int world_rank, int world_size) {
+  CommsStruct comms;
 
   char hostname[256];
   gethostname(hostname, sizeof(hostname));
@@ -71,13 +70,46 @@ HierarchicalComms setup_hierarchical_communicators(int world_rank,
   return comms;
 }
 
-void cleanup_hierarchical_communicators(const HierarchicalComms &comms) {
+CommsStruct setup_normal_communicators(int world_rank, int world_size) {
+  CommsStruct comms;
+  comms.local_comm = MPI_COMM_WORLD;
+  comms.global_comm = MPI_COMM_WORLD;
+  comms.local_rank = world_rank;
+  comms.local_size = world_size;
+  comms.global_rank = world_rank;
+  comms.my_node_id = world_rank;
+  comms.num_nodes = world_size;
+  comms.is_leader = 0;
+  return comms;
+}
+
+void cleanup_hierarchical_communicators(const CommsStruct &comms) {
   if (comms.local_comm != MPI_COMM_NULL) {
     MPI_Comm_free(const_cast<MPI_Comm *>(&comms.local_comm));
   }
   if (comms.is_leader && comms.global_comm != MPI_COMM_NULL) {
     MPI_Comm_free(const_cast<MPI_Comm *>(&comms.global_comm));
   }
+}
+
+CommsStruct setup_communicators(int world_rank, int world_size) {
+#ifdef HIERARCHICAL_COMMS
+  CommsStruct comms = setup_hierarchical_communicators(world_rank, world_size);
+#else
+  CommsStruct comms = setup_normal_communicators(rank, size);
+#endif
+
+  return comms;
+}
+
+void cleanup_normal_communicators(const CommsStruct &comms) {}
+
+void cleanup_communicators(CommsStruct &comms) {
+#ifdef HIERARCHICAL_COMMS
+  cleanup_hierarchical_communicators(comms);
+#else
+  cleanup_normal_communicators(comms);
+#endif
 }
 
 void write_combination_count(const char *metricsFile, const double *all_values,
@@ -194,7 +226,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  HierarchicalComms comms = setup_hierarchical_communicators(rank, size);
+  CommsStruct comms = setup_communicators(rank, size);
 
   double elapsed_times[TIMING_COUNT] = {0.0};
 
@@ -285,7 +317,7 @@ int main(int argc, char *argv[]) {
   }
 #endif
   FREE_DATA_TABLE(dataTable);
-  cleanup_hierarchical_communicators(comms);
+  cleanup_communicators(comms);
   MPI_Finalize();
   return 0;
 }
