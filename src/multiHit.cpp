@@ -63,7 +63,10 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
 
 #else // Not using hierachical Allreduce
 
-#define ALL_REDUCE_FUNC MPI_Allreduce
+// #define ALL_REDUCE_FUNC MPI_Allreduce
+
+#define ALL_REDUCE_FUNC(sendbuf, recvbuf, count, dtype, op, comms)             \
+  MPI_Allreduce((sendbuf), (recvbuf), (count), (dtype), (op), MPI_COMM_WORLD)
 
 #endif // ALL_REDUCE_HIERARCHICAL
 
