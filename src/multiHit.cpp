@@ -25,46 +25,10 @@
 #include <unistd.h>
 
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
-#define MAX_NAME_LEN 256
 
 static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
                                    MPI_Datatype datatype, MPI_Op op,
-                                   MPI_Comm comm) {
-
-  static MPI_Comm local_comm = MPI_COMM_NULL;
-  static MPI_Comm global_comm = MPI_COMM_NULL;
-  static int local_rank, local_size;
-  static int world_rank, world_size;
-  static int global_rank = -1; // Only valid in global_comm
-
-  if (local_comm == MPI_COMM_NULL) { // not Already initialized
-
-    MPI_Comm_rank(comm, &world_rank);
-    MPI_Comm_size(comm, &world_size);
-
-    // Get node name
-    char node_name[MAX_NAME_LEN];
-    gethostname(node_name, MAX_NAME_LEN);
-
-    // Generate a unique color per node (hashing the hostname)
-    int node_color = hash_hostname(node_name);
-    /* int node_color = extract_number_from_hostname(node_name); */
-    // printf("[%d] name: %s. Color: %d\n", world_rank, node_name, node_color);
-
-    // Create local communicator
-    MPI_Comm_split(comm, node_color, world_rank, &local_comm);
-    MPI_Comm_rank(local_comm, &local_rank);
-    MPI_Comm_size(local_comm, &local_size);
-
-    // Rank 0 of each local communicator joins the global communicator
-    int global_color = (local_rank == 0) ? 0 : MPI_UNDEFINED;
-    MPI_Comm_split(comm, global_color, world_rank, &global_comm);
-
-    // Get global rank (if in global_comm)
-    if (local_rank == 0) {
-      MPI_Comm_rank(global_comm, &global_rank);
-    }
-  }
+                                   HierarchicalComms &comms) {
 
   // Datatype size
   int datatype_size;
@@ -74,28 +38,28 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
   void *local_result = malloc(count * datatype_size);
 
   // Phase 1: Local Reduction
-  MPI_Reduce(sendbuf, local_result, count, datatype, op, 0, local_comm);
+  MPI_Reduce(sendbuf, local_result, count, datatype, op, 0, comms.local_comm);
 
   // Allocate buffer for global reduction (only needed for rank 0 in local_comm)
   void *global_result = NULL;
-  if (local_rank == 0) {
+  if (comms.is_leader) {
     global_result = malloc(count * datatype_size);
   }
 
   // Phase 2: Global Reduction (only rank 0 in each node participates)
-  if (local_rank == 0) {
+  if (comms.is_leader) {
     MPI_Allreduce(local_result, global_result, count, datatype, op,
-                  global_comm);
+                  comms.global_comm);
     // Copy the final result to recvbuf
     memcpy(recvbuf, global_result, count * datatype_size);
   }
 
   // Phase 3: Broadcast result to all processes in the local communicator
-  MPI_Bcast(recvbuf, count, datatype, 0, local_comm);
+  MPI_Bcast(recvbuf, count, datatype, 0, comms.local_comm);
 
   // Cleanup
   free(local_result);
-  if (local_rank == 0)
+  if (comms.is_leader)
     free(global_result);
 }
 
