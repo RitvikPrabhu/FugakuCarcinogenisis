@@ -96,7 +96,7 @@ CommsStruct setup_communicators(int world_rank, int world_size) {
 #ifdef HIERARCHICAL_COMMS
   CommsStruct comms = setup_hierarchical_communicators(world_rank, world_size);
 #else
-  CommsStruct comms = setup_normal_communicators(rank, size);
+  CommsStruct comms = setup_normal_communicators(world_rank, world_size);
 #endif
 
   return comms;
@@ -240,7 +240,7 @@ int main(int argc, char *argv[]) {
   }
 
   START_TIMING(total_time);
-  distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
+  // distribute_tasks(rank, size, argv[3], elapsed_times, dataTable);
   END_TIMING(total_time, elapsed_times[TOTAL_TIME]);
 
 #ifdef ENABLE_PROFILE

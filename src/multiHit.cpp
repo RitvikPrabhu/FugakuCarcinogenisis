@@ -15,8 +15,6 @@
 #include "utils.h"
 /// Here chose to uncomment one of these lines to
 // switch between hierarchical or vanilla MPI_Allreduce function
-#define ALL_REDUCE_HIERARCHICAL 1
-// #undef ALL_REDUCE_HIERARCHICAL
 
 //////////////////////////////  Start Allreduce_hierarchical
 /////////////////////////
