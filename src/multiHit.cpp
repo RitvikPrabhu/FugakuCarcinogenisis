@@ -27,15 +27,6 @@
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
 #define MAX_NAME_LEN 256
 
-static int hash_hostname(const char *hostname) {
-  int hash = 0;
-  while (*hostname) {
-    hash = (hash * 31) ^ (*hostname); // Prime-based hashing with XOR
-    hostname++;
-  }
-  return hash & 0x7FFFFFFF; // Ensure positive value
-}
-
 static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
                                    MPI_Datatype datatype, MPI_Op op,
                                    MPI_Comm comm) {

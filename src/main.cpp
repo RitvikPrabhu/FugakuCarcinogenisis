@@ -3,8 +3,6 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
-#include <mpi.h>
-#include <omp.h>
 #include <set>
 #include <unistd.h>
 #include <vector>
@@ -43,6 +41,43 @@ inline LAMBDA_TYPE nCr(int n, int r) {
     result /= i;
   }
   return result;
+}
+
+HierarchicalComms setup_hierarchical_communicators(int world_rank,
+                                                   int world_size) {
+  HierarchicalComms comms;
+
+  char hostname[256];
+  gethostname(hostname, sizeof(hostname));
+  int node_color = hash_hostname(hostname);
+
+  MPI_Comm_split(MPI_COMM_WORLD, node_color, world_rank, &comms.local_comm);
+  MPI_Comm_rank(comms.local_comm, &comms.local_rank);
+  MPI_Comm_size(comms.local_comm, &comms.local_size);
+
+  comms.my_node_id = world_rank / comms.local_size;
+  comms.num_nodes = world_size / comms.local_size;
+  comms.is_leader = (comms.local_rank == 0);
+
+  int global_color = comms.is_leader ? 0 : MPI_UNDEFINED;
+  MPI_Comm_split(MPI_COMM_WORLD, global_color, world_rank, &comms.global_comm);
+
+  if (comms.is_leader) {
+    MPI_Comm_rank(comms.global_comm, &comms.global_rank);
+  } else {
+    comms.global_rank = -1;
+  }
+
+  return comms;
+}
+
+void cleanup_hierarchical_communicators(const HierarchicalComms &comms) {
+  if (comms.local_comm != MPI_COMM_NULL) {
+    MPI_Comm_free(const_cast<MPI_Comm *>(&comms.local_comm));
+  }
+  if (comms.is_leader && comms.global_comm != MPI_COMM_NULL) {
+    MPI_Comm_free(const_cast<MPI_Comm *>(&comms.global_comm));
+  }
 }
 
 void write_combination_count(const char *metricsFile, const double *all_values,
@@ -158,6 +193,8 @@ int main(int argc, char *argv[]) {
     MPI_Finalize();
     return 1;
   }
+
+  HierarchicalComms comms = setup_hierarchical_communicators(rank, size);
 
   double elapsed_times[TIMING_COUNT] = {0.0};
 

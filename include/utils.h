@@ -1,8 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
-
 #include "commons.h"
-
+#include <chrono>
+#include <mpi.h>
 #define MAX_BUF_SIZE 1024
 
 #ifndef NUMHITS
@@ -25,6 +25,26 @@ enum profile_out {
   COMBINATION_COUNT,
   TIMING_COUNT
 };
+
+struct HierarchicalComms {
+  MPI_Comm local_comm;
+  MPI_Comm global_comm;
+  int local_rank;
+  int local_size;
+  int global_rank;
+  int my_node_id;
+  int num_nodes;
+  bool is_leader;
+};
+
+static int hash_hostname(const char *hostname) {
+  int hash = 0;
+  while (*hostname) {
+    hash = (hash * 31) ^ (*hostname);
+    hostname++;
+  }
+  return hash & 0x7FFFFFFF;
+}
 
 #ifdef ENABLE_PROFILE
 #define START_TIMING(var) double var##_start = MPI_Wtime();
