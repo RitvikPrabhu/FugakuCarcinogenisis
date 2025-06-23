@@ -60,18 +60,6 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
     free(global_result);
 }
 
-static inline std::pair<LAMBDA_TYPE, LAMBDA_TYPE>
-calculate_node_range(const CommsStruct &comms, LAMBDA_TYPE num_Comb) {
-  const LAMBDA_TYPE base = num_Comb / comms.num_nodes;
-  const LAMBDA_TYPE extra = num_Comb % comms.num_nodes;
-  const LAMBDA_TYPE k = comms.my_node_id;
-
-  LAMBDA_TYPE start = k * base + std::min<LAMBDA_TYPE>(k, extra);
-  LAMBDA_TYPE length = base + (k < extra ? 1 : 0);
-
-  return {start, start + length - 1};
-}
-
 static inline void execute_hierarchical(int rank, int size_minus_one,
                                         LAMBDA_TYPE num_Comb,
                                         double &localBestMaxF, int localComb[],
