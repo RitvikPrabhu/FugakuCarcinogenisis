@@ -79,7 +79,7 @@ CommsStruct setup_normal_communicators(int world_rank, int world_size) {
   comms.global_rank = world_rank;
   comms.my_node_id = world_rank;
   comms.num_nodes = world_size;
-  comms.is_leader = 0;
+  comms.is_leader = 1;
   return comms;
 }
 

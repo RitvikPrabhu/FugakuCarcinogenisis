@@ -13,8 +13,6 @@
 
 #include "multiHit.h"
 #include "utils.h"
-/// Here chose to uncomment one of these lines to
-// switch between hierarchical or vanilla MPI_Allreduce function
 
 //////////////////////////////  Start Allreduce_hierarchical
 /////////////////////////
@@ -23,7 +21,7 @@
 #include <unistd.h>
 
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
-
+#define EXECUTE execute_hierarchical
 static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
                                    MPI_Datatype datatype, MPI_Op op,
                                    CommsStruct &comms) {
@@ -38,7 +36,8 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
   // Phase 1: Local Reduction
   MPI_Reduce(sendbuf, local_result, count, datatype, op, 0, comms.local_comm);
 
-  // Allocate buffer for global reduction (only needed for rank 0 in local_comm)
+  // Allocate buffer for global reduction (only needed for rank 0 in
+  // local_comm)
   void *global_result = NULL;
   if (comms.is_leader) {
     global_result = malloc(count * datatype_size);
@@ -61,12 +60,40 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
     free(global_result);
 }
 
+static inline std::pair<LAMBDA_TYPE, LAMBDA_TYPE>
+calculate_node_range(const CommsStruct &comms, LAMBDA_TYPE num_Comb) {
+  const LAMBDA_TYPE base = num_Comb / comms.num_nodes;
+  const LAMBDA_TYPE extra = num_Comb % comms.num_nodes;
+  const LAMBDA_TYPE k = comms.my_node_id;
+
+  LAMBDA_TYPE start = k * base + std::min<LAMBDA_TYPE>(k, extra);
+  LAMBDA_TYPE length = base + (k < extra ? 1 : 0);
+
+  return {start, start + length - 1};
+}
+
+static inline void execute_hierarchical(int rank, int size_minus_one,
+                                        LAMBDA_TYPE num_Comb,
+                                        double &localBestMaxF, int localComb[],
+                                        sets_t dataTable, SET *buffers,
+                                        double elapsed_times[],
+                                        const CommsStruct &comms) {
+  const LAMBDA_TYPE base = num_Comb / comms.num_nodes;
+  const LAMBDA_TYPE extra = num_Comb % comms.num_nodes;
+  const int nodeID = comms.my_node_id;
+
+  const LAMBDA_TYPE nodeStart =
+      nodeID * base + std::min<LAMBDA_TYPE>(nodeID, extra);
+  const LAMBDA_TYPE nodeLen = base + (nodeID < extra ? 1 : 0);
+  const LAMBDA_TYPE nodeEnd = nodeStart + nodeLen - 1;
+  std::cout << "rank=" << rank << " nodeID=" << nodeID << " start=" << nodeStart
+            << " len=" << nodeLen << " end=" << nodeEnd << '\n';
+}
+
 #else // Not using hierachical Allreduce
 
-// #define ALL_REDUCE_FUNC MPI_Allreduce
-
-#define ALL_REDUCE_FUNC(sendbuf, recvbuf, count, dtype, op, comms)             \
-  MPI_Allreduce((sendbuf), (recvbuf), (count), (dtype), (op), MPI_COMM_WORLD)
+#define ALL_REDUCE_FUNC MPI_Allreduce
+#define EXECUTE execute_role
 
 #endif // ALL_REDUCE_HIERARCHICAL
 
@@ -339,8 +366,8 @@ static void worker_process(int rank, LAMBDA_TYPE num_Comb,
 
 static void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                          double &localBestMaxF, int localComb[],
-                         sets_t dataTable, SET *buffers,
-                         double elapsed_times[]) {
+                         sets_t dataTable, SET *buffers, double elapsed_times[],
+                         CommsStruct &comms) {
   if (rank == 0) {
     START_TIMING(master_proc);
     master_process(size_minus_one, num_Comb);
@@ -412,35 +439,36 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     int localComb[NUMHITS];
     initialize_local_comb_and_f(localBestMaxF, localComb);
 
-    execute_role(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
-                 buffers, elapsed_times);
+    EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
+            buffers, elapsed_times, comms);
+    /**
+        MPIResultWithComb localResult = create_mpi_result(localBestMaxF,
+       localComb); MPIResultWithComb globalResult = {};
+        ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
+                        MPI_MAX_F_WITH_COMB, comms);
+        int globalBestComb[NUMHITS];
+        extract_global_comb(globalBestComb, globalResult);
 
-    MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
-    MPIResultWithComb globalResult = {};
-    ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
-                    MPI_MAX_F_WITH_COMB, comms);
-    int globalBestComb[NUMHITS];
-    extract_global_comb(globalBestComb, globalResult);
+        SET intersectionSets[NUMHITS];
+        for (int i = 0; i < NUMHITS; ++i) {
+          intersectionSets[i] =
+              GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits);
+        }
 
-    SET intersectionSets[NUMHITS];
-    for (int i = 0; i < NUMHITS; ++i) {
-      intersectionSets[i] =
-          GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits);
-    }
+        SET_INTERSECT_N(buffers[NUMHITS - 2], intersectionSets, NUMHITS,
+                        tumorUnits);
 
-    SET_INTERSECT_N(buffers[NUMHITS - 2], intersectionSets, NUMHITS,
-                    tumorUnits);
+        SET_UNION(droppedSamples, droppedSamples, buffers[NUMHITS - 2],
+                  dataTable.tumorRowUnits);
 
-    SET_UNION(droppedSamples, droppedSamples, buffers[NUMHITS - 2],
-              dataTable.tumorRowUnits);
+        UPDATE_SET_COLLECTION(dataTable.tumorData, buffers[NUMHITS - 2],
+                              dataTable.numRows, dataTable.tumorRowUnits);
 
-    UPDATE_SET_COLLECTION(dataTable.tumorData, buffers[NUMHITS - 2],
-                          dataTable.numRows, dataTable.tumorRowUnits);
+        Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
 
-    Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
-
-    if (rank == 0)
-      write_output(rank, outfile, globalBestComb, globalResult.f);
+        if (rank == 0)
+          write_output(rank, outfile, globalBestComb, globalResult.f);**/
+    break;
   }
 
   if (rank == 0)
