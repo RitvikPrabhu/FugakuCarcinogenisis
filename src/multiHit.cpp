@@ -564,34 +564,32 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, elapsed_times, comms);
-    /**
-        MPIResultWithComb localResult = create_mpi_result(localBestMaxF,
-       localComb); MPIResultWithComb globalResult = {};
-        ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
-                        MPI_MAX_F_WITH_COMB, comms);
-        int globalBestComb[NUMHITS];
-        extract_global_comb(globalBestComb, globalResult);
+    MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
+    MPIResultWithComb globalResult = {};
+    ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
+                    MPI_MAX_F_WITH_COMB, comms);
+    int globalBestComb[NUMHITS];
+    extract_global_comb(globalBestComb, globalResult);
 
-        SET intersectionSets[NUMHITS];
-        for (int i = 0; i < NUMHITS; ++i) {
-          intersectionSets[i] =
-              GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits);
-        }
+    SET intersectionSets[NUMHITS];
+    for (int i = 0; i < NUMHITS; ++i) {
+      intersectionSets[i] =
+          GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits);
+    }
 
-        SET_INTERSECT_N(buffers[NUMHITS - 2], intersectionSets, NUMHITS,
-                        tumorUnits);
+    SET_INTERSECT_N(buffers[NUMHITS - 2], intersectionSets, NUMHITS,
+                    tumorUnits);
 
-        SET_UNION(droppedSamples, droppedSamples, buffers[NUMHITS - 2],
-                  dataTable.tumorRowUnits);
+    SET_UNION(droppedSamples, droppedSamples, buffers[NUMHITS - 2],
+              dataTable.tumorRowUnits);
 
-        UPDATE_SET_COLLECTION(dataTable.tumorData, buffers[NUMHITS - 2],
-                              dataTable.numRows, dataTable.tumorRowUnits);
+    UPDATE_SET_COLLECTION(dataTable.tumorData, buffers[NUMHITS - 2],
+                          dataTable.numRows, dataTable.tumorRowUnits);
 
-        Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
+    Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
 
-        if (rank == 0)
-          write_output(rank, outfile, globalBestComb, globalResult.f);**/
-    break;
+    if (rank == 0)
+      write_output(rank, outfile, globalBestComb, globalResult.f);
   }
 
   if (rank == 0)
