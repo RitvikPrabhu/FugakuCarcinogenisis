@@ -60,22 +60,25 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
     free(global_result);
 }
 
+static inline WorkChunk calculate_node_range(LAMBDA_TYPE num_Comb,
+                                             const CommsStruct &comms) {
+  const LAMBDA_TYPE base = num_Comb / comms.num_nodes;
+  const LAMBDA_TYPE extra = num_Comb % comms.num_nodes;
+  const int k = comms.my_node_id;
+
+  const LAMBDA_TYPE start = k * base + std::min<LAMBDA_TYPE>(k, extra);
+  const LAMBDA_TYPE len = base + (k < extra ? 1 : 0);
+
+  return {start, start + len - 1};
+}
+
 static inline void execute_hierarchical(int rank, int size_minus_one,
                                         LAMBDA_TYPE num_Comb,
                                         double &localBestMaxF, int localComb[],
                                         sets_t dataTable, SET *buffers,
                                         double elapsed_times[],
                                         const CommsStruct &comms) {
-  const LAMBDA_TYPE base = num_Comb / comms.num_nodes;
-  const LAMBDA_TYPE extra = num_Comb % comms.num_nodes;
-  const int nodeID = comms.my_node_id;
-
-  const LAMBDA_TYPE nodeStart =
-      nodeID * base + std::min<LAMBDA_TYPE>(nodeID, extra);
-  const LAMBDA_TYPE nodeLen = base + (nodeID < extra ? 1 : 0);
-  const LAMBDA_TYPE nodeEnd = nodeStart + nodeLen - 1;
-  std::cout << "rank=" << rank << " nodeID=" << nodeID << " start=" << nodeStart
-            << " len=" << nodeLen << " end=" << nodeEnd << '\n';
+  WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
 }
 
 #else // Not using hierachical Allreduce
