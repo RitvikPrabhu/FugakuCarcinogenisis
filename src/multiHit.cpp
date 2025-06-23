@@ -72,6 +72,21 @@ static inline WorkChunk calculate_node_range(LAMBDA_TYPE num_Comb,
   return {start, start + len - 1};
 }
 
+static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
+                                               int worker_id, int num_workers) {
+  const LAMBDA_TYPE nodeLen = leaderRange.end - leaderRange.start + 1;
+
+  const LAMBDA_TYPE base = nodeLen / num_workers;
+  const LAMBDA_TYPE extra = nodeLen % num_workers;
+
+  const LAMBDA_TYPE start = leaderRange.start + worker_id * base +
+                            std::min<LAMBDA_TYPE>(worker_id, extra);
+
+  const LAMBDA_TYPE len = base + (worker_id < extra ? 1 : 0);
+
+  return {start, start + len - 1};
+}
+
 static inline void execute_hierarchical(int rank, int size_minus_one,
                                         LAMBDA_TYPE num_Comb,
                                         double &localBestMaxF, int localComb[],
@@ -79,6 +94,23 @@ static inline void execute_hierarchical(int rank, int size_minus_one,
                                         double elapsed_times[],
                                         const CommsStruct &comms) {
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
+  const int num_workers = comms.local_size - 1;
+
+  WorkChunk myChunk;
+  if (comms.local_rank == 0) { // I'm the node-leader
+    myChunk = leaderRange;
+  } else {
+    const int worker_id = comms.local_rank - 1;
+    myChunk = calculate_worker_range(leaderRange, worker_id, num_workers);
+  }
+
+  /* Leader stores everybody’s initial allocation for bookkeeping ---- */
+  static std::vector<WorkChunk> initialMap;
+  if (comms.is_leader) {
+    initialMap.resize(num_workers);
+    for (int w = 0; w < num_workers; ++w)
+      initialMap[w] = calculate_worker_range(leaderRange, w, num_workers);
+  }
 }
 
 #else // Not using hierachical Allreduce
