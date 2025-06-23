@@ -32,4 +32,10 @@ struct WorkChunk {
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable,
                       CommsStruct &comms);
+
+static inline void process_lambda_interval(LAMBDA_TYPE startComb,
+                                           LAMBDA_TYPE endComb,
+                                           int bestCombination[], double &maxF,
+                                           sets_t &dataTable, SET *buffers,
+                                           double elapsed_times[]);
 #endif

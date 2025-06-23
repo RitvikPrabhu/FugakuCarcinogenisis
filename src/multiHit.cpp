@@ -87,6 +87,15 @@ static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
   return {start, start + len - 1};
 }
 
+static void worker_hierarchical(int worker_local_rank, const WorkChunk &myChunk,
+                                double &localBestMaxF, int localComb[],
+                                sets_t dataTable, SET *buffers,
+                                double elapsed_times[],
+                                const CommsStruct &comms) {
+  process_lambda_interval(myChunk.start, myChunk.end, localComb, localBestMaxF,
+                          dataTable, buffers, elapsed_times);
+}
+
 static inline void execute_hierarchical(int rank, int size_minus_one,
                                         LAMBDA_TYPE num_Comb,
                                         double &localBestMaxF, int localComb[],
@@ -110,6 +119,14 @@ static inline void execute_hierarchical(int rank, int size_minus_one,
     initialMap.resize(num_workers);
     for (int w = 0; w < num_workers; ++w)
       initialMap[w] = calculate_worker_range(leaderRange, w, num_workers);
+  }
+
+  // Execute the various roles
+  if (comms.local_rank == 0) {
+    // node_leader_hierarchical(leaderRange, num_workers, /* … */, comms);
+  } else {
+    worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
+                        dataTable, buffers, elapsed_times, comms);
   }
 }
 
