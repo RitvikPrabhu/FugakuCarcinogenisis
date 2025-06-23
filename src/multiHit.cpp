@@ -87,26 +87,92 @@ static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
   return {start, start + len - 1};
 }
 
-static void worker_hierarchical(int worker_local_rank, const WorkChunk &myChunk,
-                                double &localBestMaxF, int localComb[],
-                                sets_t dataTable, SET *buffers,
-                                double elapsed_times[],
-                                const CommsStruct &comms) {
-  process_lambda_interval(myChunk.start, myChunk.end, localComb, localBestMaxF,
-                          dataTable, buffers, elapsed_times);
+inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
+
+static void node_leader_hierarchical(const WorkChunk &leaderRange,
+                                     int num_workers,
+                                     const CommsStruct &comms) {
+  std::vector<WorkChunk> table(num_workers + 1);
+  for (int w = 1; w <= num_workers; ++w)
+    table[w] = calculate_worker_range(leaderRange, w - 1, num_workers);
+
+  int active_workers = num_workers;
+
+  while (active_workers) {
+    MPI_Status st;
+    int flag = 0;
+    MPI_Iprobe(MPI_ANY_SOURCE, TAG_REQUEST_WORK, comms.local_comm, &flag, &st);
+    if (!flag)
+      continue;
+    int requester = st.MPI_SOURCE;
+    MPI_Recv(nullptr, 0, MPI_BYTE, requester, TAG_REQUEST_WORK,
+             comms.local_comm, MPI_STATUS_IGNORE);
+
+    int donor = -1;
+    LAMBDA_TYPE bestLen = 0;
+    for (int w = 1; w <= num_workers; ++w) {
+      LAMBDA_TYPE len = length(table[w]);
+      if (len > bestLen) {
+        bestLen = len;
+        donor = w;
+      }
+    }
+
+    WorkChunk reply{0, -1};
+
+    if (donor != -1 && bestLen > 1) {
+      WorkChunk &d = table[donor];
+      LAMBDA_TYPE mid = d.start + (bestLen / 2) - 1;
+
+      reply.start = mid + 1;
+      reply.end = d.end;
+
+      d.end = mid;
+
+      MPI_Request req;
+      MPI_Isend(&d.end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+                comms.local_comm, &req);
+    } else {
+      --active_workers;
+    }
+
+    MPI_Request req;
+    MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
+              comms.local_comm, &req);
+
+    table[requester] = reply;
+  }
 }
 
-static inline void execute_hierarchical(int rank, int size_minus_one,
-                                        LAMBDA_TYPE num_Comb,
-                                        double &localBestMaxF, int localComb[],
-                                        sets_t dataTable, SET *buffers,
-                                        double elapsed_times[],
-                                        const CommsStruct &comms) {
+static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
+                                double &localBestMaxF, int localComb[],
+                                sets_t dataTable, SET *buffers,
+                                double elapsed_times[], CommsStruct &comms) {
+
+  while (true) {
+    process_lambda_interval(myChunk.start, myChunk.end, localComb,
+                            localBestMaxF, dataTable, buffers, elapsed_times,
+                            comms);
+
+    MPI_Send(nullptr, 0, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
+
+    MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
+             comms.local_comm, MPI_STATUS_IGNORE);
+
+    if (length(myChunk) == 0)
+      break;
+  }
+}
+
+static inline void
+execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
+                     double &localBestMaxF, int localComb[], sets_t dataTable,
+                     SET *buffers, double elapsed_times[], CommsStruct &comms) {
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
   const int num_workers = comms.local_size - 1;
 
   WorkChunk myChunk;
-  if (comms.local_rank == 0) { // I'm the node-leader
+  if (comms.local_rank == 0) {
     myChunk = leaderRange;
   } else {
     const int worker_id = comms.local_rank - 1;
@@ -120,10 +186,8 @@ static inline void execute_hierarchical(int rank, int size_minus_one,
     for (int w = 0; w < num_workers; ++w)
       initialMap[w] = calculate_worker_range(leaderRange, w, num_workers);
   }
-
-  // Execute the various roles
   if (comms.local_rank == 0) {
-    // node_leader_hierarchical(leaderRange, num_workers, /* … */, comms);
+    node_leader_hierarchical(leaderRange, num_workers, comms);
   } else {
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
                         dataTable, buffers, elapsed_times, comms);
@@ -277,11 +341,28 @@ static MPI_Datatype create_mpi_result_with_comb_type() {
   return MPI_RESULT_WITH_COMB;
 }
 
+static inline bool check_for_assignment(LAMBDA_TYPE &endComb,
+                                        MPI_Comm local_comm) {
+  MPI_Status st;
+  int flag = 0;
+  MPI_Iprobe(0, TAG_ASSIGN_WORK, local_comm, &flag, &st);
+  if (!flag)
+    return false;
+
+  LAMBDA_TYPE newEnd;
+  MPI_Recv(&newEnd, sizeof(LAMBDA_TYPE), MPI_BYTE, 0, TAG_ASSIGN_WORK,
+           local_comm, MPI_STATUS_IGNORE);
+
+  endComb = newEnd;
+  return true;
+}
+
 static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            LAMBDA_TYPE endComb,
                                            int bestCombination[], double &maxF,
                                            sets_t &dataTable, SET *buffers,
-                                           double elapsed_times[]) {
+                                           double elapsed_times[],
+                                           CommsStruct &comms) {
 
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
@@ -356,6 +437,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         indices[level] = indices[level - 1] + 1;
       }
     }
+    check_for_assignment(endComb, comms.local_comm);
   }
 }
 
@@ -363,10 +445,11 @@ static bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                                     double &localBestMaxF, int localComb[],
                                     LAMBDA_TYPE &begin, LAMBDA_TYPE &end,
                                     MPI_Status &status, sets_t dataTable,
-                                    SET *buffers, double elapsed_times[]) {
+                                    SET *buffers, double elapsed_times[],
+                                    CommsStruct &comms) {
   START_TIMING(run_time);
   process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
-                          buffers, elapsed_times);
+                          buffers, elapsed_times, comms);
   END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
@@ -385,7 +468,7 @@ static bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
 static void worker_process(int rank, LAMBDA_TYPE num_Comb,
                            double &localBestMaxF, int localComb[],
                            sets_t dataTable, SET *buffers,
-                           double elapsed_times[]) {
+                           double elapsed_times[], CommsStruct &comms) {
   std::pair<LAMBDA_TYPE, LAMBDA_TYPE> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
 
@@ -395,9 +478,9 @@ static void worker_process(int rank, LAMBDA_TYPE num_Comb,
   MPI_Status status;
 
   while (end <= num_Comb) {
-    bool has_next =
-        process_and_communicate(rank, num_Comb, localBestMaxF, localComb, begin,
-                                end, status, dataTable, buffers, elapsed_times);
+    bool has_next = process_and_communicate(
+        rank, num_Comb, localBestMaxF, localComb, begin, end, status, dataTable,
+        buffers, elapsed_times, comms);
     if (!has_next) {
       break;
     }
@@ -415,7 +498,7 @@ static void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   } else {
     START_TIMING(worker_proc);
     worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable, buffers,
-                   elapsed_times);
+                   elapsed_times, comms);
     END_TIMING(worker_proc, elapsed_times[WORKER_TIME]);
   }
 }

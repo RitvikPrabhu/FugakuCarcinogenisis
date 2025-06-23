@@ -37,5 +37,8 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            LAMBDA_TYPE endComb,
                                            int bestCombination[], double &maxF,
                                            sets_t &dataTable, SET *buffers,
-                                           double elapsed_times[]);
+                                           double elapsed_times[],
+                                           CommsStruct &comms);
+
+enum : int { TAG_REQUEST_WORK = 10, TAG_ASSIGN_WORK = 11, TAG_UPDATE_END = 12 };
 #endif
