@@ -99,6 +99,18 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   int active_workers = num_workers;
 
   while (active_workers) {
+
+    int flagStart = 0;
+    MPI_Status stStart;
+    MPI_Iprobe(MPI_ANY_SOURCE, TAG_UPDATE_START, comms.local_comm, &flagStart,
+               &stStart);
+    if (flagStart) {
+      int moveBy;
+      MPI_Recv(&moveBy, 1, MPI_INT, stStart.MPI_SOURCE, TAG_UPDATE_START,
+               comms.local_comm, MPI_STATUS_IGNORE);
+      table[stStart.MPI_SOURCE].start += 1;
+    }
+
     MPI_Status st;
     int flag = 0;
     MPI_Iprobe(MPI_ANY_SOURCE, TAG_REQUEST_WORK, comms.local_comm, &flag, &st);
@@ -367,8 +379,14 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
   int localComb[NUMHITS] = {0};
+  int sendToken = 1;
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
+#ifdef HIERARCHICAL_COMMS
+    MPI_Request req;
+    MPI_Isend(&sendToken, 1, MPI_INT, 0, TAG_UPDATE_START, comms.local_comm,
+              &req);
+#endif
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0)
       continue;
@@ -437,7 +455,9 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         indices[level] = indices[level - 1] + 1;
       }
     }
+#ifdef HIERARCHICAL_COMMS
     check_for_assignment(endComb, comms.local_comm);
+#endif
   }
 }
 

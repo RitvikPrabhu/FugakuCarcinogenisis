@@ -40,5 +40,10 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            double elapsed_times[],
                                            CommsStruct &comms);
 
-enum : int { TAG_REQUEST_WORK = 10, TAG_ASSIGN_WORK = 11, TAG_UPDATE_END = 12 };
+enum : int {
+  TAG_REQUEST_WORK = 10,
+  TAG_ASSIGN_WORK = 11,
+  TAG_UPDATE_END = 12,
+  TAG_UPDATE_START = 13
+};
 #endif
