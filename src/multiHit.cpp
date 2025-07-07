@@ -110,9 +110,9 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
                &stStart);
     if (flagStart) {
       LAMBDA_TYPE newStart;
-      MPI_Recv(&newStart, 1, MPI_INT, stStart.MPI_SOURCE, TAG_UPDATE_START,
-               comms.local_comm, MPI_STATUS_IGNORE);
-      table[stStart.MPI_SOURCE].start += 1;
+      MPI_Recv(&newStart, 1, MPI_LONG_LONG_INT, stStart.MPI_SOURCE,
+               TAG_UPDATE_START, comms.local_comm, MPI_STATUS_IGNORE);
+      table[stStart.MPI_SOURCE].start = newStart;
     }
 
     /*answer inter-node steal requests */
@@ -466,11 +466,12 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
   int localComb[NUMHITS] = {0};
-  int sendToken = 1;
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
 #ifdef HIERARCHICAL_COMMS
-    MPI_Send(&sendToken, 1, MPI_INT, 0, TAG_UPDATE_START, comms.local_comm);
+    LAMBDA_TYPE start = lambda;
+    MPI_Send(&start, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
+             comms.local_comm);
 #endif
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0)
