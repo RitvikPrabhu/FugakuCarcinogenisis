@@ -141,9 +141,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         table[donor] = {0, -1};
         LAMBDA_TYPE newEnd = table[donor].start - 1;
         table[donor].end = newEnd;
-        MPI_Request rq;
-        MPI_Isend(&newEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-                  comms.local_comm, &rq);
+        MPI_Send(&newEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+                 comms.local_comm);
       }
       MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, stNode.MPI_SOURCE,
                TAG_NODE_STEAL_REPLY, comms.global_comm);
@@ -178,16 +177,14 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         reply.end = d.end;
         d.end = mid;
 
-        MPI_Request tmp;
-        MPI_Isend(&d.end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-                  comms.local_comm, &tmp);
+        MPI_Send(&d.end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+                 comms.local_comm);
       } else {
         --active_workers;
       }
 
-      MPI_Request tmp;
-      MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
-                comms.local_comm, &tmp);
+      MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
+               comms.local_comm);
 
       if (length(reply) > 0)
         table[requester] = reply;
@@ -222,8 +219,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
 
           for (int w = 1; w <= num_workers; ++w) {
             MPI_Request rq;
-            MPI_Isend(&table[w], sizeof(WorkChunk), MPI_BYTE, w,
-                      TAG_ASSIGN_WORK, comms.local_comm, &rq);
+            MPI_Send(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
+                     comms.local_comm);
           }
           active_workers = num_workers;
           lootReceived = true;
@@ -237,9 +234,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         if (globalDone) {
           WorkChunk empty{0, -1};
           for (int w = 1; w <= num_workers; ++w) {
-            MPI_Request tmp;
-            MPI_Isend(&empty, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
-                      comms.local_comm, &tmp);
+            MPI_Send(&empty, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
+                     comms.local_comm);
           }
           global_done = true;
         }
@@ -475,9 +471,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
 #ifdef HIERARCHICAL_COMMS
-    MPI_Request req;
-    MPI_Isend(&sendToken, 1, MPI_INT, 0, TAG_UPDATE_START, comms.local_comm,
-              &req);
+    MPI_Send(&sendToken, 1, MPI_INT, 0, TAG_UPDATE_START, comms.local_comm);
 #endif
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0)
