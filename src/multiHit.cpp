@@ -449,7 +449,7 @@ static inline bool check_for_assignment(LAMBDA_TYPE &endComb,
     return false;
 
   LAMBDA_TYPE newEnd;
-  MPI_Recv(&newEnd, sizeof(LAMBDA_TYPE), MPI_BYTE, 0, TAG_UPDATE_END,
+  MPI_Recv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END,
            local_comm, MPI_STATUS_IGNORE);
 
   endComb = newEnd;
