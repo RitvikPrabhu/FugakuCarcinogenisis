@@ -141,7 +141,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         table[donor] = {0, -1};
         LAMBDA_TYPE newEnd = table[donor].start - 1;
         table[donor].end = newEnd;
-        MPI_Send(&newEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+        LAMBDA_TYPE tmpEnd = newEnd;
+        MPI_Send(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
                  comms.local_comm);
       }
       MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, stNode.MPI_SOURCE,
@@ -176,8 +177,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         reply.start = mid + 1;
         reply.end = d.end;
         d.end = mid;
-
-        MPI_Send(&d.end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+        LAMBDA_TYPE tmpEnd = d.end;
+        MPI_Send(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
                  comms.local_comm);
       } else {
         --active_workers;
@@ -449,8 +450,8 @@ static inline bool check_for_assignment(LAMBDA_TYPE &endComb,
     return false;
 
   LAMBDA_TYPE newEnd;
-  MPI_Recv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END,
-           local_comm, MPI_STATUS_IGNORE);
+  MPI_Recv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END, local_comm,
+           MPI_STATUS_IGNORE);
 
   endComb = newEnd;
   return true;
