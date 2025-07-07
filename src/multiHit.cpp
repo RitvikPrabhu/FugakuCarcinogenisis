@@ -218,7 +218,6 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
             table[w] = calculate_worker_range(loot, w - 1, num_workers);
 
           for (int w = 1; w <= num_workers; ++w) {
-            MPI_Request rq;
             MPI_Send(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
                      comms.local_comm);
           }
