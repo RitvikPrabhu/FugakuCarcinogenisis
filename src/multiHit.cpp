@@ -204,8 +204,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
 
         int victim = rand() % (nLeaders - 1);
         if (victim >= myRank)
-          ++victim;
-
+          continue;
         MPI_Send(&dummy, 1, MPI_BYTE, victim, TAG_NODE_STEAL_REQ,
                  comms.global_comm);
 
