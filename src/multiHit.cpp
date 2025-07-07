@@ -3,7 +3,9 @@
 #include <cassert>
 #include <cmath>
 #include <cstdarg>
+#include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <mpi.h>
@@ -97,62 +99,152 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     table[w] = calculate_worker_range(leaderRange, w - 1, num_workers);
 
   int active_workers = num_workers;
+  bool global_done = false;
 
-  while (active_workers) {
+  while (!global_done) {
 
-    int flagStart = 0;
+    /*harvest per-worker progress hints */
     MPI_Status stStart;
+    int flagStart = 0;
     MPI_Iprobe(MPI_ANY_SOURCE, TAG_UPDATE_START, comms.local_comm, &flagStart,
                &stStart);
     if (flagStart) {
-      int moveBy;
-      MPI_Recv(&moveBy, 1, MPI_INT, stStart.MPI_SOURCE, TAG_UPDATE_START,
+      LAMBDA_TYPE newStart;
+      MPI_Recv(&newStart, 1, MPI_INT, stStart.MPI_SOURCE, TAG_UPDATE_START,
                comms.local_comm, MPI_STATUS_IGNORE);
       table[stStart.MPI_SOURCE].start += 1;
     }
 
-    MPI_Status st;
-    int flag = 0;
-    MPI_Iprobe(MPI_ANY_SOURCE, TAG_REQUEST_WORK, comms.local_comm, &flag, &st);
-    if (!flag)
-      continue;
-    int requester = st.MPI_SOURCE;
-    MPI_Recv(nullptr, 0, MPI_BYTE, requester, TAG_REQUEST_WORK,
-             comms.local_comm, MPI_STATUS_IGNORE);
+    /*answer inter-node steal requests */
+    MPI_Status stNode;
+    int flagNode = 0;
+    MPI_Iprobe(MPI_ANY_SOURCE, TAG_NODE_STEAL_REQ, comms.global_comm, &flagNode,
+               &stNode);
+    if (flagNode) {
+      char dummy;
+      MPI_Recv(&dummy, 1, MPI_BYTE, stNode.MPI_SOURCE, TAG_NODE_STEAL_REQ,
+               comms.global_comm, MPI_STATUS_IGNORE);
 
-    int donor = -1;
-    LAMBDA_TYPE bestLen = 0;
-    for (int w = 1; w <= num_workers; ++w) {
-      LAMBDA_TYPE len = length(table[w]);
-      if (len > bestLen) {
-        bestLen = len;
-        donor = w;
+      int donor = -1;
+      LAMBDA_TYPE bestLen = 0;
+      for (int w = 1; w <= num_workers; ++w) {
+        LAMBDA_TYPE len = length(table[w]);
+        if (len > bestLen) {
+          bestLen = len;
+          donor = w;
+        }
+      }
+
+      WorkChunk reply{0, -1};
+      if (donor != -1 && bestLen > 0) {
+        reply = table[donor];
+        table[donor] = {0, -1};
+        LAMBDA_TYPE newEnd = table[donor].start - 1;
+        table[donor].end = newEnd;
+        MPI_Request rq;
+        MPI_Isend(&newEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+                  comms.local_comm, &rq);
+      }
+      MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, stNode.MPI_SOURCE,
+               TAG_NODE_STEAL_REPLY, comms.global_comm);
+    }
+
+    /* local work-steal requests */
+    MPI_Status stReq;
+    int flagReq = 0;
+    MPI_Iprobe(MPI_ANY_SOURCE, TAG_REQUEST_WORK, comms.local_comm, &flagReq,
+               &stReq);
+    if (flagReq) {
+      int requester = stReq.MPI_SOURCE;
+      char dummy;
+      MPI_Recv(&dummy, 1, MPI_BYTE, requester, TAG_REQUEST_WORK,
+               comms.local_comm, MPI_STATUS_IGNORE);
+
+      int donor = -1;
+      LAMBDA_TYPE bestLen = 0;
+      for (int w = 1; w <= num_workers; ++w) {
+        LAMBDA_TYPE len = length(table[w]);
+        if (len > bestLen) {
+          bestLen = len;
+          donor = w;
+        }
+      }
+
+      WorkChunk reply{0, -1};
+      if (donor != -1 && bestLen > 1) {
+        WorkChunk &d = table[donor];
+        LAMBDA_TYPE mid = d.start + (bestLen / 2) - 1;
+        reply.start = mid + 1;
+        reply.end = d.end;
+        d.end = mid;
+
+        MPI_Request tmp;
+        MPI_Isend(&d.end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+                  comms.local_comm, &tmp);
+      } else {
+        --active_workers;
+      }
+
+      MPI_Request tmp;
+      MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
+                comms.local_comm, &tmp);
+
+      if (length(reply) > 0)
+        table[requester] = reply;
+    }
+
+    /*  if entire node idle, become thief */
+    if (active_workers == 0) {
+      int myRank, nLeaders;
+      MPI_Comm_rank(comms.global_comm, &myRank);
+      MPI_Comm_size(comms.global_comm, &nLeaders);
+
+      bool lootReceived = false;
+      char dummy;
+
+      for (int attempt = 0; attempt < 3 && !lootReceived; ++attempt) {
+
+        int victim = rand() % (nLeaders - 1);
+        if (victim >= myRank)
+          ++victim;
+
+        MPI_Send(&dummy, 1, MPI_BYTE, victim, TAG_NODE_STEAL_REQ,
+                 comms.global_comm);
+
+        WorkChunk loot;
+        MPI_Recv(&loot, sizeof(WorkChunk), MPI_BYTE, victim,
+                 TAG_NODE_STEAL_REPLY, comms.global_comm, MPI_STATUS_IGNORE);
+
+        if (length(loot) > 0) {
+
+          for (int w = 1; w <= num_workers; ++w)
+            table[w] = calculate_worker_range(loot, w - 1, num_workers);
+
+          for (int w = 1; w <= num_workers; ++w) {
+            MPI_Request rq;
+            MPI_Isend(&table[w], sizeof(WorkChunk), MPI_BYTE, w,
+                      TAG_ASSIGN_WORK, comms.local_comm, &rq);
+          }
+          active_workers = num_workers;
+          lootReceived = true;
+        }
+      }
+      if (!lootReceived) {
+        int localDone = 1;
+        int globalDone = 0;
+        MPI_Allreduce(&localDone, &globalDone, 1, MPI_INT, MPI_LAND,
+                      comms.global_comm);
+        if (globalDone) {
+          WorkChunk empty{0, -1};
+          for (int w = 1; w <= num_workers; ++w) {
+            MPI_Request tmp;
+            MPI_Isend(&empty, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
+                      comms.local_comm, &tmp);
+          }
+          global_done = true;
+        }
       }
     }
-
-    WorkChunk reply{0, -1};
-
-    if (donor != -1 && bestLen > 1) {
-      WorkChunk &d = table[donor];
-      LAMBDA_TYPE mid = d.start + (bestLen / 2) - 1;
-
-      reply.start = mid + 1;
-      reply.end = d.end;
-
-      d.end = mid;
-
-      MPI_Request req;
-      MPI_Isend(&d.end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-                comms.local_comm, &req);
-    } else {
-      --active_workers;
-    }
-
-    MPI_Request req;
-    MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
-              comms.local_comm, &req);
-
-    table[requester] = reply;
   }
 }
 
@@ -165,8 +257,8 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
                             localBestMaxF, dataTable, buffers, elapsed_times,
                             comms);
-
-    MPI_Send(nullptr, 0, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
+    char dummy;
+    MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
 
     MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
              comms.local_comm, MPI_STATUS_IGNORE);
