@@ -357,12 +357,12 @@ static inline bool check_for_assignment(LAMBDA_TYPE &endComb,
                                         MPI_Comm local_comm) {
   MPI_Status st;
   int flag = 0;
-  MPI_Iprobe(0, TAG_ASSIGN_WORK, local_comm, &flag, &st);
+  MPI_Iprobe(0, TAG_UPDATE_END, local_comm, &flag, &st);
   if (!flag)
     return false;
 
   LAMBDA_TYPE newEnd;
-  MPI_Recv(&newEnd, sizeof(LAMBDA_TYPE), MPI_BYTE, 0, TAG_ASSIGN_WORK,
+  MPI_Recv(&newEnd, sizeof(LAMBDA_TYPE), MPI_BYTE, 0, TAG_UPDATE_END,
            local_comm, MPI_STATUS_IGNORE);
 
   endComb = newEnd;
