@@ -190,6 +190,7 @@ fflush(stdout);
         LAMBDA_TYPE tmpEnd = d.end;
         MPI_Send(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
                  comms.local_comm);
+++active_workers;
       } else {
         --active_workers;
       }
@@ -213,10 +214,8 @@ fflush(stdout);
       char dummy;
 
       for (int attempt = 0; attempt < 3 && !lootReceived; ++attempt) {
-
-        int victim = rand() % (nLeaders - 1);
-        if (victim >= myRank)
-          continue;
+		int victim;
+do { victim = rand() % nLeaders; } while (victim == myRank);
         MPI_Send(&dummy, 1, MPI_BYTE, victim, TAG_NODE_STEAL_REQ,
                  comms.global_comm);
 
@@ -260,6 +259,9 @@ fflush(stdout);
           global_done = true;
         }
       }
+else{
+active_workers = num_workers;
+}
     }
   }
 }
