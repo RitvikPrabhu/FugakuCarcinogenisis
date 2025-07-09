@@ -94,13 +94,14 @@ inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
 static void node_leader_hierarchical(const WorkChunk &leaderRange,
                                      int num_workers,
                                      const CommsStruct &comms) {
+printf("In node leader\n");
+fflush(stdout);
   std::vector<WorkChunk> table(num_workers + 1);
   for (int w = 1; w <= num_workers; ++w)
     table[w] = calculate_worker_range(leaderRange, w - 1, num_workers);
 
   int active_workers = num_workers;
   bool global_done = false;
-
   while (!global_done) {
 
     /*harvest per-worker progress hints */
@@ -109,6 +110,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     MPI_Iprobe(MPI_ANY_SOURCE, TAG_UPDATE_START, comms.local_comm, &flagStart,
                &stStart);
     if (flagStart) {
+printf("Starting per-worker progress harvest\n");
+fflush(stdout);
       LAMBDA_TYPE newStart;
       MPI_Recv(&newStart, 1, MPI_LONG_LONG_INT, stStart.MPI_SOURCE,
                TAG_UPDATE_START, comms.local_comm, MPI_STATUS_IGNORE);
@@ -121,7 +124,9 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     MPI_Iprobe(MPI_ANY_SOURCE, TAG_NODE_STEAL_REQ, comms.global_comm, &flagNode,
                &stNode);
     if (flagNode) {
-      char dummy;
+printf("Starting inter-node steal requests\n");
+fflush(stdout);
+char dummy;
       MPI_Recv(&dummy, 1, MPI_BYTE, stNode.MPI_SOURCE, TAG_NODE_STEAL_REQ,
                comms.global_comm, MPI_STATUS_IGNORE);
 
@@ -142,6 +147,9 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         LAMBDA_TYPE newEnd = table[donor].start - 1;
         table[donor].end = newEnd;
         LAMBDA_TYPE tmpEnd = newEnd;
+fprintf(stderr,"[%d] TAG_UPDATE_END buffer %p\n",
+        comms.global_rank, (void*)&tmpEnd);
+fflush(stderr);
         MPI_Send(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
                  comms.local_comm);
       }
@@ -155,6 +163,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     MPI_Iprobe(MPI_ANY_SOURCE, TAG_REQUEST_WORK, comms.local_comm, &flagReq,
                &stReq);
     if (flagReq) {
+printf("Starting local steal requests\n");
+fflush(stdout);
       int requester = stReq.MPI_SOURCE;
       char dummy;
       MPI_Recv(&dummy, 1, MPI_BYTE, requester, TAG_REQUEST_WORK,
@@ -193,6 +203,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
 
     /*  if entire node idle, become thief */
     if (active_workers == 0) {
+printf("Becoming theif\n");
+fflush(stdout);
       int myRank, nLeaders;
       MPI_Comm_rank(comms.global_comm, &myRank);
       MPI_Comm_size(comms.global_comm, &nLeaders);
@@ -213,6 +225,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
                  TAG_NODE_STEAL_REPLY, comms.global_comm, MPI_STATUS_IGNORE);
 
         if (length(loot) > 0) {
+printf("Rank %d received work from %d\n", comms.global_comm, victim);
+fflush(stdout);
 
           for (int w = 1; w <= num_workers; ++w)
             table[w] = calculate_worker_range(loot, w - 1, num_workers);
@@ -226,6 +240,9 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         }
       }
       if (!lootReceived) {
+printf("Should we kill the job?\n");
+fflush(stdout);
+
         int localDone = 1;
         int globalDone = 0;
         MPI_Allreduce(&localDone, &globalDone, 1, MPI_INT, MPI_LAND,
@@ -248,10 +265,14 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                                 sets_t dataTable, SET *buffers,
                                 double elapsed_times[], CommsStruct &comms) {
 
+printf("Rank %d inside worker hierarchical\n", comms.local_rank);
+fflush(stdout);
   while (true) {
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
                             localBestMaxF, dataTable, buffers, elapsed_times,
                             comms);
+printf("Rank %d has finished a round of process_lambda_interval\n", comms.local_rank);
+fflush(stdout);
     char dummy;
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
 
@@ -463,16 +484,26 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            double elapsed_times[],
                                            CommsStruct &comms) {
 
+
+printf("Starting process_lambda_interval\n");
+fflush(stdout);
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
   int localComb[NUMHITS] = {0};
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
+printf("Lambda loop, at lambda = %lld out of %lld\n", lambda, endComb);
+fflush(stdout);
 #ifdef HIERARCHICAL_COMMS
+    check_for_assignment(endComb, comms.local_comm);
+if (lambda > endComb) break;
     LAMBDA_TYPE start = lambda;
     MPI_Send(&start, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
              comms.local_comm);
 #endif
+
+printf("Finished hierarchical comms\n");
+fflush(stdout);
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0)
       continue;
@@ -541,9 +572,14 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         indices[level] = indices[level - 1] + 1;
       }
     }
+/**
+printf("Starting check_for_assignment\n");
+fflush(stdout);
 #ifdef HIERARCHICAL_COMMS
     check_for_assignment(endComb, comms.local_comm);
 #endif
+printf("Finished check for assignment\n");
+fflush(stdout);**/
   }
 }
 
@@ -635,7 +671,8 @@ static void extract_global_comb(int globalBestComb[],
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable,
                       CommsStruct &comms) {
-
+printf("Thisis the latest version 1\n");
+fflush(stdout);
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
 
