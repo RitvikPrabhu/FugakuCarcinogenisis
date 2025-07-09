@@ -225,7 +225,7 @@ fflush(stdout);
                  TAG_NODE_STEAL_REPLY, comms.global_comm, MPI_STATUS_IGNORE);
 
         if (length(loot) > 0) {
-printf("Rank %d received work from %d\n", comms.global_comm, victim);
+printf("Rank %d received work from %d\n", comms.global_rank, victim);
 fflush(stdout);
 
           for (int w = 1; w <= num_workers; ++w)
@@ -245,8 +245,12 @@ fflush(stdout);
 
         int localDone = 1;
         int globalDone = 0;
+printf("Before all reduce\n");
+fflush(stdout);
         MPI_Allreduce(&localDone, &globalDone, 1, MPI_INT, MPI_LAND,
                       comms.global_comm);
+printf("After all reduce\n");
+fflush(stdout);
         if (globalDone) {
           WorkChunk empty{0, -1};
           for (int w = 1; w <= num_workers; ++w) {
@@ -671,7 +675,7 @@ static void extract_global_comb(int globalBestComb[],
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable,
                       CommsStruct &comms) {
-printf("Thisis the latest version 1\n");
+printf("Thisis the latest version 2\n");
 fflush(stdout);
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
