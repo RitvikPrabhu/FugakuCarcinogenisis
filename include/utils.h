@@ -3,6 +3,7 @@
 #include "commons.h"
 #include <chrono>
 #include <mpi.h>
+#include <cstdint>
 #define MAX_BUF_SIZE 1024
 #define MAX_NAME_LEN 256
 
@@ -39,12 +40,12 @@ struct CommsStruct {
 };
 
 static int hash_hostname(const char *hostname) {
-  int hash = 0;
+  uint64_t hash = 0;
   while (*hostname) {
     hash = (hash * 31) ^ (*hostname);
     hostname++;
   }
-  return hash & 0x7FFFFFFF;
+  return static_cast<int>(hash & 0x7FFFFFFF);
 }
 
 #define HIERARCHICAL_COMMS 1
