@@ -319,7 +319,6 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     // local probe
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comms.local_comm, &flag, &st);
     if (flag) {
-      int source = st.MPI_SOURCE;
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_REQUEST_WORK:
