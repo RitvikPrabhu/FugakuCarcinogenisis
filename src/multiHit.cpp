@@ -194,6 +194,30 @@ inline static void inter_node_work_steal_request(
             TAG_NODE_STEAL_REPLY, comms.global_comm, &req);
 }
 
+inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
+                                 const CommsStruct &comms) {
+  MPI_Request rq;
+  MPI_Status st_wait;
+  MPI_Irecv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
+            comms.global_comm, &rq);
+  MPI_Wait(&rq, &st_wait);
+  have_token = true;
+}
+
+inline static void terminate_comms(MPI_Status st, const int next_leader,
+                                   bool &global_done,
+                                   const CommsStruct &comms) {
+  char term;
+  MPI_Request rq;
+  MPI_Status st_wait;
+  MPI_Irecv(&term, 1, MPI_BYTE, st.MPI_SOURCE, TAG_TERMINATE, comms.global_comm,
+            &rq);
+  MPI_Wait(&rq, &st_wait);
+  if (st.MPI_SOURCE != next_leader)
+    MPI_Send(&term, 1, MPI_BYTE, next_leader, TAG_TERMINATE, comms.global_comm);
+  global_done = true;
+}
+
 inline static void inter_node_work_steal_initiate(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
     int num_workers, bool &have_token, bool &termination_broadcast,
@@ -222,7 +246,37 @@ inline static void inter_node_work_steal_initiate(
     MPI_Status st_wait;
     MPI_Irecv(&loot, sizeof(WorkChunk), MPI_BYTE, victim, TAG_NODE_STEAL_REPLY,
               comms.global_comm, &rq);
-    MPI_Wait(&rq, &st_wait);
+    int completed = 0;
+    while (!completed) {
+
+      MPI_Test(&rq, &completed, MPI_STATUS_IGNORE);
+      if (completed)
+        break;
+
+      int flag = 0;
+      MPI_Status st;
+      MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comms.global_comm, &flag, &st);
+
+      if (flag) {
+        switch (st.MPI_TAG) {
+
+        case TAG_NODE_STEAL_REQ:
+          inter_node_work_steal_request(table, st, // donate work
+                                        active_workers, num_workers, my_color,
+                                        tok, comms);
+          break;
+
+        case TAG_TOKEN:
+          receive_token(tok, st, have_token, comms); // keep ring alive
+          break;
+
+        case TAG_TERMINATE:
+          terminate_comms(st, next_leader, global_done, // shut-down signal
+                          comms);
+          break;
+        }
+      }
+    }
 
     if (length(loot) > 0) {
       printf("Rank %d received work from %d\n", comms.global_rank, victim);
@@ -270,30 +324,6 @@ inline static void inter_node_work_steal_initiate(
       my_color = WHITE;
     }
   }
-}
-
-inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
-                                 const CommsStruct &comms) {
-  MPI_Request rq;
-  MPI_Status st_wait;
-  MPI_Irecv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
-            comms.global_comm, &rq);
-  MPI_Wait(&rq, &st_wait);
-  have_token = true;
-}
-
-inline static void terminate_comms(MPI_Status st, const int next_leader,
-                                   bool &global_done,
-                                   const CommsStruct &comms) {
-  char term;
-  MPI_Request rq;
-  MPI_Status st_wait;
-  MPI_Irecv(&term, 1, MPI_BYTE, st.MPI_SOURCE, TAG_TERMINATE, comms.global_comm,
-            &rq);
-  MPI_Wait(&rq, &st_wait);
-  if (st.MPI_SOURCE != next_leader)
-    MPI_Send(&term, 1, MPI_BYTE, next_leader, TAG_TERMINATE, comms.global_comm);
-  global_done = true;
 }
 
 static void node_leader_hierarchical(const WorkChunk &leaderRange,
