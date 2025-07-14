@@ -46,6 +46,13 @@ enum : int {
   TAG_UPDATE_END = 12,
   TAG_UPDATE_START = 13,
   TAG_NODE_STEAL_REQ = 20,
-  TAG_NODE_STEAL_REPLY = 21
+  TAG_NODE_STEAL_REPLY = 21,
+  TAG_TOKEN = 31,
+  TAG_TERMINATE = 32
+};
+
+enum Colour { WHITE = 0, BLACK = 1 };
+struct Token {
+  int colour;
 };
 #endif
