@@ -10,6 +10,7 @@
 #include <iostream>
 #include <mpi.h>
 #include <omp.h>
+#include <random>
 #include <set>
 #include <vector>
 
@@ -91,10 +92,10 @@ static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
 
 inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
 
-inline static void handle_local_work_request(std::vector<WorkChunk> &table,
-                                             MPI_Status st, int num_workers,
-                                             int active_workers,
-                                             const CommsStruct &comms) {
+inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
+                                           MPI_Status st, int num_workers,
+                                           int active_workers,
+                                           const CommsStruct &comms) {
 
   printf("Starting local steal requests\n");
   fflush(stdout);
@@ -130,7 +131,7 @@ inline static void handle_local_work_request(std::vector<WorkChunk> &table,
   }
   MPI_Request rq;
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
-            comms.local_comm, &rq);
+            comms.local_comm, &rq); // change end
 
   if (length(reply) > 0)
     table[requester] = reply;
@@ -147,6 +148,102 @@ inline static void worker_progress_update(std::vector<WorkChunk> &table,
             comms.local_comm, &rq);
   table[st.MPI_SOURCE].start = newStart;
 }
+
+inline static void inter_node_work_steal_request(std::vector<WorkChunk> table,
+                                                 MPI_Status st,
+                                                 int active_workers,
+                                                 int num_workers,
+                                                 const CommsStruct comms) {
+
+  printf("Starting inter-node steal requests\n");
+  fflush(stdout);
+  char dummy;
+  MPI_Recv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
+           comms.global_comm, MPI_STATUS_IGNORE);
+
+  int donor = -1;
+  LAMBDA_TYPE bestLen = 0;
+  for (int w = 1; w <= num_workers; ++w) {
+    LAMBDA_TYPE len = length(table[w]);
+    if (len > bestLen) {
+      bestLen = len;
+      donor = w;
+    }
+  }
+
+  WorkChunk reply{0, -1};
+  if (donor != -1 && bestLen > 0) {
+    reply = table[donor];
+    table[donor] = {0, -1};
+    LAMBDA_TYPE newEnd = table[donor].start - 1;
+    table[donor].end = newEnd;
+    LAMBDA_TYPE tmpEnd = newEnd;
+    fprintf(stderr, "[%d] TAG_UPDATE_END buffer %p\n", comms.global_rank,
+            (void *)&tmpEnd);
+    fflush(stderr);
+    MPI_Request req;
+    MPI_Isend(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+              comms.local_comm, &req);
+  }
+  MPI_Request req;
+  MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
+            TAG_NODE_STEAL_REPLY, comms.global_comm, &req);
+}
+
+inline static void check_job_done() {}
+
+inline static void inter_node_work_steal_initiate(std::vector<WorkChunk> table,
+                                                  MPI_Status st,
+                                                  int active_workers,
+                                                  int num_workers,
+                                                  const CommsStruct comms) {
+  printf("Becoming theif\n");
+  fflush(stdout);
+  int myRank = comms.global_rank;
+  int nLeaders = comms.num_nodes;
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  std::mt19937 rng(seed);
+  std::uniform_int_distribution<int> gen(0, nLeaders - 1);
+  bool lootReceived = false;
+  char dummy;
+
+  for (int attempt = 0; attempt < 3 && !lootReceived; ++attempt) {
+    int victim;
+    do {
+      victim = gen(rng);
+    } while (victim == myRank);
+    MPI_Send(&dummy, 1, MPI_BYTE, victim, TAG_NODE_STEAL_REQ,
+             comms.global_comm);
+
+    WorkChunk loot;
+    MPI_Request rq;
+    MPI_Irecv(&loot, sizeof(WorkChunk), MPI_BYTE, victim, TAG_NODE_STEAL_REPLY,
+              comms.global_comm, &rq);
+
+    if (length(loot) > 0) {
+      printf("Rank %d received work from %d\n", comms.global_rank, victim);
+      fflush(stdout);
+
+      for (int w = 1; w <= num_workers; ++w)
+        table[w] = calculate_worker_range(loot, w - 1, num_workers);
+
+      for (int w = 1; w <= num_workers; ++w) {
+        MPI_Request rq;
+        MPI_Isend(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
+                  comms.local_comm, &rq); // uhhhhhh no idea what to do
+      }
+      active_workers = num_workers;
+      lootReceived = true;
+    }
+  }
+  if (!lootReceived) {
+    // kill the run
+    check_job_done();
+  } else {
+    active_workers = num_workers;
+  }
+}
+
 static void node_leader_hierarchical(const WorkChunk &leaderRange,
                                      int num_workers,
                                      const CommsStruct &comms) {
@@ -168,8 +265,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_REQUEST_WORK:
-        handle_local_work_request(table, st, num_workers, active_workers,
-                                  comms);
+        handle_local_work_steal(table, st, num_workers, active_workers, comms);
       case TAG_UPDATE_START:
         worker_progress_update(table, st, comms);
       }
@@ -182,10 +278,15 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_NODE_STEAL_REQ:
-        break;
-      case TAG_NODE_STEAL_REPLY:
-        break;
+        inter_node_work_steal_request(table, st, active_workers, num_workers,
+                                      comms);
       }
+    }
+
+    // If leader node is idle, initiate a steal request
+    if (num_workers == 0) {
+      inter_node_work_steal_initiate(table, st, active_workers, num_workers,
+                                     comms);
     }
   }
 }
