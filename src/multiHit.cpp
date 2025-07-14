@@ -176,6 +176,7 @@ inline static void inter_node_work_steal_request(
   if (donor != -1 && bestLen > 0) {
     reply = table[donor];
     table[donor] = {0, -1};
+    --active_workers;
     LAMBDA_TYPE newEnd = table[donor].start - 1;
     table[donor].end = newEnd;
     LAMBDA_TYPE tmpEnd = newEnd;
@@ -188,6 +189,7 @@ inline static void inter_node_work_steal_request(
   }
   if (length(reply) > 0) {
     my_color = BLACK;
+    ++active_workers;
   }
   MPI_Request req;
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
