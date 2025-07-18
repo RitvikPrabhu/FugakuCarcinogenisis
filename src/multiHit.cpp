@@ -116,12 +116,12 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
 
   WorkChunk reply{0, -1};
   if (donor != -1 && bestLen > 1) {
-    WorkChunk &d = table[donor];
-    LAMBDA_TYPE mid = d.start + (bestLen / 2) - 1;
+    // WorkChunk &d = table[donor];
+    LAMBDA_TYPE mid = table[donor].start + (bestLen / 2) - 1;
     reply.start = mid + 1;
-    reply.end = d.end;
-    d.end = mid;
-    LAMBDA_TYPE tmpEnd = d.end;
+    reply.end = table[donor].end;
+    table[donor].end = mid;
+    LAMBDA_TYPE tmpEnd = table[donor].end;
     MPI_Request rq;
     MPI_Isend(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
               comms.local_comm, &rq);
@@ -152,7 +152,7 @@ inline static void worker_progress_update(std::vector<WorkChunk> &table,
   table[st.MPI_SOURCE].start = newStart;
 }
 
-inline static void inter_node_work_steal_request(
+inline static void inter_node_work_steal_victim(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
     int num_workers, int &my_color, Token &tok, const CommsStruct &comms) {
 
@@ -263,9 +263,9 @@ inline static void inter_node_work_steal_initiate(
         switch (st.MPI_TAG) {
 
         case TAG_NODE_STEAL_REQ:
-          inter_node_work_steal_request(table, st, // donate work
-                                        active_workers, num_workers, my_color,
-                                        tok, comms);
+          inter_node_work_steal_victim(table, st, // donate work
+                                       active_workers, num_workers, my_color,
+                                       tok, comms);
           break;
 
         case TAG_TOKEN:
@@ -369,8 +369,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_NODE_STEAL_REQ:
-        inter_node_work_steal_request(table, st, active_workers, num_workers,
-                                      my_color, tok, comms);
+        inter_node_work_steal_victim(table, st, active_workers, num_workers,
+                                     my_color, tok, comms);
         break;
       case TAG_TOKEN:
         receive_token(tok, st, have_token, comms);
