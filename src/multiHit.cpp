@@ -391,7 +391,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   }
 
   // Poison the workers
-  WorkChunk poison{0, -1};
+  WorkChunk poison{-1, -1};
   for (int w = 1; w <= num_workers; ++w) {
     MPI_Request rq;
     MPI_Isend(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
@@ -421,7 +421,7 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
               comms.local_comm, &rq);
     MPI_Wait(&rq, &st_wait);
 
-    if (length(myChunk) == 0)
+    if (length(myChunk) == -1)
       break;
   }
 }
