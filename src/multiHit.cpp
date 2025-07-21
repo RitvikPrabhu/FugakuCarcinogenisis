@@ -291,7 +291,6 @@ inline static void inter_node_work_steal_initiate(
 
     WorkChunk loot;
     MPI_Request rq;
-    MPI_Status st_wait;
     MPI_Irecv(&loot, sizeof(WorkChunk), MPI_BYTE, victim, TAG_NODE_STEAL_REPLY,
               comms.global_comm, &rq);
     int completed = 0;
