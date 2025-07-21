@@ -125,8 +125,9 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
     MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
               comms.local_comm, &rq);
     ++active_workers;
-  } else {
-    --active_workers;
+  } else if (length(table[requester]) > 0) {
+    if (--active_workers < 0)
+      active_workers = 0;
   }
   MPI_Request rq;
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
@@ -187,6 +188,63 @@ inline static void inter_node_work_steal_victim(
             TAG_NODE_STEAL_REPLY, comms.global_comm, &req);
 }
 
+static inline void root_broadcast_termination(const int next_leader,
+                                              bool &global_done,
+                                              bool &termination_broadcast,
+                                              const CommsStruct &comms) {
+  char term = 1;
+  MPI_Bcast(&term, 1, MPI_INT, 0, comms.global_comm);
+  termination_broadcast = true;
+  global_done = true;
+}
+
+static inline void try_forward_token_if_idle(int &active_workers,
+                                             bool &have_token,
+                                             bool &termination_broadcast,
+                                             bool &global_done, int &my_color,
+                                             Token &tok, const int next_leader,
+                                             const CommsStruct &comms) {
+  if (!have_token || active_workers != 0 || termination_broadcast)
+    return;
+
+  if (my_color == BLACK)
+    tok.colour = BLACK;
+
+  if (comms.global_rank == 0) {
+    if (tok.colour == WHITE && tok.finalRound) {
+      root_broadcast_termination(next_leader, global_done,
+                                 termination_broadcast, comms);
+    } else {
+      tok.finalRound = (tok.colour == WHITE);
+      tok.colour = WHITE;
+      MPI_Request rq;
+      MPI_Isend(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+                comms.global_comm, &rq);
+    }
+  } else {
+    MPI_Request rq;
+    MPI_Isend(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+              comms.global_comm, &rq);
+  }
+
+  have_token = false;
+  my_color = WHITE;
+}
+
+static inline void terminate_comms(bool &global_done,
+                                   bool &termination_broadcast,
+                                   const CommsStruct &comms) {
+  if (global_done)
+    return;
+
+  int term = 0;
+  MPI_Bcast(&term, 1, MPI_INT, 0, comms.global_comm);
+  if (term == 1) {
+    global_done = true;
+    termination_broadcast = true;
+  }
+}
+
 inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
                                  const CommsStruct &comms) {
   MPI_Request rq;
@@ -195,20 +253,14 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
             comms.global_comm, &rq);
   MPI_Wait(&rq, &st_wait);
   have_token = true;
-}
 
-inline static void terminate_comms(MPI_Status st, const int next_leader,
-                                   bool &global_done,
-                                   const CommsStruct &comms) {
-  char term;
-  MPI_Request rq;
-  MPI_Status st_wait;
-  MPI_Irecv(&term, 1, MPI_BYTE, st.MPI_SOURCE, TAG_TERMINATE, comms.global_comm,
-            &rq);
-  MPI_Wait(&rq, &st_wait);
-  if (st.MPI_SOURCE != next_leader)
-    MPI_Send(&term, 1, MPI_BYTE, next_leader, TAG_TERMINATE, comms.global_comm);
-  global_done = true;
+  if (comms.global_rank == 0) {
+    if (tok.colour == WHITE) {
+      tok.finalRound = true;
+    } else {
+      tok.colour = WHITE;
+    }
+  }
 }
 
 inline static void inter_node_work_steal_initiate(
@@ -254,18 +306,16 @@ inline static void inter_node_work_steal_initiate(
         switch (st.MPI_TAG) {
 
         case TAG_NODE_STEAL_REQ:
-          inter_node_work_steal_victim(table, st, // donate work
-                                       active_workers, num_workers, my_color,
-                                       tok, comms);
+          inter_node_work_steal_victim(table, st, active_workers, num_workers,
+                                       my_color, tok, comms);
           break;
 
         case TAG_TOKEN:
-          receive_token(tok, st, have_token, comms); // keep ring alive
+          receive_token(tok, st, have_token, comms);
           break;
 
         case TAG_TERMINATE:
-          terminate_comms(st, next_leader, global_done, // shut-down signal
-                          comms);
+          terminate_comms(global_done, termination_broadcast, comms);
           break;
         }
       }
@@ -281,20 +331,14 @@ inline static void inter_node_work_steal_initiate(
       for (int w = 1; w <= num_workers; ++w) {
         MPI_Request rq;
         MPI_Isend(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
-                  comms.local_comm, &rq);
+                  comms.local_comm, &rq); // Maybe problematic??
       }
       active_workers = num_workers;
       lootReceived = true;
     }
   }
-  if (!lootReceived && have_token) {
-    /* incorporate my colour into the token */
-    if (my_color == BLACK)
-      tok.colour = BLACK;
-    MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-             comms.global_comm);
-    my_color = WHITE;
-  }
+  try_forward_token_if_idle(active_workers, have_token, termination_broadcast,
+                            global_done, my_color, tok, next_leader, comms);
 }
 
 static void node_leader_hierarchical(const WorkChunk &leaderRange,
@@ -310,7 +354,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   bool global_done = false;
 
   const int next_leader = (comms.global_rank + 1) % comms.num_nodes;
-  Token tok = {WHITE};
+  Token tok = {WHITE, false};
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
   bool termination_broadcast = false;
@@ -344,14 +388,13 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
       case TAG_TOKEN:
         receive_token(tok, st, have_token, comms);
         break;
-      case TAG_TERMINATE:
-        terminate_comms(st, next_leader, global_done, comms);
-        break;
       }
     }
-
+    terminate_comms(global_done, termination_broadcast, comms);
+    try_forward_token_if_idle(active_workers, have_token, termination_broadcast,
+                              global_done, my_color, tok, next_leader, comms);
     // If leader node is idle, initiate a steal request
-    if (active_workers <= 0) {
+    if (active_workers <= 0 && !global_done) {
       inter_node_work_steal_initiate(table, st, active_workers, num_workers,
                                      have_token, termination_broadcast,
                                      global_done, my_color, next_leader, tok,
@@ -390,7 +433,7 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
               comms.local_comm, &rq);
     MPI_Wait(&rq, &st_wait);
 
-    if (length(myChunk) == -1)
+    if (length(myChunk) < 0)
       break;
   }
 }
