@@ -287,15 +287,13 @@ inline static void inter_node_work_steal_initiate(
       lootReceived = true;
     }
   }
-  if (!lootReceived) {
+  if (!lootReceived && have_token) {
     /* incorporate my colour into the token */
     if (my_color == BLACK)
       tok.colour = BLACK;
-    if (have_token) {
-      MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-               comms.global_comm);
-      my_color = WHITE;
-    }
+    MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+             comms.global_comm);
+    my_color = WHITE;
   }
 }
 
