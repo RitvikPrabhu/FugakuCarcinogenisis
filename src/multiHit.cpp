@@ -125,7 +125,7 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
     MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
               comms.local_comm, &rq);
     ++active_workers;
-  } else if (length(table[requester]) > 0) {
+  } else {
     if (--active_workers < 0)
       active_workers = 0;
   }
