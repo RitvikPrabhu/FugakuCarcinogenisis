@@ -126,9 +126,7 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
               comms.local_comm, &rq);
     ++active_workers;
   } else {
-    if (length(table[requester]) > 0) {
-      --active_workers;
-    }
+    --active_workers;
   }
   MPI_Request rq;
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
@@ -290,6 +288,8 @@ inline static void inter_node_work_steal_initiate(
     }
   }
   if (!lootReceived && have_token && !termination_broadcast) {
+    printf("LOOK MOM I MADE IT!!!\n");
+    fflush(stdout);
     /* incorporate my colour into the token */
     if (my_color == BLACK)
       tok.colour = BLACK;
@@ -375,7 +375,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     }
 
     // If leader node is idle, initiate a steal request
-    if (active_workers == 0) {
+    if (active_workers <= 0) {
       inter_node_work_steal_initiate(table, st, active_workers, num_workers,
                                      have_token, termination_broadcast,
                                      global_done, my_color, next_leader, tok,
