@@ -192,7 +192,9 @@ static inline void root_broadcast_termination(const int next_leader,
                                               bool &global_done,
                                               bool &termination_broadcast,
                                               const CommsStruct &comms) {
-  char term = 1;
+  printf("I am trying to terminate\n");
+  fflush(stdout);
+  int term = 1;
   MPI_Bcast(&term, 1, MPI_INT, 0, comms.global_comm);
   termination_broadcast = true;
   global_done = true;
