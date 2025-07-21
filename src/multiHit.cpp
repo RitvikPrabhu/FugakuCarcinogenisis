@@ -287,35 +287,13 @@ inline static void inter_node_work_steal_initiate(
       lootReceived = true;
     }
   }
-  if (!lootReceived && have_token && !termination_broadcast) {
-    printf("LOOK MOM I MADE IT!!!\n");
-    fflush(stdout);
+  if (!lootReceived) {
     /* incorporate my colour into the token */
     if (my_color == BLACK)
       tok.colour = BLACK;
-
-    if (comms.global_rank == 0) {
-      /* leader-0 decides termination */
-      if (tok.colour == WHITE && my_color == WHITE) {
-        char term = 1;
-        MPI_Send(&term, 1, MPI_BYTE, next_leader, TAG_TERMINATE,
-                 comms.global_comm);
-        termination_broadcast = true;
-        global_done = true; // leave the big while-loop
-        have_token = false;
-      } else {
-        /* reset for the next round */
-        tok.colour = WHITE;
-        MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-                 comms.global_comm);
-        have_token = false;
-        my_color = WHITE;
-      }
-    } else {
-      MPI_Request rq;
-      MPI_Isend(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-                comms.global_comm, &rq);
-      have_token = false;
+    if (have_token) {
+      MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+               comms.global_comm);
       my_color = WHITE;
     }
   }

@@ -54,5 +54,6 @@ enum : int {
 enum Colour { WHITE = 0, BLACK = 1 };
 struct Token {
   int colour;
+  bool finalRound;
 };
 #endif
