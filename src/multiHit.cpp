@@ -128,6 +128,7 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
   } else {
     if (--active_workers < 0)
       active_workers = 0;
+    table[requester] = {0, -1};
   }
   MPI_Request rq;
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
@@ -328,15 +329,17 @@ inline static void inter_node_work_steal_initiate(
              victim, length(loot));
       fflush(stdout);
 
-      for (int w = 1; w <= num_workers; ++w)
-        table[w] = calculate_worker_range(loot, w - 1, num_workers);
-
+      int real_workers = std::min<int>(num_workers, length(loot));
       for (int w = 1; w <= num_workers; ++w) {
+        if (w <= real_workers)
+          table[w] = calculate_worker_range(loot, w - 1, real_workers);
+        else
+          table[w] = {0, -1}; // keep them idle
         MPI_Request rq;
         MPI_Isend(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
-                  comms.local_comm, &rq); // Maybe problematic??
+                  comms.local_comm, &rq);
       }
-      active_workers = num_workers;
+      active_workers = real_workers;
       lootReceived = true;
     }
   }
