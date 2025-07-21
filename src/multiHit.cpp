@@ -322,7 +322,8 @@ inline static void inter_node_work_steal_initiate(
     }
 
     if (length(loot) > 0) {
-      printf("Rank %d received work from %d\n", comms.global_rank, victim);
+      printf("Rank %d received work from %d of length %d\n", comms.global_rank,
+             victim, length(loot));
       fflush(stdout);
 
       for (int w = 1; w <= num_workers; ++w)
