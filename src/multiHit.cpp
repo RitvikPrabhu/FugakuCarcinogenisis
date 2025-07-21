@@ -121,9 +121,8 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
     reply.start = mid + 1;
     reply.end = table[donor].end;
     table[donor].end = mid;
-    LAMBDA_TYPE tmpEnd = table[donor].end;
     MPI_Request rq;
-    MPI_Isend(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+    MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
               comms.local_comm, &rq);
     ++active_workers;
   } else {
@@ -175,14 +174,9 @@ inline static void inter_node_work_steal_victim(
   WorkChunk reply{0, -1};
   if (donor != -1 && bestLen > 0) {
     reply = table[donor];
-    LAMBDA_TYPE newEnd = table[donor].start - 1;
-    table[donor].end = newEnd;
-    LAMBDA_TYPE tmpEnd = newEnd;
-    fprintf(stderr, "[%d] TAG_UPDATE_END buffer %p\n", comms.global_rank,
-            (void *)&tmpEnd);
-    fflush(stderr);
+    table[donor].end = table[donor].start - 1;
     MPI_Request req;
-    MPI_Isend(&tmpEnd, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+    MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
               comms.local_comm, &req);
   }
   if (length(reply) > 0) {
@@ -388,7 +382,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   }
 
   // Poison the workers
-  WorkChunk poison{-1, -1};
+  WorkChunk poison{0, -2};
   for (int w = 1; w <= num_workers; ++w) {
     MPI_Request rq;
     MPI_Isend(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
@@ -439,13 +433,7 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   }
 
   /* Leader stores everybody’s initial allocation for bookkeeping ---- */
-  static std::vector<WorkChunk> initialMap;
   if (comms.is_leader) {
-    initialMap.resize(num_workers);
-    for (int w = 0; w < num_workers; ++w)
-      initialMap[w] = calculate_worker_range(leaderRange, w, num_workers);
-  }
-  if (comms.local_rank == 0) {
     node_leader_hierarchical(leaderRange, num_workers, comms);
   } else {
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
