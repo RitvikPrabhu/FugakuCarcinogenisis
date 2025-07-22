@@ -200,6 +200,9 @@ try_forward_token_if_idle(int &active_workers, bool &have_token,
                           MPI_Win &term_win, const CommsStruct &comms) {
   if (!have_token || active_workers != 0 || termination_broadcast)
     return;
+  printf("Rank %d forwarding token. Colour=%s, finalRound=%s\n",
+         comms.global_rank, (tok.colour == WHITE ? "WHITE" : "BLACK"),
+         (tok.finalRound ? "true" : "false"));
 
   if (my_color == BLACK)
     tok.colour = BLACK;
@@ -226,6 +229,11 @@ try_forward_token_if_idle(int &active_workers, bool &have_token,
 
 inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
                                  const CommsStruct &comms) {
+
+  printf("Rank %d received token from %d. Colour=%s, finalRound=%s\n",
+         comms.global_rank, st.MPI_SOURCE,
+         (tok.colour == WHITE ? "WHITE" : "BLACK"),
+         (tok.finalRound ? "true" : "false"));
   MPI_Request rq;
   MPI_Status st_wait;
   MPI_Irecv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
