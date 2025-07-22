@@ -97,8 +97,6 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
                                            int &active_workers,
                                            const CommsStruct &comms) {
 
-  printf("Starting local steal requests\n");
-  fflush(stdout);
   int requester = st.MPI_SOURCE;
   char dummy;
   MPI_Recv(&dummy, 1, MPI_BYTE, requester, TAG_REQUEST_WORK, comms.local_comm,
@@ -142,8 +140,6 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
 inline static void worker_progress_update(std::vector<WorkChunk> &table,
                                           MPI_Status st,
                                           const CommsStruct &comms) {
-  printf("Starting per-worker progress harvest\n");
-  fflush(stdout);
   LAMBDA_TYPE newStart;
   MPI_Request rq;
   MPI_Status st_wait;
@@ -157,8 +153,6 @@ inline static void inter_node_work_steal_victim(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
     int num_workers, int &my_color, Token &tok, const CommsStruct &comms) {
 
-  printf("Starting inter-node steal requests\n");
-  fflush(stdout);
   char dummy;
   MPI_Recv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
            comms.global_comm, MPI_STATUS_IGNORE);
@@ -189,24 +183,21 @@ inline static void inter_node_work_steal_victim(
             TAG_NODE_STEAL_REPLY, comms.global_comm, &req);
 }
 
-static inline void root_broadcast_termination(const int next_leader,
-                                              bool &global_done,
-                                              bool &termination_broadcast,
-                                              const CommsStruct &comms) {
-  printf("I am trying to terminate\n");
-  fflush(stdout);
-  int term = 1;
-  MPI_Bcast(&term, 1, MPI_INT, 0, comms.global_comm);
-  termination_broadcast = true;
-  global_done = true;
+static inline void root_broadcast_termination(const CommsStruct &comms,
+                                              MPI_Win &term_win) {
+  bool termination_signal = true;
+  for (int rank = 0; rank < comms.num_nodes; ++rank) {
+    MPI_Put(&termination_signal, 1, MPI_C_BOOL, rank, 0, 1, MPI_C_BOOL,
+            term_win);
+  }
+  MPI_Win_flush_all(term_win);
 }
 
-static inline void try_forward_token_if_idle(int &active_workers,
-                                             bool &have_token,
-                                             bool &termination_broadcast,
-                                             bool &global_done, int &my_color,
-                                             Token &tok, const int next_leader,
-                                             const CommsStruct &comms) {
+static inline void
+try_forward_token_if_idle(int &active_workers, bool &have_token,
+                          bool &termination_broadcast, bool &global_done,
+                          int &my_color, Token &tok, const int next_leader,
+                          MPI_Win &term_win, const CommsStruct &comms) {
   if (!have_token || active_workers != 0 || termination_broadcast)
     return;
 
@@ -215,8 +206,7 @@ static inline void try_forward_token_if_idle(int &active_workers,
 
   if (comms.global_rank == 0) {
     if (tok.colour == WHITE && tok.finalRound) {
-      root_broadcast_termination(next_leader, global_done,
-                                 termination_broadcast, comms);
+      root_broadcast_termination(comms, term_win);
     } else {
       tok.finalRound = (tok.colour == WHITE);
       tok.colour = WHITE;
@@ -232,20 +222,6 @@ static inline void try_forward_token_if_idle(int &active_workers,
 
   have_token = false;
   my_color = WHITE;
-}
-
-static inline void terminate_comms(bool &global_done,
-                                   bool &termination_broadcast,
-                                   const CommsStruct &comms) {
-  if (global_done)
-    return;
-
-  int term = 0;
-  MPI_Bcast(&term, 1, MPI_INT, 0, comms.global_comm);
-  if (term == 1) {
-    global_done = true;
-    termination_broadcast = true;
-  }
 }
 
 inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
@@ -270,9 +246,7 @@ inline static void inter_node_work_steal_initiate(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
     int num_workers, bool &have_token, bool &termination_broadcast,
     bool &global_done, int &my_color, const int next_leader, Token &tok,
-    const CommsStruct &comms) {
-  printf("Becoming theif\n");
-  fflush(stdout);
+    MPI_Win &term_win, const CommsStruct &comms) {
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -315,18 +289,11 @@ inline static void inter_node_work_steal_initiate(
         case TAG_TOKEN:
           receive_token(tok, st, have_token, comms);
           break;
-
-        case TAG_TERMINATE:
-          terminate_comms(global_done, termination_broadcast, comms);
-          break;
         }
       }
     }
 
     if (length(loot) > 0) {
-      printf("Rank %d received work from %d of length %d\n", comms.global_rank,
-             victim, length(loot));
-      fflush(stdout);
 
       int real_workers = std::min<int>(num_workers, length(loot));
       for (int w = 1; w <= num_workers; ++w) {
@@ -343,27 +310,34 @@ inline static void inter_node_work_steal_initiate(
     }
   }
   try_forward_token_if_idle(active_workers, have_token, termination_broadcast,
-                            global_done, my_color, tok, next_leader, comms);
+                            global_done, my_color, tok, next_leader, term_win,
+                            comms);
 }
 
 static void node_leader_hierarchical(const WorkChunk &leaderRange,
                                      int num_workers,
                                      const CommsStruct &comms) {
-  printf("In node leader\n");
-  fflush(stdout);
-  std::vector<WorkChunk> table(num_workers + 1);
+  std::vector<WorkChunk> table(num_workers + 1); // TODO: No need for +1
   for (int w = 1; w <= num_workers; ++w)
     table[w] = calculate_worker_range(leaderRange, w - 1, num_workers);
 
   int active_workers = num_workers;
-  bool global_done = false;
+  bool *global_done;
+  MPI_Win term_win;
+  MPI_Win_allocate(sizeof(bool), sizeof(bool), MPI_INFO_NULL, comms.global_comm,
+                   &global_done, &term_win);
+  *global_done = false;
+  MPI_Win_lock_all(0, term_win);
 
   const int next_leader = (comms.global_rank + 1) % comms.num_nodes;
   Token tok = {WHITE, false};
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
   bool termination_broadcast = false;
-  while (!global_done) {
+  while (true) {
+    MPI_Win_sync(term_win);
+    if (*global_done)
+      break;
     MPI_Status st;
     int flag;
     // local probe
@@ -395,15 +369,15 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
         break;
       }
     }
-    terminate_comms(global_done, termination_broadcast, comms);
     try_forward_token_if_idle(active_workers, have_token, termination_broadcast,
-                              global_done, my_color, tok, next_leader, comms);
+                              *global_done, my_color, tok, next_leader,
+                              term_win, comms);
     // If leader node is idle, initiate a steal request
     if (active_workers <= 0 && !global_done) {
       inter_node_work_steal_initiate(table, st, active_workers, num_workers,
                                      have_token, termination_broadcast,
-                                     global_done, my_color, next_leader, tok,
-                                     comms);
+                                     *global_done, my_color, next_leader, tok,
+                                     term_win, comms);
     }
   }
 
@@ -414,22 +388,22 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     MPI_Isend(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
               comms.local_comm, &rq);
   }
+  MPI_Win_unlock_all(term_win);
+  MPI_Win_free(&term_win);
 }
+
+// TODO: Where is the token and implement termination with one sided
+// communication.
 
 static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                                 double &localBestMaxF, int localComb[],
                                 sets_t dataTable, SET *buffers,
                                 double elapsed_times[], CommsStruct &comms) {
 
-  printf("Rank %d inside worker hierarchical\n", comms.local_rank);
-  fflush(stdout);
   while (true) {
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
                             localBestMaxF, dataTable, buffers, elapsed_times,
                             comms);
-    printf("Rank %d has finished a round of process_lambda_interval\n",
-           comms.local_rank);
-    fflush(stdout);
     char dummy;
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
     MPI_Request rq;
@@ -639,15 +613,11 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            double elapsed_times[],
                                            CommsStruct &comms) {
 
-  printf("Starting process_lambda_interval\n");
-  fflush(stdout);
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
   int localComb[NUMHITS] = {0};
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
-    printf("Lambda loop, at lambda = %lld out of %lld\n", lambda, endComb);
-    fflush(stdout);
 #ifdef HIERARCHICAL_COMMS
     check_for_assignment(endComb, comms.local_comm);
     if (lambda > endComb)
@@ -658,8 +628,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
               comms.local_comm, &rq);
 #endif
 
-    printf("Finished hierarchical comms\n");
-    fflush(stdout);
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0)
       continue;
@@ -728,14 +696,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         indices[level] = indices[level - 1] + 1;
       }
     }
-    /**
-    printf("Starting check_for_assignment\n");
-    fflush(stdout);
-    #ifdef HIERARCHICAL_COMMS
-        check_for_assignment(endComb, comms.local_comm);
-    #endif
-    printf("Finished check for assignment\n");
-    fflush(stdout);**/
   }
 }
 
@@ -827,8 +787,6 @@ static void extract_global_comb(int globalBestComb[],
 void distribute_tasks(int rank, int size, const char *outFilename,
                       double elapsed_times[], sets_t dataTable,
                       CommsStruct &comms) {
-  printf("Thisis the latest version 2\n");
-  fflush(stdout);
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
 
