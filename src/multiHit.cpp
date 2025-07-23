@@ -120,8 +120,8 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
     reply.end = table[donor].end;
     table[donor].end = mid;
     MPI_Request rq;
-    MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-              comms.local_comm, &rq);
+    MPI_Send(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+             comms.local_comm);
     ++active_workers;
   } else {
     if (--active_workers < 0)
@@ -129,8 +129,8 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
     table[requester] = {0, -1};
   }
   MPI_Request rq;
-  MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
-            comms.local_comm, &rq); // change end
+  MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
+           comms.local_comm); // change end
 
   if (length(reply) > 0) {
     table[requester] = reply;
@@ -141,11 +141,9 @@ inline static void worker_progress_update(std::vector<WorkChunk> &table,
                                           MPI_Status st,
                                           const CommsStruct &comms) {
   LAMBDA_TYPE newStart;
-  MPI_Request rq;
-  MPI_Status st_wait;
-  MPI_Irecv(&newStart, 1, MPI_LONG_LONG_INT, st.MPI_SOURCE, TAG_UPDATE_START,
-            comms.local_comm, &rq);
-  MPI_Wait(&rq, &st_wait);
+  MPI_Status status;
+  MPI_Recv(&newStart, 1, MPI_LONG_LONG_INT, st.MPI_SOURCE, TAG_UPDATE_START,
+           comms.local_comm, &status);
   table[st.MPI_SOURCE].start = newStart;
 }
 
@@ -171,16 +169,14 @@ inline static void inter_node_work_steal_victim(
   if (donor != -1 && bestLen > 0) {
     reply = table[donor];
     table[donor].end = table[donor].start - 1;
-    MPI_Request req;
-    MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-              comms.local_comm, &req);
+    MPI_Send(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+             comms.local_comm);
   }
   if (length(reply) > 0) {
     my_color = BLACK;
   }
-  MPI_Request req;
-  MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
-            TAG_NODE_STEAL_REPLY, comms.global_comm, &req);
+  MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
+           TAG_NODE_STEAL_REPLY, comms.global_comm);
 }
 
 static inline void root_broadcast_termination(const CommsStruct &comms,
@@ -213,14 +209,12 @@ try_forward_token_if_idle(int &active_workers, bool &have_token,
     } else {
       tok.finalRound = (tok.colour == WHITE);
       tok.colour = WHITE;
-      MPI_Request rq;
-      MPI_Isend(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-                comms.global_comm, &rq);
+      MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+               comms.global_comm);
     }
   } else {
-    MPI_Request rq;
-    MPI_Isend(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-              comms.global_comm, &rq);
+    MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+             comms.global_comm);
   }
 
   have_token = false;
@@ -234,11 +228,9 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
          comms.global_rank, st.MPI_SOURCE,
          (tok.colour == WHITE ? "WHITE" : "BLACK"),
          (tok.finalRound ? "true" : "false"));
-  MPI_Request rq;
-  MPI_Status st_wait;
-  MPI_Irecv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
-            comms.global_comm, &rq);
-  MPI_Wait(&rq, &st_wait);
+  MPI_Status status;
+  MPI_Recv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
+           comms.global_comm, &status);
   have_token = true;
 
   if (comms.global_rank == 0) {
@@ -272,9 +264,10 @@ inline static void inter_node_work_steal_initiate(
              comms.global_comm);
 
     WorkChunk loot;
-    MPI_Request rq;
-    MPI_Irecv(&loot, sizeof(WorkChunk), MPI_BYTE, victim, TAG_NODE_STEAL_REPLY,
-              comms.global_comm, &rq);
+    MPI_Status status;
+    MPI_Recv(&loot, sizeof(WorkChunk), MPI_BYTE, victim, TAG_NODE_STEAL_REPLY,
+             comms.global_comm, &status);
+    /**
     int completed = 0;
     while (!completed) {
 
@@ -299,7 +292,7 @@ inline static void inter_node_work_steal_initiate(
           break;
         }
       }
-    }
+    }**/
 
     if (length(loot) > 0) {
 
@@ -310,8 +303,8 @@ inline static void inter_node_work_steal_initiate(
         else
           table[w] = {0, -1}; // keep them idle
         MPI_Request rq;
-        MPI_Isend(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
-                  comms.local_comm, &rq);
+        MPI_Send(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
+                 comms.local_comm);
       }
       active_workers = real_workers;
       lootReceived = true;
@@ -393,8 +386,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   WorkChunk poison{0, -2};
   for (int w = 1; w <= num_workers; ++w) {
     MPI_Request rq;
-    MPI_Isend(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
-              comms.local_comm, &rq);
+    MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
+             comms.local_comm);
   }
   MPI_Win_unlock_all(term_win);
   MPI_Win_free(&term_win);
@@ -414,11 +407,9 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                             comms);
     char dummy;
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
-    MPI_Request rq;
-    MPI_Status st_wait;
-    MPI_Irecv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
-              comms.local_comm, &rq);
-    MPI_Wait(&rq, &st_wait);
+    MPI_Status status;
+    MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
+             comms.local_comm, &status);
 
     if (length(myChunk) < 0)
       break;
@@ -605,11 +596,10 @@ static inline bool check_for_assignment(LAMBDA_TYPE &endComb,
     return false;
 
   LAMBDA_TYPE newEnd;
-  MPI_Request rq;
-  MPI_Status st_wait;
-  MPI_Irecv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END, local_comm, &rq);
+  MPI_Status status;
+  MPI_Recv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END, local_comm,
+           &status);
 
-  MPI_Wait(&rq, &st_wait);
   endComb = newEnd;
   return true;
 }
@@ -631,9 +621,8 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     if (lambda > endComb)
       break;
     LAMBDA_TYPE start = lambda;
-    MPI_Request rq;
-    MPI_Isend(&start, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
-              comms.local_comm, &rq);
+    MPI_Send(&start, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
+             comms.local_comm);
 #endif
 
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
