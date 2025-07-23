@@ -119,7 +119,6 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
     reply.start = mid + 1;
     reply.end = table[donor].end;
     table[donor].end = mid;
-    MPI_Request rq;
     MPI_Send(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
              comms.local_comm);
     ++active_workers;
@@ -128,7 +127,6 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
       active_workers = 0;
     table[requester] = {0, -1};
   }
-  MPI_Request rq;
   MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
            comms.local_comm); // change end
 
@@ -302,7 +300,6 @@ inline static void inter_node_work_steal_initiate(
           table[w] = calculate_worker_range(loot, w - 1, real_workers);
         else
           table[w] = {0, -1}; // keep them idle
-        MPI_Request rq;
         MPI_Send(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
                  comms.local_comm);
       }
@@ -385,7 +382,6 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   // Poison the workers
   WorkChunk poison{0, -2};
   for (int w = 1; w <= num_workers; ++w) {
-    MPI_Request rq;
     MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
   }
