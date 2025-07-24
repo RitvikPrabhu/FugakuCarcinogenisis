@@ -398,9 +398,11 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                                 double elapsed_times[], CommsStruct &comms) {
 
   while (true) {
-    process_lambda_interval(myChunk.start, myChunk.end, localComb,
-                            localBestMaxF, dataTable, buffers, elapsed_times,
-                            comms);
+    if (length(myChunk) > 0) {
+      process_lambda_interval(myChunk.start, myChunk.end, localComb,
+                              localBestMaxF, dataTable, buffers, elapsed_times,
+                              comms);
+    }
     char dummy;
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
     MPI_Status status;
