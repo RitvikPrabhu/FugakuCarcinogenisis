@@ -753,6 +753,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
         printf("F value: %f, max F value: %f\n", F, maxF);
+        fflush(stdout);
         if (F >= maxF) {
           maxF = F;
           for (int k = 0; k < NUMHITS; ++k)
