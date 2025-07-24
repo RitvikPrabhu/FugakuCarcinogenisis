@@ -689,7 +689,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     check_for_assignment(endComb, comms.local_comm);
     if (lambda > endComb)
       break;
-    if ((lambda % 5000) == 0) {
+    if ((lambda % 20) == 0) {
       MPI_Send(&lambda, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
                comms.local_comm);
     }
