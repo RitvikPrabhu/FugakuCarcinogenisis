@@ -463,6 +463,10 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                                 sets_t dataTable, SET *buffers,
                                 double elapsed_times[], CommsStruct &comms) {
 
+  printf("[rank %d]  initial chunk  [%lld – %lld]\n", comms.local_rank,
+         myChunk.start, myChunk.end);
+  fflush(stdout);
+
   while (true) {
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
                             localBestMaxF, dataTable, buffers, elapsed_times,
@@ -673,6 +677,10 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            double elapsed_times[],
                                            CommsStruct &comms) {
 
+  printf("[rank %d]  processing interval  [%lld – %lld]\n", comms.local_rank,
+         startComb, endComb);
+  fflush(stdout);
+
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
   int localComb[NUMHITS] = {0};
@@ -699,6 +707,14 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     SET_INTERSECT(buffers[0], rowI, rowJ, dataTable.tumorRowUnits);
     if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits))
       continue;
+
+    int popI = SET_COUNT(rowI, dataTable.tumorRowUnits);
+    int popJ = SET_COUNT(rowJ, dataTable.tumorRowUnits);
+    if (lambda == startComb) { // print once per chunk
+      printf("[rank %d] λ=%lld  |rowI|=%d  |rowJ|=%d\n", comms.local_rank,
+             lambda, popI, popJ);
+      fflush(stdout);
+    }
 
     localComb[0] = computed.i;
     localComb[1] = computed.j;
@@ -745,7 +761,8 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         int TN = (int)dataTable.numNormal - coveredNormal;
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
-        printf("F value: %f, max F value: %f\n", F, maxF);
+        printf("[rank %d] λ=%lld  TP=%d  TN=%d  F=%.5f\n", comms.local_rank,
+               lambda, TP, TN, F);
         fflush(stdout);
         if (F >= maxF) {
           maxF = F;
@@ -883,6 +900,10 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, elapsed_times, comms);
+    printf("[rank %d]  local best F=%.5f  comb=(%d,%d,%d,%d)\n",
+           comms.local_rank, localBestMaxF, localComb[0], localComb[1],
+           localComb[2], localComb[3]);
+    fflush(stdout);
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
