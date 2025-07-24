@@ -23,6 +23,7 @@
 #ifdef HIERARCHICAL_COMMS
 #include <unistd.h>
 
+/**
 static inline int _type_size(MPI_Datatype dt) {
   int sz = 0;
   MPI_Type_size(dt, &sz);
@@ -93,7 +94,7 @@ static inline void _dump_payload(const void *buf, int count, MPI_Datatype dt,
       std::fprintf(stderr, "!! MPI_ERR=%d", _err);                             \
     std::fprintf(stderr, "\n");                                                \
     return _err;                                                               \
-  }())
+  }())**/
 
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
 #define EXECUTE execute_hierarchical
@@ -470,11 +471,9 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                                 double elapsed_times[], CommsStruct &comms) {
 
   while (true) {
-    if (length(myChunk) > 0) {
-      process_lambda_interval(myChunk.start, myChunk.end, localComb,
-                              localBestMaxF, dataTable, buffers, elapsed_times,
-                              comms);
-    }
+    process_lambda_interval(myChunk.start, myChunk.end, localComb,
+                            localBestMaxF, dataTable, buffers, elapsed_times,
+                            comms);
     char dummy;
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
     MPI_Status status;
@@ -690,9 +689,10 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     check_for_assignment(endComb, comms.local_comm);
     if (lambda > endComb)
       break;
-    LAMBDA_TYPE start = lambda;
-    MPI_Send(&start, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
-             comms.local_comm);
+    if ((lambda % 5000) == 0) {
+      MPI_Send(&lambda, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
+               comms.local_comm);
+    }
 #endif
 
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
