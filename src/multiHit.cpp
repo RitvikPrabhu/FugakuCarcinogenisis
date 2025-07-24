@@ -23,6 +23,26 @@
 #ifdef HIERARCHICAL_COMMS
 #include <unistd.h>
 
+#define MPI_Send(buf, count, type, dest, tag, comm)                            \
+  ([&]() -> int {                                                              \
+    int _rank;                                                                 \
+    MPI_Comm_rank((comm), &_rank);                                             \
+    std::fprintf(stderr,                                                       \
+                 "[rank %d] %s:%d  MPI_Send -> dst %d tag %d count %d\n",      \
+                 _rank, __FILE__, __LINE__, (dest), (tag), (count));           \
+    return PMPI_Send((buf), (count), (type), (dest), (tag), (comm));           \
+  }())
+
+#define MPI_Recv(buf, count, type, src, tag, comm, status)                     \
+  ([&]() -> int {                                                              \
+    int _rank;                                                                 \
+    MPI_Comm_rank((comm), &_rank);                                             \
+    std::fprintf(stderr,                                                       \
+                 "[rank %d] %s:%d  MPI_Recv <- src %d tag %d count %d\n",      \
+                 _rank, __FILE__, __LINE__, (src), (tag), (count));            \
+    return PMPI_Recv((buf), (count), (type), (src), (tag), (comm), (status));  \
+  }())
+
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
 #define EXECUTE execute_hierarchical
 static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
