@@ -23,24 +23,33 @@
 #ifdef HIERARCHICAL_COMMS
 #include <unistd.h>
 
-#define MPI_Send(buf, count, type, dest, tag, comm)                            \
+#define MPI_Send(buf, count, dt, dest, tag, comm)                              \
   ([&]() -> int {                                                              \
     int _rank;                                                                 \
     MPI_Comm_rank((comm), &_rank);                                             \
     std::fprintf(stderr,                                                       \
-                 "[rank %d] %s:%d  MPI_Send -> dst %d tag %d count %d\n",      \
+                 "[rank %d] %s:%d  MPI_Send -> dst %d tag %d count %d ",       \
                  _rank, __FILE__, __LINE__, (dest), (tag), (count));           \
-    return PMPI_Send((buf), (count), (type), (dest), (tag), (comm));           \
+    _dump_payload((buf), (count), (dt));                                       \
+    std::fprintf(stderr, "\n");                                                \
+    return PMPI_Send((buf), (count), (dt), (dest), (tag), (comm));             \
   }())
 
-#define MPI_Recv(buf, count, type, src, tag, comm, status)                     \
+#define MPI_Recv(buf, count, dt, src, tag, comm, status)                       \
   ([&]() -> int {                                                              \
     int _rank;                                                                 \
     MPI_Comm_rank((comm), &_rank);                                             \
+    int _err =                                                                 \
+        PMPI_Recv((buf), (count), (dt), (src), (tag), (comm), (status));       \
     std::fprintf(stderr,                                                       \
-                 "[rank %d] %s:%d  MPI_Recv <- src %d tag %d count %d\n",      \
+                 "[rank %d] %s:%d  MPI_Recv <- src %d tag %d count %d ",       \
                  _rank, __FILE__, __LINE__, (src), (tag), (count));            \
-    return PMPI_Recv((buf), (count), (type), (src), (tag), (comm), (status));  \
+    if (_err == MPI_SUCCESS)                                                   \
+      _dump_payload((buf), (count), (dt));                                     \
+    else                                                                       \
+      std::fprintf(stderr, "!! MPI_ERR=%d", _err);                             \
+    std::fprintf(stderr, "\n");                                                \
+    return _err;                                                               \
   }())
 
 #define ALL_REDUCE_FUNC Allreduce_hierarchical
