@@ -23,6 +23,49 @@
 #ifdef HIERARCHICAL_COMMS
 #include <unistd.h>
 
+static inline int _type_size(MPI_Datatype dt) {
+  int sz = 0;
+  MPI_Type_size(dt, &sz);
+  return sz;
+}
+
+static inline void _dump_payload(const void *buf, int count, MPI_Datatype dt,
+                                 int max_preview = 64) {
+  if (count == 0)
+    return;
+
+  if (dt == MPI_INT) {
+    auto p = static_cast<const int *>(buf);
+    int n = (count > 8 ? 8 : count);
+    std::fprintf(stderr, "[");
+    for (int i = 0; i < n; ++i)
+      std::fprintf(stderr, "%s%d", (i ? "," : ""), p[i]);
+    if (count > n)
+      std::fprintf(stderr, ",…");
+    std::fprintf(stderr, "]");
+    return;
+  }
+  if (dt == MPI_FLOAT) {
+    auto p = static_cast<const float *>(buf);
+    int n = (count > 8 ? 8 : count);
+    std::fprintf(stderr, "[");
+    for (int i = 0; i < n; ++i)
+      std::fprintf(stderr, "%s%.3g", (i ? "," : ""), p[i]);
+    if (count > n)
+      std::fprintf(stderr, ",…");
+    std::fprintf(stderr, "]");
+    return;
+  }
+  const uint8_t *bytes = static_cast<const uint8_t *>(buf);
+  int byte_count = count * _type_size(dt);
+  int n = (byte_count > max_preview ? max_preview : byte_count);
+  std::fprintf(stderr, "0x");
+  for (int i = 0; i < n; ++i)
+    std::fprintf(stderr, "%02x", bytes[i]);
+  if (byte_count > n)
+    std::fprintf(stderr, "…");
+}
+
 #define MPI_Send(buf, count, dt, dest, tag, comm)                              \
   ([&]() -> int {                                                              \
     int _rank;                                                                 \
