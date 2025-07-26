@@ -12,6 +12,11 @@
 #define NUMHITS 4
 #endif
 
+#ifndef CHUNK_SIZE
+#pragma message("CHUNK_SIZE was not provided, using default of 102400")
+#define CHUNK_SIZE 102400
+#endif
+
 enum profile_out {
   WORKER_TIME,
   WORKER_RUNNING_TIME,
