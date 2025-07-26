@@ -8,8 +8,8 @@
 #include "commons.h"
 #include "utils.h"
 
-const int updateChunk = 20;
-const int numRetries = 3;
+const int UPDATE_CHUNK = 20;
+const int NUM_RETRIES = 3;
 
 struct MPIResultWithComb {
   double f;

@@ -5,6 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(NUMHITS "4" CACHE STRING "Number of hits in the pattern (e.g. 3, 4, 5, 6...)")
+set(CHUNK_SIZE "2" CACHE STRING "Chunk size used in code")
 
 add_definitions(-DNUMHITS=${NUMHITS})
 add_definitions(-DCHUNK_SIZE=${CHUNK_SIZE})

@@ -252,7 +252,7 @@ inline static void inter_node_work_steal_initiate(
   bool lootReceived = false;
   char dummy;
 
-  for (int attempt = 0; attempt < numRetries && !lootReceived; ++attempt) {
+  for (int attempt = 0; attempt < NUM_RETRIES && !lootReceived; ++attempt) {
     int victim;
     do {
       victim = gen(rng);
@@ -613,7 +613,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     check_for_assignment(endComb, comms.local_comm);
     if (lambda > endComb)
       break;
-    if ((lambda % updateChunk) == 0) {
+    if ((lambda % UPDATE_CHUNK) == 0) {
       MPI_Request rq;
       MPI_Isend(&lambda, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
                 comms.local_comm, &rq);
