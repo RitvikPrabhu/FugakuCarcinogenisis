@@ -147,7 +147,8 @@ inline static void worker_progress_update(std::vector<WorkChunk> &table,
 inline static void inter_node_work_steal_victim(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
     int num_workers, int &my_color, Token &tok, const CommsStruct &comms) {
-
+  printf("Internode steal victim\n");
+  fflush(stdout);
   char dummy;
   MPI_Request rq_recv;
   MPI_Irecv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
@@ -244,6 +245,9 @@ inline static void inter_node_work_steal_initiate(
     int num_workers, bool &have_token, bool &termination_broadcast,
     bool &global_done, int &my_color, const int next_leader, Token &tok,
     MPI_Win &term_win, const CommsStruct &comms) {
+  printf("Internode steal initiate\n");
+  fflush(stdout);
+
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
