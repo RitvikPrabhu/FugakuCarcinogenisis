@@ -2,19 +2,14 @@
 #define UTILS_H
 #include "commons.h"
 #include <chrono>
-#include <mpi.h>
 #include <cstdint>
+#include <mpi.h>
 #define MAX_BUF_SIZE 1024
 #define MAX_NAME_LEN 256
 
 #ifndef NUMHITS
 #pragma message("NUMHITS was not provided, using default of 4")
 #define NUMHITS 4
-#endif
-
-#ifndef CHUNK_SIZE
-#pragma message("CHUNK_SIZE was not provided, using default of 102400")
-#define CHUNK_SIZE 102400
 #endif
 
 enum profile_out {
