@@ -226,7 +226,7 @@ try_forward_token_if_idle(int &active_workers, bool &have_token,
     tok.colour = BLACK;
 
   if (comms.global_rank == 0) {
-    if (tok.colour == WHITE && tok.finalRound) {
+    if (tok.colour == WHITE) { //&& tok.finalRound) {
       DEBUG("ROOT: Broadcasting termination!");
       root_broadcast_termination(comms, term_win);
     } else {
