@@ -205,12 +205,15 @@ inline static void inter_node_work_steal_victim(
 
 static inline void root_broadcast_termination(const CommsStruct &comms,
                                               MPI_Win &term_win) {
+  DEBUG("ROOT: Broadcasting termination to all %d nodes", comms.num_nodes);
   bool termination_signal = true;
   for (int rank = 0; rank < comms.num_nodes; ++rank) {
     MPI_Put(&termination_signal, 1, MPI_C_BOOL, rank, 0, 1, MPI_C_BOOL,
             term_win);
+    DEBUG("ROOT: Put termination signal to node %d", rank);
   }
   MPI_Win_flush_all(term_win);
+  DEBUG("ROOT: Termination broadcast complete");
 }
 
 static inline void
@@ -373,7 +376,12 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
   bool termination_broadcast = false;
+  int loop_count = 0;
   while (true) {
+    if (loop_count++ % 1000 == 0) {
+      DEBUG("Still in main loop, active=%d, global_done=%d", active_workers,
+            *global_done);
+    }
     MPI_Win_sync(term_win);
     if (*global_done) {
       DEBUG("Detected global termination signal");
