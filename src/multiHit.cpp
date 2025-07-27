@@ -195,7 +195,7 @@ try_forward_token_if_idle(int &active_workers, bool &have_token,
                           bool &termination_broadcast, bool &global_done,
                           int &my_color, Token &tok, const int next_leader,
                           MPI_Win &term_win, const CommsStruct &comms) {
-  if (!have_token || active_workers >= 0 || termination_broadcast)
+  if (!have_token || active_workers > 0 || termination_broadcast)
     return;
 
   if (my_color == BLACK)
