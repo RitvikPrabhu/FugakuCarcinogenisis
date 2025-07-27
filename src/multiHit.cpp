@@ -19,19 +19,16 @@
 
 #define DEBUG(fmt, ...)                                                        \
   do {                                                                         \
-    FILE *debug_file = fopen("hierarchical_debug.log", "a");                   \
-    if (debug_file) {                                                          \
-      double timestamp = MPI_Wtime();                                          \
-      if (comms.is_leader) {                                                   \
-        fprintf(debug_file, "[%.6f] N%d/L%d: " fmt "\n", timestamp,            \
-                comms.my_node_id, comms.global_rank, ##__VA_ARGS__);           \
-      } else {                                                                 \
-        fprintf(debug_file, "[%.6f] N%d/W%d: " fmt "\n", timestamp,            \
-                comms.my_node_id, comms.local_rank, ##__VA_ARGS__);            \
-      }                                                                        \
-      fflush(debug_file);                                                      \
-      fclose(debug_file);                                                      \
+    double timestamp = MPI_Wtime();                                            \
+    if (comms.is_leader) {                                                     \
+      fprintf(stdout, "[%.6f] N%d/L%d: " fmt "\n", timestamp,                  \
+              comms.my_node_id, comms.global_rank, ##__VA_ARGS__);             \
+    } else {                                                                   \
+      fprintf(stdout, "[%.6f] N%d/W%d: " fmt "\n", timestamp,                  \
+              comms.my_node_id, comms.local_rank, ##__VA_ARGS__);              \
     }                                                                          \
+    fflush(debug_file);                                                        \
+    fclose(debug_file);                                                        \
   } while (0)
 
 //////////////////////////////  Start Allreduce_hierarchical
