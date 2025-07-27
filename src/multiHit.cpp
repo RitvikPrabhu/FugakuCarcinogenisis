@@ -27,8 +27,6 @@
       fprintf(stdout, "[%.6f] N%d/W%d: " fmt "\n", timestamp,                  \
               comms.my_node_id, comms.local_rank, ##__VA_ARGS__);              \
     }                                                                          \
-    fflush(debug_file);                                                        \
-    fclose(debug_file);                                                        \
   } while (0)
 
 //////////////////////////////  Start Allreduce_hierarchical
