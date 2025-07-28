@@ -312,6 +312,8 @@ inline static void inter_node_work_steal_initiate(
               comms.global_comm, &rq_recv);
 
     int completed = 0;
+    // MPI_Win_sync(term_win);
+
     while (!completed && !(*global_done)) {
       DEBUG("Inside completed loop");
       MPI_Test(&rq_recv, &completed, MPI_STATUS_IGNORE);
@@ -340,7 +342,7 @@ inline static void inter_node_work_steal_initiate(
           break;
         }
       }
-      MPI_Win_sync(term_win);
+      // MPI_Win_sync(term_win);
     }
 
     if (length(loot) > 0) {
