@@ -312,15 +312,12 @@ inline static void inter_node_work_steal_initiate(
               comms.global_comm, &rq_recv);
 
     int completed = 0;
-    while (!completed) {
+    while (!completed && !global_done) {
       DEBUG("Inside completed loop");
       MPI_Test(&rq_recv, &completed, MPI_STATUS_IGNORE);
-      if (completed || global_done) {
-        DEBUG("INTERNODE INIT: Test - victim = node %d, loot.start = %lld, "
-              "loot.end = %lld, completed = %d",
-              victim, loot.start, loot.end, completed);
-        break;
-      }
+      DEBUG("INTERNODE INIT: Test - victim = node %d, loot.start = %lld, "
+            "loot.end = %lld, completed = %d, global_done = %d",
+            victim, loot.start, loot.end, completed, global_done);
 
       int flag = 0;
       MPI_Status st;
