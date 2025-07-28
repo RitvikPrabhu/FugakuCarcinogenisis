@@ -27,6 +27,7 @@
       fprintf(stdout, "[%.6f] N%d/W%d: " fmt "\n", timestamp,                  \
               comms.my_node_id, comms.local_rank, ##__VA_ARGS__);              \
     }                                                                          \
+    fflush(stdout);                                                            \
   } while (0)
 
 //////////////////////////////  Start Allreduce_hierarchical
@@ -283,8 +284,8 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
                                bool &have_token, bool &termination_broadcast,
                                int &my_color, const int next_leader, Token &tok,
                                MPI_Win &term_win, const CommsStruct &comms) {
-  printf("Internode steal initiate\n");
-  fflush(stdout);
+
+  DEBUG("BEGIN: inter_node_work_steal_initiate");
 
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
@@ -300,10 +301,12 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
       victim = gen(rng);
     } while (victim == myRank);
 
+    DEBUG("INTERNODE INIT: ISend - victim = node %d", victim);
     MPI_Request rq;
     MPI_Isend(&dummy, 1, MPI_BYTE, victim, TAG_NODE_STEAL_REQ,
               comms.global_comm, &rq);
 
+    DEBUG("INTERNODE INIT: IRecv - victim = node %d", victim);
     WorkChunk loot;
     MPI_Request rq_recv;
     MPI_Irecv(&loot, sizeof(WorkChunk), MPI_BYTE, victim, TAG_NODE_STEAL_REPLY,
@@ -311,10 +314,13 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
 
     int completed = 0;
     while (!completed) {
-
+      DEBUG("Inside completed loop");
       MPI_Test(&rq_recv, &completed, MPI_STATUS_IGNORE);
       if (completed)
-        break;
+        DEBUG("INTERNODE INIT: Test - victim = node %d, loot.start = %lld, "
+              "loot.end = %lld, completed = %d",
+              victim, loot.start, loot.end, completed);
+      break;
 
       int flag = 0;
       MPI_Status st;
@@ -324,11 +330,15 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
         switch (st.MPI_TAG) {
 
         case TAG_NODE_STEAL_REQ:
+          DEBUG("INTERNODE INIT: Received TAG_NODE_STEAL_REQ from Node: %d",
+                st.MPI_SOURCE);
           inter_node_work_steal_victim(table, st, active_workers, num_workers,
                                        my_color, tok, comms);
           break;
 
         case TAG_TOKEN:
+          DEBUG("INTERNODE INIT: Received TAG_TOKEN from Node: %d",
+                st.MPI_SOURCE);
           receive_token(tok, st, have_token, comms);
           break;
         }
@@ -337,6 +347,7 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
 
     if (length(loot) > 0) {
 
+      DEBUG("INTERNODE INIT: Length of loot is greater than 0");
       int real_workers = std::min<int>(num_workers, length(loot));
       for (int w = 1; w <= num_workers; ++w) {
         if (w <= real_workers)
@@ -351,6 +362,7 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
       lootReceived = true;
     }
   }
+  DEBUG("INTERNODE INIT: Idle function");
   try_forward_token_if_idle(active_workers, have_token, termination_broadcast,
                             my_color, tok, next_leader, term_win, comms);
 }
