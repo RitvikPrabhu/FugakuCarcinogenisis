@@ -340,6 +340,7 @@ inline static void inter_node_work_steal_initiate(
           break;
         }
       }
+      MPI_Win_sync(term_win);
     }
 
     if (length(loot) > 0) {
