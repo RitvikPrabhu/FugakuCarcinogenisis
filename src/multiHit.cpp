@@ -216,6 +216,12 @@ try_forward_token_if_idle(int &active_workers, bool &have_token,
                           bool &termination_broadcast, int &my_color,
                           Token &tok, const int next_leader, MPI_Win &term_win,
                           const CommsStruct &comms) {
+  DEBUG("BEGIN: try_forward_token_if_idle(active workers = %d, have_token = "
+        "%d, termination broadcast = %d, my_color = %d, tok.color = %d, "
+        "tok.finalRound = %d, next Leader = %d)",
+        active_workers, have_token, termination_broadcast, my_color, tok.colour,
+        tok.finalRound, next_leader);
+
   if (!have_token || active_workers > 0 || termination_broadcast) {
     DEBUG("Not forwarding token: have=%d, active=%d, broadcast=%d", have_token,
           active_workers, termination_broadcast);
