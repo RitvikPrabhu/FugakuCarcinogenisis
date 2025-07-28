@@ -133,17 +133,15 @@ inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
     table[donor].end = mid;
     DEBUG("Stealing [%lld, %lld] from worker %d for worker %d", reply.start,
           reply.end, donor, requester);
-    MPI_Request rq;
-    MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-              comms.local_comm, &rq);
+    MPI_Send(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+             comms.local_comm);
   } else {
     DEBUG("No work to steal for worker %d", requester);
     if (--active_workers < 0)
       active_workers = 0;
   }
-  MPI_Request rq;
-  MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
-            comms.local_comm, &rq); // change end
+  MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
+           comms.local_comm); // change end
 
   table[requester] = reply;
 }
@@ -152,11 +150,9 @@ inline static void worker_progress_update(std::vector<WorkChunk> &table,
                                           MPI_Status st,
                                           const CommsStruct &comms) {
   LAMBDA_TYPE newStart;
-  MPI_Request rq;
   MPI_Status status;
-  MPI_Irecv(&newStart, 1, MPI_LONG_LONG_INT, st.MPI_SOURCE, TAG_UPDATE_START,
-            comms.local_comm, &rq);
-  MPI_Wait(&rq, &status);
+  MPI_Recv(&newStart, 1, MPI_LONG_LONG_INT, st.MPI_SOURCE, TAG_UPDATE_START,
+           comms.local_comm, &status);
   table[st.MPI_SOURCE].start = newStart;
 }
 
@@ -183,9 +179,8 @@ inline static void inter_node_work_steal_victim(
   if (donor != -1 && bestLen > 0) {
     reply = table[donor];
     table[donor].end = table[donor].start - 1;
-    MPI_Request rq;
-    MPI_Isend(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-              comms.local_comm, &rq);
+    MPI_Send(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
+             comms.local_comm);
   }
   if (length(reply) > 0) {
     my_color = BLACK;
@@ -241,16 +236,14 @@ try_forward_token_if_idle(int &active_workers, bool &have_token,
       tok.colour = WHITE;
       DEBUG("ROOT: Forwarding token to node %d, color=%d, final=%d",
             next_leader, tok.colour, tok.finalRound);
-      MPI_Request rq;
-      MPI_Isend(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-                comms.global_comm, &rq);
+      MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+               comms.global_comm);
     }
   } else {
     DEBUG("Forwarding token to node %d, my_color was %d, token_color=%d",
           next_leader, my_color, tok.colour);
-    MPI_Request rq;
-    MPI_Isend(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
-              comms.global_comm, &rq);
+    MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
+             comms.global_comm);
   }
 
   have_token = false;
@@ -261,10 +254,8 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
                                  const CommsStruct &comms) {
 
   MPI_Status status;
-  MPI_Request rq;
-  MPI_Irecv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
-            comms.global_comm, &rq);
-  MPI_Wait(&rq, &status);
+  MPI_Recv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
+           comms.global_comm, &status);
   DEBUG("Received Token from node %d, color=%d, final=%d", st.MPI_SOURCE,
         tok.colour, tok.finalRound);
   have_token = true;
@@ -302,6 +293,8 @@ inline static void inter_node_work_steal_initiate(
 
     DEBUG("INTERNODE INIT: ISend - victim = node %d", victim);
     MPI_Request rq;
+    MPI_Status status;
+
     MPI_Isend(&dummy, 1, MPI_BYTE, victim, TAG_NODE_STEAL_REQ,
               comms.global_comm, &rq);
 
@@ -312,7 +305,7 @@ inline static void inter_node_work_steal_initiate(
               comms.global_comm, &rq_recv);
 
     int completed = 0;
-    // MPI_Win_sync(term_win);
+    MPI_Win_sync(term_win);
 
     while (!completed && !(*global_done)) {
       DEBUG("Inside completed loop");
@@ -331,19 +324,22 @@ inline static void inter_node_work_steal_initiate(
         case TAG_NODE_STEAL_REQ:
           DEBUG("INTERNODE INIT: Received TAG_NODE_STEAL_REQ from Node: %d",
                 st.MPI_SOURCE);
+          MPI_Wait(&rq, &status);
           inter_node_work_steal_victim(table, st, active_workers, num_workers,
                                        my_color, tok, comms);
           break;
 
-        case TAG_TOKEN:
-          DEBUG("INTERNODE INIT: Received TAG_TOKEN from Node: %d",
-                st.MPI_SOURCE);
-          receive_token(tok, st, have_token, comms);
-          break;
+          /**
+      case TAG_TOKEN:
+        DEBUG("INTERNODE INIT: Received TAG_TOKEN from Node: %d",
+              st.MPI_SOURCE);
+        receive_token(tok, st, have_token, comms);
+        break;**/
         }
       }
-      // MPI_Win_sync(term_win);
+      MPI_Win_sync(term_win);
     }
+    MPI_Wait(&rq, &status);
 
     if (length(loot) > 0) {
 
@@ -354,9 +350,8 @@ inline static void inter_node_work_steal_initiate(
           table[w] = calculate_worker_range(loot, w - 1, real_workers);
         else
           table[w] = {0, -1}; // keep them idle
-        MPI_Request rq;
-        MPI_Isend(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
-                  comms.local_comm, &rq);
+        MPI_Send(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
+                 comms.local_comm);
       }
       active_workers = real_workers;
       lootReceived = true;
@@ -459,9 +454,8 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   // Poison the workers
   WorkChunk poison{0, -2};
   for (int w = 1; w <= num_workers; ++w) {
-    MPI_Request rq;
-    MPI_Isend(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
-              comms.local_comm, &rq);
+    MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
+             comms.local_comm);
   }
   MPI_Win_unlock_all(term_win);
   MPI_Win_free(&term_win);
@@ -481,10 +475,8 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
     char dummy;
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
     MPI_Status status;
-    MPI_Request rq;
-    MPI_Irecv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
-              comms.local_comm, &rq);
-    MPI_Wait(&rq, &status);
+    MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
+             comms.local_comm, &status);
 
     if (length(myChunk) < 0) {
       DEBUG("Received poison pill, exiting");
@@ -668,10 +660,9 @@ static inline bool check_for_assignment(LAMBDA_TYPE &endComb,
     return false;
 
   LAMBDA_TYPE newEnd;
-  MPI_Request rq;
   MPI_Status status;
-  MPI_Irecv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END, local_comm, &rq);
-  MPI_Wait(&rq, &status);
+  MPI_Recv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END, local_comm,
+           &status);
   endComb = newEnd;
   return true;
 }
@@ -693,9 +684,8 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     if (lambda > endComb)
       break;
     if ((lambda % UPDATE_CHUNK) == 0) {
-      MPI_Request rq;
-      MPI_Isend(&lambda, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
-                comms.local_comm, &rq);
+      MPI_Send(&lambda, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
+               comms.local_comm);
     }
 #endif
 
