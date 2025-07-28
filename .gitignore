@@ -2,4 +2,5 @@ build
 .cache
 data/.ipynb_checkpoints
 *~
-
+data
+**/.DS_Store
