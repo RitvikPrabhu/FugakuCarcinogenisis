@@ -258,7 +258,8 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
   MPI_Irecv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
             comms.global_comm, &rq);
   MPI_Wait(&rq, &status);
-  DEBUG("Received Token from node %d", st.MPI_SOURCE);
+  DEBUG("Received Token from node %d, color=%d, final=%d", st.MPI_SOURCE,
+        tok.colour, tok.finalRound);
   have_token = true;
 
   if (comms.global_rank == 0) {
