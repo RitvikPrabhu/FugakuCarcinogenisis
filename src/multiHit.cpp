@@ -316,11 +316,12 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
     while (!completed) {
       DEBUG("Inside completed loop");
       MPI_Test(&rq_recv, &completed, MPI_STATUS_IGNORE);
-      if (completed)
+      if (completed) {
         DEBUG("INTERNODE INIT: Test - victim = node %d, loot.start = %lld, "
               "loot.end = %lld, completed = %d",
               victim, loot.start, loot.end, completed);
-      break;
+        break;
+      }
 
       int flag = 0;
       MPI_Status st;
