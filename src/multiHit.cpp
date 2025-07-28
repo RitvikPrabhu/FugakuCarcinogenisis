@@ -282,7 +282,7 @@ inline static void inter_node_work_steal_initiate(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
     int num_workers, bool &have_token, bool &termination_broadcast,
     int &my_color, const int next_leader, Token &tok, MPI_Win &term_win,
-    bool global_done, const CommsStruct &comms) {
+    bool *global_done, const CommsStruct &comms) {
 
   DEBUG("BEGIN: inter_node_work_steal_initiate");
 
@@ -312,12 +312,12 @@ inline static void inter_node_work_steal_initiate(
               comms.global_comm, &rq_recv);
 
     int completed = 0;
-    while (!completed && !global_done) {
+    while (!completed && !(*global_done)) {
       DEBUG("Inside completed loop");
       MPI_Test(&rq_recv, &completed, MPI_STATUS_IGNORE);
       DEBUG("INTERNODE INIT: Test - victim = node %d, loot.start = %lld, "
             "loot.end = %lld, completed = %d, global_done = %d",
-            victim, loot.start, loot.end, completed, global_done);
+            victim, loot.start, loot.end, completed, *global_done);
 
       int flag = 0;
       MPI_Status st;
@@ -450,7 +450,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
       inter_node_work_steal_initiate(table, st, active_workers, num_workers,
                                      have_token, termination_broadcast,
                                      my_color, next_leader, tok, term_win,
-                                     *global_done, comms);
+                                     global_done, comms);
     }
   }
   DEBUG("Sending poison pills to workers");
