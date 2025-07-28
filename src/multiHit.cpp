@@ -278,12 +278,11 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
   }
 }
 
-inline static void
-inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
-                               int &active_workers, int num_workers,
-                               bool &have_token, bool &termination_broadcast,
-                               int &my_color, const int next_leader, Token &tok,
-                               MPI_Win &term_win, const CommsStruct &comms) {
+inline static void inter_node_work_steal_initiate(
+    std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
+    int num_workers, bool &have_token, bool &termination_broadcast,
+    int &my_color, const int next_leader, Token &tok, MPI_Win &term_win,
+    bool global_done, const CommsStruct &comms) {
 
   DEBUG("BEGIN: inter_node_work_steal_initiate");
 
@@ -316,7 +315,7 @@ inter_node_work_steal_initiate(std::vector<WorkChunk> &table, MPI_Status st,
     while (!completed) {
       DEBUG("Inside completed loop");
       MPI_Test(&rq_recv, &completed, MPI_STATUS_IGNORE);
-      if (completed) {
+      if (completed || global_done) {
         DEBUG("INTERNODE INIT: Test - victim = node %d, loot.start = %lld, "
               "loot.end = %lld, completed = %d",
               victim, loot.start, loot.end, completed);
@@ -450,9 +449,10 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     // If leader node is idle, initiate a steal request
     if (active_workers <= 0 && !(*global_done)) {
       DEBUG("Node idle, initiating inter-node steal");
-      inter_node_work_steal_initiate(
-          table, st, active_workers, num_workers, have_token,
-          termination_broadcast, my_color, next_leader, tok, term_win, comms);
+      inter_node_work_steal_initiate(table, st, active_workers, num_workers,
+                                     have_token, termination_broadcast,
+                                     my_color, next_leader, tok, term_win,
+                                     *global_done, comms);
     }
   }
   DEBUG("Sending poison pills to workers");
