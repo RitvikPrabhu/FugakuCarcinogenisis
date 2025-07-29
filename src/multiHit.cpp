@@ -184,14 +184,14 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
   MPI_Recv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
            comms.global_comm, &status);
   have_token = true;
-
-  if (comms.global_rank == 0) {
-    if (tok.colour == WHITE) {
-      tok.finalRound = true;
-    } else {
-      tok.colour = WHITE;
-    }
-  }
+  /**
+    if (comms.global_rank == 0) {
+      if (tok.colour == WHITE) {
+        tok.finalRound = true;
+      } else {
+        tok.colour = WHITE;
+      }
+    }**/
 }
 
 inline static void inter_node_work_steal_initiate(
