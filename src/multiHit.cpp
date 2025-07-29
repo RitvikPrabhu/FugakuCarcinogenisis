@@ -296,7 +296,9 @@ static void send_poison_pill(int num_workers, const CommsStruct &comms) {
 
 static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
                                      const CommsStruct &comms) {
-
+  printf("BEGIN node_leader_hierarchical with availableWork = [%lld, %lld]\n",
+         availableWork.start, availableWork.end);
+  fflush(stdout);
   bool *global_done;
   MPI_Win term_win;
   MPI_Win_allocate(sizeof(bool), sizeof(bool), MPI_INFO_NULL, comms.global_comm,
@@ -387,15 +389,15 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
   const int num_workers = comms.local_size - 1;
 
+  printf("[DEBUG Execute hierarchical] Rank %d (Node %d, Local Rank %d): "
+         "Assigned Leader chunk [%lld, "
+         "%lld]\n",
+         comms.global_rank, comms.my_node_id, comms.local_rank,
+         leaderRange.start, leaderRange.end);
+  fflush(stdout);
   if (comms.is_leader) {
     leaderRange.start += (CHUNK_SIZE * num_workers);
     node_leader_hierarchical(leaderRange, num_workers, comms);
-    printf("[DEBUG Execute hierarchical] Rank %d (Node %d, Local Rank %d): "
-           "Assigned chunk [%lld, "
-           "%lld]\n",
-           comms.global_rank, comms.my_node_id, comms.local_rank,
-           leaderRange.start, leaderRange.end);
-    fflush(stdout);
   } else {
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
