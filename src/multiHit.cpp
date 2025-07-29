@@ -375,20 +375,11 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
 
   if (comms.is_leader) {
     leaderRange.start += (CHUNK_SIZE * num_workers);
-    printf("Leader range start = %lld and leader range end = %lld\n",
-           leaderRange.start, leaderRange.end);
-    fflush(stdout);
     node_leader_hierarchical(leaderRange, num_workers, comms);
   } else {
-    printf("Leader range start = %lld and leader range end = %lld\n",
-           leaderRange.start, leaderRange.end);
-    fflush(stdout);
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
         calculate_worker_range(leaderRange, worker_id, num_workers);
-    printf("My Chunk start = %lld and my chunk end = %lld\n", myChunk.start,
-           myChunk.end);
-    fflush(stdout);
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
                         dataTable, buffers, elapsed_times, comms);
   }
@@ -547,12 +538,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            sets_t &dataTable, SET *buffers,
                                            double elapsed_times[],
                                            CommsStruct &comms) {
-
-  printf("BEGIN: process_lambda_interval [rank %d] startComb=%lld endComb=%lld "
-         "NUMHITS=%d numRows=%zu\n",
-         comms.local_rank, (long long)startComb, (long long)endComb, NUMHITS,
-         dataTable.numRows);
-  fflush(stdout);
 
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
