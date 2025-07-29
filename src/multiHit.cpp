@@ -285,12 +285,6 @@ inline static void inter_node_work_steal_initiate(
 static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
                                      const CommsStruct &comms) {
 
-  std::vector<WorkChunk> table(num_workers + 1);
-
-  for (int w = 1; w <= num_workers; ++w)
-    table[w] = calculate_worker_range(leaderRange, w - 1, num_workers);
-
-  int active_workers = num_workers;
   bool *global_done;
   MPI_Win term_win;
   MPI_Win_allocate(sizeof(bool), sizeof(bool), MPI_INFO_NULL, comms.global_comm,
@@ -302,7 +296,6 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
   Token tok = {WHITE, false};
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
-  int loop_count = 0;
 
   while (true) {
     MPI_Win_sync(term_win);
