@@ -110,16 +110,6 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
            comms.local_comm);
 }
 
-inline static void worker_progress_update(std::vector<WorkChunk> &table,
-                                          MPI_Status st,
-                                          const CommsStruct &comms) {
-  LAMBDA_TYPE newStart;
-  MPI_Status status;
-  MPI_Recv(&newStart, 1, MPI_LONG_LONG_INT, st.MPI_SOURCE, TAG_UPDATE_START,
-           comms.local_comm, &status);
-  table[st.MPI_SOURCE].start = newStart;
-}
-
 inline static void inter_node_work_steal_victim(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
     int num_workers, int &my_color, Token &tok, const CommsStruct &comms) {
@@ -311,9 +301,6 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       switch (tag) {
       case TAG_REQUEST_WORK:
         handle_local_work_steal(availableWork, st, comms);
-        break;
-      case TAG_UPDATE_START:
-        worker_progress_update(table, st, comms);
         break;
       }
     }
