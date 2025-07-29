@@ -110,6 +110,9 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
     reply = {0, -1};
   }
 
+  printf("handle_local_work_steal with availableWork = [%lld, %lld] and reply "
+         "= [%lld, %lld]\n",
+         availableWork.start, availableWork.end, reply.start, reply.end);
   MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
            comms.local_comm);
 }
@@ -818,6 +821,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
+    break;
   }
 
   if (rank == 0)
