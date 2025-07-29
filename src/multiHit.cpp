@@ -372,14 +372,23 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                      SET *buffers, double elapsed_times[], CommsStruct &comms) {
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
   const int num_workers = comms.local_size - 1;
-  leaderRange.start += (CHUNK_SIZE * num_workers);
 
   if (comms.is_leader) {
+    leaderRange.start += (CHUNK_SIZE * num_workers);
+    printf("Leader range start = %lld and leader range end = %lld\n",
+           leaderRange.start, leaderRange.end);
+    fflush(stdout);
     node_leader_hierarchical(leaderRange, num_workers, comms);
   } else {
+    printf("Leader range start = %lld and leader range end = %lld\n",
+           leaderRange.start, leaderRange.end);
+    fflush(stdout);
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
         calculate_worker_range(leaderRange, worker_id, num_workers);
+    printf("My Chunk start = %lld and my chunk end = %lld\n", myChunk.start,
+           myChunk.end);
+    fflush(stdout);
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
                         dataTable, buffers, elapsed_times, comms);
   }
