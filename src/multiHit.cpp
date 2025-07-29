@@ -202,8 +202,8 @@ inline static WorkChunk
 assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
                                 const CommsStruct &comms) {
   LAMBDA_TYPE max_end = loot.start - 1;
-  for (int w = 0; w < num_workers; ++w) {
-    WorkChunk work = calculate_worker_range(loot, w, num_workers);
+  for (int w = 1; w <= num_workers; ++w) {
+    WorkChunk work = calculate_worker_range(loot, w - 1, num_workers);
     MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
     if (work.end > max_end)
@@ -276,6 +276,14 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
   }
 }
 
+static void send_poison_pill(int num_workers, const CommsStruct &comms) {
+  WorkChunk poison{0, -2};
+  for (int w = 1; w <= num_workers; ++w) {
+    MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
+             comms.local_comm);
+  }
+}
+
 static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
                                      const CommsStruct &comms) {
 
@@ -332,11 +340,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     }
   }
   // Poison the workers
-  WorkChunk poison{0, -2};
-  for (int w = 1; w <= num_workers; ++w) {
-    MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
-             comms.local_comm);
-  }
+  send_poison_pill(num_workers, comms);
   MPI_Win_unlock_all(term_win);
   MPI_Win_free(&term_win);
 }
