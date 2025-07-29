@@ -110,34 +110,27 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
            comms.local_comm);
 }
 
-inline static void inter_node_work_steal_victim(
-    std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
-    int num_workers, int &my_color, Token &tok, const CommsStruct &comms) {
+inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
+                                                MPI_Status st, int &my_color,
+                                                Token &tok,
+                                                const CommsStruct &comms) {
   char dummy;
   MPI_Request rq_recv;
   MPI_Irecv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
             comms.global_comm, &rq_recv);
 
-  int donor = -1;
-  LAMBDA_TYPE bestLen = 0;
-  for (int w = 1; w <= num_workers; ++w) {
-    LAMBDA_TYPE len = length(table[w]);
-    if (len > bestLen) {
-      bestLen = len;
-      donor = w;
-    }
+  WorkChunk reply;
+
+  if (availableWork.start < availableWork.end) {
+    LAMBDA_TYPE len = availableWork.end - availableWork.start + 1;
+    LAMBDA_TYPE mid = availableWork.start + len / 2;
+    reply = {mid, availableWork.end};
+    availableWork.end = mid - 1;
+    my_color = BLACK;
+  } else {
+    reply = {0, -1};
   }
 
-  WorkChunk reply{0, -1};
-  if (donor != -1 && bestLen > 0) {
-    reply = table[donor];
-    table[donor].end = table[donor].start - 1;
-    MPI_Send(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-             comms.local_comm);
-  }
-  if (length(reply) > 0) {
-    my_color = BLACK;
-  }
   MPI_Request rq;
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
             TAG_NODE_STEAL_REPLY, comms.global_comm, &rq);
@@ -246,8 +239,7 @@ inline static void inter_node_work_steal_initiate(
 
         case TAG_NODE_STEAL_REQ:
           MPI_Wait(&rq, &status);
-          inter_node_work_steal_victim(table, st, active_workers, num_workers,
-                                       my_color, tok, comms);
+          inter_node_work_steal_victim(availableWork, st, my_color, tok, comms);
           break;
         }
       }
@@ -312,8 +304,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_NODE_STEAL_REQ:
-        inter_node_work_steal_victim(table, st, active_workers, num_workers,
-                                     my_color, tok, comms);
+        inter_node_work_steal_victim(availableWork, st, my_color, tok, comms);
         break;
       case TAG_TOKEN:
         receive_token(tok, st, have_token, comms);
