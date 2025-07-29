@@ -111,8 +111,9 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
   }
 
   printf("handle_local_work_steal with availableWork = [%lld, %lld] and reply "
-         "= [%lld, %lld]\n",
-         availableWork.start, availableWork.end, reply.start, reply.end);
+         "= [%lld, %lld] -> Sending to local rank %d\n",
+         availableWork.start, availableWork.end, reply.start, reply.end,
+         requester);
   MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
            comms.local_comm);
 }
