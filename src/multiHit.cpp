@@ -87,41 +87,27 @@ static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
 
 inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
 
-inline static void handle_local_work_steal(std::vector<WorkChunk> &table,
-                                           MPI_Status st, int num_workers,
-                                           int &active_workers,
+inline static void handle_local_work_steal(WorkChunk &availableWork,
+                                           MPI_Status st,
                                            const CommsStruct &comms) {
 
   int requester = st.MPI_SOURCE;
   char dummy;
   MPI_Recv(&dummy, 1, MPI_BYTE, requester, TAG_REQUEST_WORK, comms.local_comm,
            MPI_STATUS_IGNORE);
+  WorkChunk reply;
+  if (availableWork.start <= availableWork.end) {
+    LAMBDA_TYPE chunkEnd =
+        std::min(availableWork.start + CHUNK_SIZE - 1, availableWork.end);
+    reply = {availableWork.start, chunkEnd};
+    availableWork.start += (chunkEnd + 1);
 
-  int donor = -1;
-  LAMBDA_TYPE bestLen = 0;
-  for (int w = 1; w <= num_workers; ++w) {
-    LAMBDA_TYPE len = length(table[w]);
-    if (len > bestLen) {
-      bestLen = len;
-      donor = w;
-    }
-  }
-  WorkChunk reply{0, -1};
-  if (donor != -1 && bestLen > 1) {
-    LAMBDA_TYPE mid = table[donor].start + (bestLen / 2) - 1;
-    reply.start = mid + 1;
-    reply.end = table[donor].end;
-    table[donor].end = mid;
-    MPI_Send(&table[donor].end, 1, MPI_LONG_LONG_INT, donor, TAG_UPDATE_END,
-             comms.local_comm);
   } else {
-    if (--active_workers < 0)
-      active_workers = 0;
+    reply = {0, -1};
   }
-  MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
-           comms.local_comm); // change end
 
-  table[requester] = reply;
+  MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
+           comms.local_comm);
 }
 
 inline static void worker_progress_update(std::vector<WorkChunk> &table,
@@ -296,8 +282,7 @@ inline static void inter_node_work_steal_initiate(
   }
 }
 
-static void node_leader_hierarchical(const WorkChunk &leaderRange,
-                                     int num_workers,
+static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
                                      const CommsStruct &comms) {
 
   std::vector<WorkChunk> table(num_workers + 1);
@@ -318,6 +303,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
   int loop_count = 0;
+
   while (true) {
     MPI_Win_sync(term_win);
     if (*global_done) {
@@ -331,7 +317,7 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_REQUEST_WORK:
-        handle_local_work_steal(table, st, num_workers, active_workers, comms);
+        handle_local_work_steal(availableWork, st, comms);
         break;
       case TAG_UPDATE_START:
         worker_progress_update(table, st, comms);
