@@ -64,7 +64,7 @@ CommsStruct setup_hierarchical_communicators(int world_rank, int world_size) {
   if (comms.is_leader) {
     MPI_Comm_rank(comms.global_comm, &comms.global_rank);
   } else {
-    comms.global_rank = -1;
+    comms.global_rank = comms.my_node_id;
   }
 
   return comms;
