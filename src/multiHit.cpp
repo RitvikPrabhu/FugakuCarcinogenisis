@@ -326,7 +326,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     try_forward_token_if_idle(availableWork, have_token, my_color, tok,
                               next_leader, term_win, comms);
     // If leader node is idle, initiate a steal request
-    if (active_workers <= 0 && !(*global_done)) {
+    if (length(availableWork) <= 0 && !(*global_done)) {
       inter_node_work_steal_initiate(availableWork, st, num_workers, my_color,
                                      tok, term_win, global_done, comms);
     }
