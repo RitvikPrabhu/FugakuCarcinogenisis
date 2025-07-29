@@ -654,7 +654,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
 
         for (int k = 0; k < NUMHITS; ++k)
           printf("%d ", bestCombination[k]);
-        printf("]\n");
+        printf("] lambda = %lld out of %lld\n", lambda, endComb);
         fflush(stdout);
 
         ++indices[level];
