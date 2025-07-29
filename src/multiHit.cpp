@@ -77,17 +77,12 @@ static inline WorkChunk calculate_node_range(LAMBDA_TYPE num_Comb,
 
 static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
                                                int worker_id, int num_workers) {
-  const LAMBDA_TYPE nodeLen = leaderRange.end - leaderRange.start + 1;
 
-  const LAMBDA_TYPE base = nodeLen / num_workers;
-  const LAMBDA_TYPE extra = nodeLen % num_workers;
+  const LAMBDA_TYPE start = leaderRange.start + worker_id * CHUNK_SIZE;
 
-  const LAMBDA_TYPE start = leaderRange.start + worker_id * base +
-                            std::min<LAMBDA_TYPE>(worker_id, extra);
+  const LAMBDA_TYPE end = start + CHUNK_SIZE - 1;
 
-  const LAMBDA_TYPE len = base + (worker_id < extra ? 1 : 0);
-
-  return {start, start + len - 1};
+  return {start, end};
 }
 
 inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
@@ -407,6 +402,7 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                      SET *buffers, double elapsed_times[], CommsStruct &comms) {
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
   const int num_workers = comms.local_size - 1;
+  leaderRange.start += (CHUNK_SIZE * num_workers);
 
   if (comms.is_leader) {
     node_leader_hierarchical(leaderRange, num_workers, comms);
@@ -566,22 +562,6 @@ static MPI_Datatype create_mpi_result_with_comb_type() {
   return MPI_RESULT_WITH_COMB;
 }
 
-static inline bool check_for_assignment(LAMBDA_TYPE &endComb,
-                                        MPI_Comm local_comm) {
-  MPI_Status st;
-  int flag = 0;
-  MPI_Iprobe(0, TAG_UPDATE_END, local_comm, &flag, &st);
-  if (!flag)
-    return false;
-
-  LAMBDA_TYPE newEnd;
-  MPI_Status status;
-  MPI_Recv(&newEnd, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_END, local_comm,
-           &status);
-  endComb = newEnd;
-  return true;
-}
-
 static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            LAMBDA_TYPE endComb,
                                            int bestCombination[], double &maxF,
@@ -594,16 +574,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
   int localComb[NUMHITS] = {0};
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
-#ifdef HIERARCHICAL_COMMS
-    check_for_assignment(endComb, comms.local_comm);
-    if (lambda > endComb)
-      break;
-    if ((lambda % UPDATE_CHUNK) == 0) {
-      MPI_Send(&lambda, 1, MPI_LONG_LONG_INT, 0, TAG_UPDATE_START,
-               comms.local_comm);
-    }
-#endif
-
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0)
       continue;
