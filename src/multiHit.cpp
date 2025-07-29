@@ -194,11 +194,29 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
     }**/
 }
 
-inline static void inter_node_work_steal_initiate(
-    std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
-    int num_workers, bool &have_token, int &my_color, const int next_leader,
-    Token &tok, MPI_Win &term_win, bool *global_done,
-    const CommsStruct &comms) {
+inline static WorkChunk
+assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
+                                const CommsStruct &comms) {
+  LAMBDA_TYPE max_end = loot.start - 1;
+  for (int w = 0; w < num_workers; ++w) {
+    WorkChunk work = calculate_worker_range(loot, w, num_workers);
+    MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
+             comms.local_comm);
+    if (work.end > max_end)
+      max_end = work.end;
+  }
+  if (max_end >= loot.end) {
+    return {0, -1};
+  } else {
+    return {max_end + 1, loot.end};
+  }
+}
+
+inline static void
+inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
+                               int num_workers, int &my_color, Token &tok,
+                               MPI_Win &term_win, bool *global_done,
+                               const CommsStruct &comms) {
 
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
@@ -248,17 +266,7 @@ inline static void inter_node_work_steal_initiate(
     MPI_Wait(&rq, &status);
 
     if (length(loot) > 0) {
-
-      int real_workers = std::min<int>(num_workers, length(loot));
-      for (int w = 1; w <= num_workers; ++w) {
-        if (w <= real_workers)
-          table[w] = calculate_worker_range(loot, w - 1, real_workers);
-        else
-          table[w] = {0, -1}; // keep them idle
-        MPI_Send(&table[w], sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
-                 comms.local_comm);
-      }
-      active_workers = real_workers;
+      availableWork = assign_and_update_availableWork(loot, num_workers, comms);
       lootReceived = true;
     }
   }
@@ -315,9 +323,8 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
                               next_leader, term_win, comms);
     // If leader node is idle, initiate a steal request
     if (active_workers <= 0 && !(*global_done)) {
-      inter_node_work_steal_initiate(table, st, active_workers, num_workers,
-                                     have_token, my_color, next_leader, tok,
-                                     term_win, global_done, comms);
+      inter_node_work_steal_initiate(availableWork, st, num_workers, my_color,
+                                     tok, term_win, global_done, comms);
     }
   }
   // Poison the workers
