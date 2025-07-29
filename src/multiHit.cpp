@@ -278,13 +278,6 @@ inline static void inter_node_work_steal_initiate(
           inter_node_work_steal_victim(table, st, active_workers, num_workers,
                                        my_color, tok, comms);
           break;
-
-          /**
-      case TAG_TOKEN:
-        DEBUG("INTERNODE INIT: Received TAG_TOKEN from Node: %d",
-              st.MPI_SOURCE);
-        receive_token(tok, st, have_token, comms);
-        break;**/
         }
       }
       MPI_Win_sync(term_win);
