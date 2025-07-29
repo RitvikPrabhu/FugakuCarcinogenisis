@@ -209,6 +209,8 @@ assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
            "%lld]\n",
            comms.global_rank, comms.my_node_id, comms.local_rank, work.start,
            work.end);
+    fflush(stdout);
+
     MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
     if (work.end > max_end)
@@ -367,6 +369,7 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
     printf("[DEBUG Worker_hierarchical] Rank %d received chunk [%lld, %lld] "
            "from node leader\n",
            comms.global_rank, myChunk.start, myChunk.end);
+    fflush(stdout);
 
     if (length(myChunk) < 0) {
       break;
@@ -393,6 +396,8 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
            "%lld]\n",
            comms.global_rank, comms.my_node_id, comms.local_rank, myChunk.start,
            myChunk.end);
+    fflush(stdout);
+
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
                         dataTable, buffers, elapsed_times, comms);
   }
@@ -563,6 +568,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
       printf("[DEBUG] Rank %d (node %d, local %d): lambda=%lld => i=%d, j=%d\n",
              comms.global_rank, comms.my_node_id, comms.local_rank, lambda,
              computed.i, computed.j);
+      fflush(stdout);
     }
     if (computed.j < 0)
       continue;
@@ -630,9 +636,13 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         }
         printf("[DEBUG] Rank %d local maxF=%.5f bestComb=[", comms.global_rank,
                maxF);
+        fflush(stdout);
+
         for (int k = 0; k < NUMHITS; ++k)
           printf("%d ", bestCombination[k]);
         printf("]\n");
+        fflush(stdout);
+
         ++indices[level];
       } else {
         ++level;
@@ -776,6 +786,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
       for (int k = 0; k < NUMHITS; ++k)
         printf("%d ", globalBestComb[k]);
       printf("] F=%.5f\n", globalResult.f);
+      fflush(stdout);
     }
     SET intersectionSets[NUMHITS];
     for (int i = 0; i < NUMHITS; ++i) {
