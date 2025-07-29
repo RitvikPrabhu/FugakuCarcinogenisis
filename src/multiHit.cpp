@@ -110,10 +110,6 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
     reply = {0, -1};
   }
 
-  printf("handle_local_work_steal with availableWork = [%lld, %lld] and reply "
-         "= [%lld, %lld] -> Sending to local rank %d\n",
-         availableWork.start, availableWork.end, reply.start, reply.end,
-         requester);
   MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
            comms.local_comm);
 }
@@ -122,8 +118,6 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
                                                 MPI_Status st, int &my_color,
                                                 Token &tok,
                                                 const CommsStruct &comms) {
-  printf("BEGIN inter_node_work_steal_victim\n");
-  fflush(stdout);
   char dummy;
   MPI_Request rq_recv;
   MPI_Irecv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
@@ -210,12 +204,6 @@ assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
   LAMBDA_TYPE max_end = loot.start - 1;
   for (int w = 1; w <= num_workers; ++w) {
     WorkChunk work = calculate_worker_range(loot, w - 1, num_workers);
-    printf("[DEBUG assign and update availableWork] Rank %d (Node %d, Local "
-           "Rank %d): Assigned chunk [%lld, "
-           "%lld]\n",
-           comms.global_rank, comms.my_node_id, comms.local_rank, work.start,
-           work.end);
-    fflush(stdout);
 
     MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
@@ -234,8 +222,6 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
                                int num_workers, int &my_color, Token &tok,
                                MPI_Win &term_win, bool *global_done,
                                const CommsStruct &comms) {
-  printf("BEGIN: inter_node_work_steal_initiate\n");
-  fflush(stdout);
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -300,9 +286,6 @@ static void send_poison_pill(int num_workers, const CommsStruct &comms) {
 
 static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
                                      const CommsStruct &comms) {
-  printf("BEGIN node_leader_hierarchical with availableWork = [%lld, %lld]\n",
-         availableWork.start, availableWork.end);
-  fflush(stdout);
   bool *global_done;
   MPI_Win term_win;
   MPI_Win_allocate(sizeof(bool), sizeof(bool), MPI_INFO_NULL, comms.global_comm,
@@ -375,10 +358,6 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
     MPI_Status status;
     MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
              comms.local_comm, &status);
-    printf("[DEBUG Worker_hierarchical] Rank %d received chunk [%lld, %lld] "
-           "from node leader\n",
-           comms.global_rank, myChunk.start, myChunk.end);
-    fflush(stdout);
 
     if (length(myChunk) < 0) {
       break;
@@ -393,12 +372,6 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
   const int num_workers = comms.local_size - 1;
 
-  printf("[DEBUG Execute hierarchical] Rank %d (Node %d, Local Rank %d): "
-         "Assigned Leader chunk [%lld, "
-         "%lld]\n",
-         comms.global_rank, comms.my_node_id, comms.local_rank,
-         leaderRange.start, leaderRange.end);
-  fflush(stdout);
   if (comms.is_leader) {
     leaderRange.start += (CHUNK_SIZE * num_workers);
     node_leader_hierarchical(leaderRange, num_workers, comms);
@@ -406,12 +379,6 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
         calculate_worker_range(leaderRange, worker_id, num_workers);
-    printf("[DEBUG Execute hierarchical] Rank %d (Node %d, Local Rank %d): "
-           "Assigned chunk [%lld, "
-           "%lld]\n",
-           comms.global_rank, comms.my_node_id, comms.local_rank, myChunk.start,
-           myChunk.end);
-    fflush(stdout);
 
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
                         dataTable, buffers, elapsed_times, comms);
@@ -579,12 +546,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
 
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
-    if (lambda == startComb || lambda == startComb + 1) {
-      printf("[DEBUG] Rank %d (node %d, local %d): lambda=%lld => i=%d, j=%d\n",
-             comms.global_rank, comms.my_node_id, comms.local_rank, lambda,
-             computed.i, computed.j);
-      fflush(stdout);
-    }
     if (computed.j < 0)
       continue;
 
@@ -649,15 +610,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
           for (int k = 0; k < NUMHITS; ++k)
             bestCombination[k] = localComb[k];
         }
-        printf("[DEBUG] Rank %d local maxF=%.5f bestComb=[", comms.global_rank,
-               maxF);
-        fflush(stdout);
-
-        for (int k = 0; k < NUMHITS; ++k)
-          printf("%d ", bestCombination[k]);
-        printf("] lambda = %lld out of %lld\n", lambda, endComb);
-        fflush(stdout);
-
         ++indices[level];
       } else {
         ++level;
@@ -796,13 +748,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     MPI_MAX_F_WITH_COMB, comms);
     int globalBestComb[NUMHITS];
     extract_global_comb(globalBestComb, globalResult);
-    if (rank == 0) { // or all ranks, for cross-check
-      printf("[DEBUG] After ALLREDUCE: globalBestComb=[");
-      for (int k = 0; k < NUMHITS; ++k)
-        printf("%d ", globalBestComb[k]);
-      printf("] F=%.5f\n", globalResult.f);
-      fflush(stdout);
-    }
     SET intersectionSets[NUMHITS];
     for (int i = 0; i < NUMHITS; ++i) {
       intersectionSets[i] =
@@ -822,7 +767,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     if (rank == 0)
       write_output(rank, outfile, globalBestComb, globalResult.f);
-    break;
   }
 
   if (rank == 0)
