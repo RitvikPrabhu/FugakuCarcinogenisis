@@ -182,13 +182,13 @@ static inline void root_broadcast_termination(const CommsStruct &comms,
   MPI_Win_flush_all(term_win);
 }
 
-static inline void
-try_forward_token_if_idle(int &active_workers, bool &have_token,
-                          bool &termination_broadcast, int &my_color,
-                          Token &tok, const int next_leader, MPI_Win &term_win,
-                          const CommsStruct &comms) {
+static inline void try_forward_token_if_idle(int &active_workers,
+                                             bool &have_token, int &my_color,
+                                             Token &tok, const int next_leader,
+                                             MPI_Win &term_win,
+                                             const CommsStruct &comms) {
 
-  if (!have_token || active_workers > 0 || termination_broadcast) {
+  if (!have_token || active_workers > 0) {
     return;
   }
 
@@ -232,9 +232,9 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
 
 inline static void inter_node_work_steal_initiate(
     std::vector<WorkChunk> &table, MPI_Status st, int &active_workers,
-    int num_workers, bool &have_token, bool &termination_broadcast,
-    int &my_color, const int next_leader, Token &tok, MPI_Win &term_win,
-    bool *global_done, const CommsStruct &comms) {
+    int num_workers, bool &have_token, int &my_color, const int next_leader,
+    Token &tok, MPI_Win &term_win, bool *global_done,
+    const CommsStruct &comms) {
 
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
@@ -322,7 +322,6 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
   Token tok = {WHITE, false};
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
-  bool termination_broadcast = false;
   int loop_count = 0;
   while (true) {
     MPI_Win_sync(term_win);
@@ -362,14 +361,13 @@ static void node_leader_hierarchical(const WorkChunk &leaderRange,
     }
     if (have_token && active_workers <= 0) {
     }
-    try_forward_token_if_idle(active_workers, have_token, termination_broadcast,
-                              my_color, tok, next_leader, term_win, comms);
+    try_forward_token_if_idle(active_workers, have_token, my_color, tok,
+                              next_leader, term_win, comms);
     // If leader node is idle, initiate a steal request
     if (active_workers <= 0 && !(*global_done)) {
       inter_node_work_steal_initiate(table, st, active_workers, num_workers,
-                                     have_token, termination_broadcast,
-                                     my_color, next_leader, tok, term_win,
-                                     global_done, comms);
+                                     have_token, my_color, next_leader, tok,
+                                     term_win, global_done, comms);
     }
   }
   // Poison the workers
