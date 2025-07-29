@@ -299,8 +299,6 @@ inline static void inter_node_work_steal_initiate(
       lootReceived = true;
     }
   }
-  try_forward_token_if_idle(active_workers, have_token, termination_broadcast,
-                            my_color, tok, next_leader, term_win, comms);
 }
 
 static void node_leader_hierarchical(const WorkChunk &leaderRange,
