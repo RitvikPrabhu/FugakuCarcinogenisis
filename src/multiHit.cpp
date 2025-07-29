@@ -539,6 +539,12 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            double elapsed_times[],
                                            CommsStruct &comms) {
 
+  printf("BEGIN: process_lambda_interval [rank %d] startComb=%lld endComb=%lld "
+         "NUMHITS=%d numRows=%zu\n",
+         comms.local_rank, (long long)startComb, (long long)endComb, NUMHITS,
+         dataTable.numRows);
+  fflush(stdout);
+
   const int totalGenes = dataTable.numRows;
   const double alpha = 0.1;
   int localComb[NUMHITS] = {0};
