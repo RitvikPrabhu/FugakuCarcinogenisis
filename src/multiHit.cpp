@@ -118,6 +118,8 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
                                                 MPI_Status st, int &my_color,
                                                 Token &tok,
                                                 const CommsStruct &comms) {
+  printf("BEGIN inter_node_work_steal_victim\n");
+  fflush(stdout);
   char dummy;
   MPI_Request rq_recv;
   MPI_Irecv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
@@ -228,7 +230,8 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
                                int num_workers, int &my_color, Token &tok,
                                MPI_Win &term_win, bool *global_done,
                                const CommsStruct &comms) {
-
+  printf("BEGIN: inter_node_work_steal_initiate\n");
+  fflush(stdout);
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -387,6 +390,12 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   if (comms.is_leader) {
     leaderRange.start += (CHUNK_SIZE * num_workers);
     node_leader_hierarchical(leaderRange, num_workers, comms);
+    printf("[DEBUG Execute hierarchical] Rank %d (Node %d, Local Rank %d): "
+           "Assigned chunk [%lld, "
+           "%lld]\n",
+           comms.global_rank, comms.my_node_id, comms.local_rank,
+           leaderRange.start, leaderRange.end);
+    fflush(stdout);
   } else {
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
