@@ -104,7 +104,7 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
     LAMBDA_TYPE chunkEnd =
         std::min(availableWork.start + CHUNK_SIZE - 1, availableWork.end);
     reply = {availableWork.start, chunkEnd};
-    availableWork.start += (chunkEnd + 1);
+    availableWork.start = (chunkEnd + 1);
 
   } else {
     reply = {0, -1};
