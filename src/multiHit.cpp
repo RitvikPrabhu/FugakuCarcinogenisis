@@ -204,6 +204,11 @@ assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
   LAMBDA_TYPE max_end = loot.start - 1;
   for (int w = 1; w <= num_workers; ++w) {
     WorkChunk work = calculate_worker_range(loot, w - 1, num_workers);
+    printf("[DEBUG assign and update availableWork] Rank %d (Node %d, Local "
+           "Rank %d): Assigned chunk [%lld, "
+           "%lld]\n",
+           comms.global_rank, comms.my_node_id, comms.local_rank, work.start,
+           work.end);
     MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
     if (work.end > max_end)
@@ -359,6 +364,9 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
     MPI_Status status;
     MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
              comms.local_comm, &status);
+    printf("[DEBUG Worker_hierarchical] Rank %d received chunk [%lld, %lld] "
+           "from node leader\n",
+           comms.global_rank, myChunk.start, myChunk.end);
 
     if (length(myChunk) < 0) {
       break;
@@ -380,6 +388,11 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
         calculate_worker_range(leaderRange, worker_id, num_workers);
+    printf("[DEBUG Execute hierarchical] Rank %d (Node %d, Local Rank %d): "
+           "Assigned chunk [%lld, "
+           "%lld]\n",
+           comms.global_rank, comms.my_node_id, comms.local_rank, myChunk.start,
+           myChunk.end);
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
                         dataTable, buffers, elapsed_times, comms);
   }
@@ -544,7 +557,13 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
   int localComb[NUMHITS] = {0};
 
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
+
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
+    if (lambda == startComb || lambda == startComb + 1) {
+      printf("[DEBUG] Rank %d (node %d, local %d): lambda=%lld => i=%d, j=%d\n",
+             comms.global_rank, comms.my_node_id, comms.local_rank, lambda,
+             computed.i, computed.j);
+    }
     if (computed.j < 0)
       continue;
 
@@ -609,6 +628,11 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
           for (int k = 0; k < NUMHITS; ++k)
             bestCombination[k] = localComb[k];
         }
+        printf("[DEBUG] Rank %d local maxF=%.5f bestComb=[", comms.global_rank,
+               maxF);
+        for (int k = 0; k < NUMHITS; ++k)
+          printf("%d ", bestCombination[k]);
+        printf("]\n");
         ++indices[level];
       } else {
         ++level;
@@ -747,7 +771,12 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     MPI_MAX_F_WITH_COMB, comms);
     int globalBestComb[NUMHITS];
     extract_global_comb(globalBestComb, globalResult);
-
+    if (rank == 0) { // or all ranks, for cross-check
+      printf("[DEBUG] After ALLREDUCE: globalBestComb=[");
+      for (int k = 0; k < NUMHITS; ++k)
+        printf("%d ", globalBestComb[k]);
+      printf("] F=%.5f\n", globalResult.f);
+    }
     SET intersectionSets[NUMHITS];
     for (int i = 0; i < NUMHITS; ++i) {
       intersectionSets[i] =
