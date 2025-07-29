@@ -80,7 +80,11 @@ static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
 
   const LAMBDA_TYPE start = leaderRange.start + worker_id * CHUNK_SIZE;
 
-  const LAMBDA_TYPE end = start + CHUNK_SIZE - 1;
+  if (start > leaderRange.end) {
+    return {0, -1};
+  }
+
+  const LAMBDA_TYPE end = std::min(start + CHUNK_SIZE - 1, leaderRange.end);
 
   return {start, end};
 }
