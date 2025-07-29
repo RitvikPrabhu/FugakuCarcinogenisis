@@ -150,13 +150,13 @@ static inline void root_broadcast_termination(const CommsStruct &comms,
   MPI_Win_flush_all(term_win);
 }
 
-static inline void try_forward_token_if_idle(int &active_workers,
+static inline void try_forward_token_if_idle(WorkChunk &availableWork,
                                              bool &have_token, int &my_color,
                                              Token &tok, const int next_leader,
                                              MPI_Win &term_win,
                                              const CommsStruct &comms) {
 
-  if (!have_token || active_workers > 0) {
+  if (!have_token || length(availableWork) > 0) {
     return;
   }
 
@@ -323,7 +323,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
         break;
       }
     }
-    try_forward_token_if_idle(active_workers, have_token, my_color, tok,
+    try_forward_token_if_idle(availableWork, have_token, my_color, tok,
                               next_leader, term_win, comms);
     // If leader node is idle, initiate a steal request
     if (active_workers <= 0 && !(*global_done)) {
