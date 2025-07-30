@@ -94,8 +94,6 @@ inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
 inline static void handle_local_work_steal(WorkChunk &availableWork,
                                            MPI_Status st,
                                            const CommsStruct &comms) {
-  printf("BEGIN handle_local_work_steal\n");
-  fflush(stdout);
   int requester = st.MPI_SOURCE;
   char dummy;
   MPI_Recv(&dummy, 1, MPI_BYTE, requester, TAG_REQUEST_WORK, comms.local_comm,
@@ -119,8 +117,6 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
                                                 MPI_Status st, int &my_color,
                                                 Token &tok,
                                                 const CommsStruct &comms) {
-  printf("BEGIN inter_node_work_steal_victim\n");
-  fflush(stdout);
   char dummy;
   MPI_Request rq_recv;
   MPI_Irecv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
@@ -145,8 +141,6 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
 
 static inline void root_broadcast_termination(const CommsStruct &comms,
                                               MPI_Win &term_win) {
-  printf("BEGIN root_broadcast_termination\n");
-  fflush(stdout);
   bool termination_signal = true;
   for (int rank = 0; rank < comms.num_nodes; ++rank) {
     MPI_Put(&termination_signal, 1, MPI_C_BOOL, rank, 0, 1, MPI_C_BOOL,
@@ -160,8 +154,6 @@ static inline void try_forward_token_if_idle(WorkChunk &availableWork,
                                              Token &tok, const int next_leader,
                                              MPI_Win &term_win,
                                              const CommsStruct &comms) {
-  printf("BEGIN try_forward_token_if_idle\n");
-  fflush(stdout);
 
   if (!have_token || length(availableWork) > 0) {
     return;
@@ -190,8 +182,6 @@ static inline void try_forward_token_if_idle(WorkChunk &availableWork,
 
 inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
                                  const CommsStruct &comms) {
-  printf("BEGIN receive_token\n");
-  fflush(stdout);
   MPI_Status status;
   MPI_Recv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
            comms.global_comm, &status);
@@ -201,8 +191,6 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
 inline static WorkChunk
 assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
                                 const CommsStruct &comms) {
-  printf("BEGIN assign_and_update_availableWork\n");
-  fflush(stdout);
   LAMBDA_TYPE max_end = loot.start - 1;
   for (int w = 1; w <= num_workers; ++w) {
     WorkChunk work = calculate_worker_range(loot, w - 1, num_workers);
@@ -224,8 +212,6 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
                                int num_workers, int &my_color, Token &tok,
                                MPI_Win &term_win, bool *global_done,
                                const CommsStruct &comms) {
-  printf("BEGIN inter_node_work_steal_initiate\n");
-  fflush(stdout);
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -281,8 +267,6 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
 }
 
 static void send_poison_pill(int num_workers, const CommsStruct &comms) {
-  printf("BEGIN send_poison_pill\n");
-  fflush(stdout);
   WorkChunk poison{0, -2};
   for (int w = 1; w <= num_workers; ++w) {
     MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
@@ -608,9 +592,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
         int TN = (int)dataTable.numNormal - coveredNormal;
         double F =
             (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
-        // printf("[rank %d] λ=%lld  TP=%d  TN=%d  F=%.5f\n", comms.local_rank,
-        //        lambda, TP, TN, F);
-        // fflush(stdout);
         if (F >= maxF) {
           maxF = F;
           for (int k = 0; k < NUMHITS; ++k)
