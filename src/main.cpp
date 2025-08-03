@@ -241,6 +241,7 @@ int main(int argc, char *argv[]) {
 
   START_TIMING(total_time);
   distribute_tasks(rank, size, argv[3], elapsed_times, dataTable, comms);
+
   END_TIMING(total_time, elapsed_times[TOTAL_TIME]);
 
 #ifdef ENABLE_PROFILE
