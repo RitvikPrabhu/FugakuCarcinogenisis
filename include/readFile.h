@@ -8,5 +8,5 @@
 #include "commons.h"
 #include "utils.h"
 
-sets_t read_data(const char *filename, int rank);
+sets_t read_data(const char *filename, int rank, const CommsStruct &comms);
 #endif

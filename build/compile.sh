@@ -1,5 +1,3 @@
 #bitwise
-mpiFCCpx -Kparallel -Kfast -std=c++11 -DENABLE_TIMING -I../include ../src/main.cpp ../src/readFile.cpp ../src/fourHit.cpp -o run_bit
+mpiFCCpx -Kfast -std=c++11 -DENABLE_PROFILE -DNUMHITS=4 -DCHUNK_SIZE=2 -I../include ../src/main.cpp ../src/readFile.cpp ../src/multiHit.cpp -o run_4hit
 
-#CPP set
-#mpiFCCpx -Kparallel -Kfast -std=c++11 -DUSE_CPP_SET -I../include ../src/main.cpp ../src/readFile.cpp ../src/fourHit.cpp -o run_set_normal
