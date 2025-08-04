@@ -339,15 +339,15 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
 
     MPI_Fetch_and_op(&inc, &old_start, MPI_LONG_LONG, 0,
                      offsetof(WorkChunk, start), MPI_SUM, pool_win);
-    MPI_Win_flush_local(0, pool_win);
+    MPI_Win_flush(0, pool_win);
     myChunk.start = old_start;
     myChunk.end = std::min(myChunk.start + CHUNK_SIZE - 1, sharedPool->end);
     if (length(myChunk) < 0) {
       break;
-      process_lambda_interval(myChunk.start, myChunk.end, localComb,
-                              localBestMaxF, dataTable, buffers, elapsed_times,
-                              comms);
     }
+    process_lambda_interval(myChunk.start, myChunk.end, localComb,
+                            localBestMaxF, dataTable, buffers, elapsed_times,
+                            comms);
   }
 }
 
@@ -388,6 +388,8 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                         localBestMaxF, localComb, dataTable, buffers,
                         elapsed_times, comms);
   }
+  MPI_Win_unlock_all(leader_win);
+  MPI_Win_free(&leader_win);
 }
 
 #else // Not using hierachical Allreduce
