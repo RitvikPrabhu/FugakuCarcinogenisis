@@ -39,15 +39,6 @@ struct CommsStruct {
   bool is_leader;
 };
 
-static int hash_hostname(const char *hostname) {
-  uint64_t hash = 0;
-  while (*hostname) {
-    hash = (hash * 31) ^ (*hostname);
-    hostname++;
-  }
-  return static_cast<int>(hash & 0x7FFFFFFF);
-}
-
 #define HIERARCHICAL_COMMS 1
 // #undef HIERARCHICAL_COMMS
 

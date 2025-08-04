@@ -46,16 +46,11 @@ inline LAMBDA_TYPE nCr(int n, int r) {
 CommsStruct setup_hierarchical_communicators(int world_rank, int world_size) {
   CommsStruct comms;
 
-  char hostname[256];
-  gethostname(hostname, sizeof(hostname));
-  int node_color = hash_hostname(hostname);
-
-  MPI_Comm_split(MPI_COMM_WORLD, node_color, world_rank, &comms.local_comm);
+  MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
+                      &comms.local_comm);
   MPI_Comm_rank(comms.local_comm, &comms.local_rank);
   MPI_Comm_size(comms.local_comm, &comms.local_size);
 
-  comms.my_node_id = world_rank / comms.local_size;
-  comms.num_nodes = world_size / comms.local_size;
   comms.is_leader = (comms.local_rank == 0);
 
   int global_color = comms.is_leader ? 0 : MPI_UNDEFINED;
@@ -63,9 +58,12 @@ CommsStruct setup_hierarchical_communicators(int world_rank, int world_size) {
 
   if (comms.is_leader) {
     MPI_Comm_rank(comms.global_comm, &comms.global_rank);
-  } else {
-    comms.global_rank = comms.my_node_id;
+    MPI_Comm_size(comms.global_comm, &comms.num_nodes);
+    comms.my_node_id = comms.global_rank;
   }
+
+  MPI_Bcast(&comms.my_node_id, 1, MPI_INT, 0, comms.local_comm);
+  MPI_Bcast(&comms.num_nodes, 1, MPI_INT, 0, comms.local_comm);
 
   return comms;
 }
