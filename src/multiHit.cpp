@@ -295,19 +295,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     }
     MPI_Status st;
     int flag;
-    // local probe
-    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comms.local_comm, &flag, &st);
-    if (flag) {
-      int tag = st.MPI_TAG;
-      switch (tag) {
-      case TAG_REQUEST_WORK:
-        handle_local_work_steal(availableWork, st, comms);
-        break;
-      }
-    }
-
     // global probe
-    flag = 0;
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comms.global_comm, &flag, &st);
     if (flag) {
       int tag = st.MPI_TAG;
@@ -335,22 +323,30 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
 }
 
 static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
+                                WorkChunk *sharedPool, MPI_Win pool_win,
                                 double &localBestMaxF, int localComb[],
                                 sets_t dataTable, SET *buffers,
                                 double elapsed_times[], CommsStruct &comms) {
-
-  while (true) {
+  MPI_Win_sync(pool_win);
+  if (length(myChunk) >= 0)
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
                             localBestMaxF, dataTable, buffers, elapsed_times,
                             comms);
-    char dummy;
-    MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
-    MPI_Status status;
-    MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
-             comms.local_comm, &status);
 
+  while (true) {
+    LAMBDA_TYPE inc = CHUNK_SIZE;
+    LAMBDA_TYPE old_start = 0;
+
+    MPI_Fetch_and_op(&inc, &old_start, MPI_LONG_LONG, 0,
+                     offsetof(WorkChunk, start), MPI_SUM, pool_win);
+    MPI_Win_flush_local(0, pool_win);
+    myChunk.start = old_start;
+    myChunk.end = std::min(myChunk.start + CHUNK_SIZE - 1, sharedPool->end);
     if (length(myChunk) < 0) {
       break;
+      process_lambda_interval(myChunk.start, myChunk.end, localComb,
+                              localBestMaxF, dataTable, buffers, elapsed_times,
+                              comms);
     }
   }
 }
@@ -388,8 +384,9 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
     WorkChunk myChunk =
         calculate_worker_range(*sharedLeader, worker_id, num_workers);
 
-    worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
-                        dataTable, buffers, elapsed_times, comms);
+    worker_hierarchical(comms.local_rank, myChunk, sharedLeader, leader_win,
+                        localBestMaxF, localComb, dataTable, buffers,
+                        elapsed_times, comms);
   }
 }
 
