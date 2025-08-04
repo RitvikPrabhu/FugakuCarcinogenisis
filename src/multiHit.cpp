@@ -91,29 +91,8 @@ static inline WorkChunk calculate_worker_range(const WorkChunk &leaderRange,
 
 inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
 
-inline static void handle_local_work_steal(WorkChunk &availableWork,
-                                           MPI_Status st,
-                                           const CommsStruct &comms) {
-  int requester = st.MPI_SOURCE;
-  char dummy;
-  MPI_Recv(&dummy, 1, MPI_BYTE, requester, TAG_REQUEST_WORK, comms.local_comm,
-           MPI_STATUS_IGNORE);
-  WorkChunk reply;
-  if (availableWork.start <= availableWork.end) {
-    LAMBDA_TYPE chunkEnd =
-        std::min(availableWork.start + CHUNK_SIZE - 1, availableWork.end);
-    reply = {availableWork.start, chunkEnd};
-    availableWork.start = (chunkEnd + 1);
-
-  } else {
-    reply = {0, -1};
-  }
-
-  MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
-           comms.local_comm);
-}
-
 inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
+                                                MPI_Win &leader_win,
                                                 MPI_Status st, int &my_color,
                                                 Token &tok,
                                                 const CommsStruct &comms) {
@@ -129,6 +108,7 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
     LAMBDA_TYPE mid = availableWork.start + len / 2;
     reply = {mid, availableWork.end};
     availableWork.end = mid - 1;
+    MPI_Win_sync(leader_win);
     my_color = BLACK;
   } else {
     reply = {0, -1};
@@ -188,29 +168,24 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
   have_token = true;
 }
 
-inline static WorkChunk
-assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
-                                const CommsStruct &comms) {
+inline static void assign_and_update_availableWork(const WorkChunk &loot,
+                                                   WorkChunk &availableWork,
+                                                   MPI_Win &leader_win) {
   LAMBDA_TYPE max_end = loot.start - 1;
-  for (int w = 1; w <= num_workers; ++w) {
-    WorkChunk work = calculate_worker_range(loot, w - 1, num_workers);
-
-    MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
-             comms.local_comm);
-    if (work.end > max_end)
-      max_end = work.end;
-  }
+  MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, leader_win);
   if (max_end >= loot.end) {
-    return {0, -1};
+    availableWork = {0, -1};
   } else {
-    return {max_end + 1, loot.end};
+    availableWork = {max_end + 1, loot.end};
   }
+  MPI_Win_sync(leader_win);
+  MPI_Win_unlock(0, leader_win);
 }
 
 inline static void
-inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
-                               int num_workers, int &my_color, Token &tok,
-                               MPI_Win &term_win, bool *global_done,
+inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Win &leader_win,
+                               MPI_Status st, int num_workers, int &my_color,
+                               Token &tok, MPI_Win &term_win, bool *global_done,
                                const CommsStruct &comms) {
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
@@ -251,7 +226,8 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
 
         case TAG_NODE_STEAL_REQ:
           MPI_Wait(&rq, &status);
-          inter_node_work_steal_victim(availableWork, st, my_color, tok, comms);
+          inter_node_work_steal_victim(availableWork, leader_win, st, my_color,
+                                       tok, comms);
           break;
         }
       }
@@ -260,21 +236,20 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
     MPI_Wait(&rq, &status);
 
     if (length(loot) > 0) {
-      availableWork = assign_and_update_availableWork(loot, num_workers, comms);
+      assign_and_update_availableWork(loot, availableWork, leader_win);
       lootReceived = true;
     }
   }
 }
 
 static void send_poison_pill(int num_workers, const CommsStruct &comms) {
-  WorkChunk poison{0, -2};
   for (int w = 1; w <= num_workers; ++w) {
-    MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
-             comms.local_comm);
+    MPI_Send(nullptr, 0, MPI_BYTE, w, TAG_TERMINATE, comms.local_comm);
   }
 }
 
-static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
+static void node_leader_hierarchical(WorkChunk &availableWork,
+                                     MPI_Win &leader_win, int num_workers,
                                      const CommsStruct &comms) {
   bool *global_done;
   MPI_Win term_win;
@@ -301,7 +276,8 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_NODE_STEAL_REQ:
-        inter_node_work_steal_victim(availableWork, st, my_color, tok, comms);
+        inter_node_work_steal_victim(availableWork, leader_win, st, my_color,
+                                     tok, comms);
         break;
       case TAG_TOKEN:
         receive_token(tok, st, have_token, comms);
@@ -312,8 +288,9 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
                               next_leader, term_win, comms);
     // If leader node is idle, initiate a steal request
     if (length(availableWork) <= 0 && !(*global_done)) {
-      inter_node_work_steal_initiate(availableWork, st, num_workers, my_color,
-                                     tok, term_win, global_done, comms);
+      inter_node_work_steal_initiate(availableWork, leader_win, st, num_workers,
+                                     my_color, tok, term_win, global_done,
+                                     comms);
     }
   }
   // Poison the workers
@@ -332,18 +309,27 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
                             localBestMaxF, dataTable, buffers, elapsed_times,
                             comms);
-
+  LAMBDA_TYPE old_start;
+  LAMBDA_TYPE inc;
   while (true) {
-    LAMBDA_TYPE inc = CHUNK_SIZE;
-    LAMBDA_TYPE old_start = 0;
+    inc = CHUNK_SIZE;
 
+    MPI_Win_sync(pool_win);
     MPI_Fetch_and_op(&inc, &old_start, MPI_LONG_LONG, 0,
                      offsetof(WorkChunk, start), MPI_SUM, pool_win);
     MPI_Win_flush(0, pool_win);
+    MPI_Win_sync(pool_win);
     myChunk.start = old_start;
     myChunk.end = std::min(myChunk.start + CHUNK_SIZE - 1, sharedPool->end);
-    if (length(myChunk) < 0) {
-      break;
+    if (myChunk.start > myChunk.end) {
+      int flag = 0;
+      MPI_Iprobe(0, TAG_TERMINATE, comms.local_comm, &flag, MPI_STATUS_IGNORE);
+      if (flag) {
+        MPI_Recv(nullptr, 0, MPI_BYTE, 0, TAG_TERMINATE, comms.local_comm,
+                 MPI_STATUS_IGNORE);
+        break;
+      }
+      continue;
     }
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
                             localBestMaxF, dataTable, buffers, elapsed_times,
@@ -355,8 +341,8 @@ static inline void
 execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                      double &localBestMaxF, int localComb[], sets_t dataTable,
                      SET *buffers, double elapsed_times[], CommsStruct &comms) {
-  static WorkChunk *sharedLeader = nullptr;
-  static MPI_Win leader_win;
+  WorkChunk *sharedLeader = nullptr;
+  MPI_Win leader_win;
 
   MPI_Win_allocate_shared((comms.local_rank == 0) ? sizeof(WorkChunk) : 0,
                           sizeof(char), MPI_INFO_NULL, comms.local_comm,
@@ -378,7 +364,8 @@ execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
 
   if (comms.is_leader) {
     sharedLeader->start += (CHUNK_SIZE * num_workers);
-    node_leader_hierarchical(*sharedLeader, num_workers, comms);
+    MPI_Win_sync(leader_win);
+    node_leader_hierarchical(*sharedLeader, leader_win, num_workers, comms);
   } else {
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
