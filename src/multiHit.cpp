@@ -324,7 +324,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
   Token tok = {WHITE, false};
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
-
+  std::size_t leader_iter = 0;
   while (true) {
     MPI_Win_sync(term_win);
     if (*global_done) {
@@ -368,6 +368,19 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       inter_node_work_steal_initiate(availableWork, st, num_workers, my_color,
                                      tok, term_win, global_done, comms);
     }
+
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && (leader_iter % PRINT_FREQ == 0)) {
+      START_TIMING(print_leader);
+      double ts = MPI_Wtime();
+      printf(
+          "[%.3f]  EXCLUDE_TIME  node-leader-0 : availableWork [%lld, %lld]\n",
+          ts, availableWork.start, availableWork.end);
+      fflush(stdout);
+      ++leader_iter;
+      END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
   }
   // Poison the workers
   send_poison_pill(num_workers, comms);
@@ -601,7 +614,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
 
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
     if (computed.j < 0) {
-      INCREMENT_BOUND_LEVEL(1);
       continue;
     }
 
@@ -786,6 +798,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outputFileWriteError(outfile);
   }
 
+  std::size_t dist_iter = 0;
+
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
     std::fill(std::begin(bound_level_counts), std::end(bound_level_counts), 0);
@@ -826,9 +840,20 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
 
-    if (rank == 0)
+    if (rank == 0) {
       write_output(rank, outfile, globalBestComb, globalResult.f,
                    globalBoundCounts, totalCombPossible);
+#ifdef ENABLE_PROFILE
+      START_TIMING(print_dist);
+      double ts = MPI_Wtime();
+      printf("[%.3f] rank-0 : completed distribute_tasks "
+             "iteration %zu\n",
+             ts, dist_iter);
+      fflush(stdout);
+      ++dist_iter;
+      END_TIMING(print_dist, elapsed_times[EXCLUDE_TIME]);
+#endif
+    }
   }
 
   if (rank == 0)

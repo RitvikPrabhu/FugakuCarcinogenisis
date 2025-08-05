@@ -17,6 +17,10 @@
 #define CHUNK_SIZE 102400
 #endif
 
+#ifndef PRINT_FREQ
+#define PRINT_FREQ 1
+#endif
+
 enum profile_out {
   WORKER_TIME,
   WORKER_RUNNING_TIME,
@@ -71,7 +75,7 @@ inline long long bound_level_counts[NUMHITS] = {0};
 #else
 #define START_TIMING(var)
 #define END_TIMING(var, accumulated_time)
-#define INCREMENT_COMBO_COUNT(elapsedTimesArr)
+#define INCREMENT_BOUND_LEVEL(elapsedTimesArr)
 #endif
 
 #endif
