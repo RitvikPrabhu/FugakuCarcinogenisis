@@ -66,11 +66,7 @@ inline double elapsed_times[TIMING_COUNT] = {0.0};
   } while (0)
 
 inline long long bound_level_counts[NUMHITS] = {0};
-
-#define INCREMENT_BOUND_LEVEL(lvl)                                             \
-  do {                                                                         \
-    bound_level_counts[(lvl)]++;                                               \
-  } while (0)
+#define INCREMENT_BOUND_LEVEL(lvl) (++bound_level_counts[(lvl)])
 
 #else
 #define START_TIMING(var)

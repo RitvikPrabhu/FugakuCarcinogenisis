@@ -600,8 +600,10 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
 
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
-    if (computed.j < 0)
+    if (computed.j < 0) {
+      INCREMENT_BOUND_LEVEL(1);
       continue;
+    }
 
     SET rowI =
         GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
@@ -663,6 +665,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
           for (int k = 0; k < NUMHITS; ++k)
             bestCombination[k] = localComb[k];
         }
+        INCREMENT_BOUND_LEVEL(NUMHITS - 1);
         ++indices[level];
       } else {
         ++level;
