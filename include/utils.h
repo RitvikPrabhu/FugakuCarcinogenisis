@@ -18,7 +18,7 @@
 #endif
 
 #ifndef PRINT_FREQ
-#define PRINT_FREQ 1
+#define PRINT_FREQ 10000
 #endif
 
 enum profile_out {
