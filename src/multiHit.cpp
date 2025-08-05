@@ -373,9 +373,8 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     if (comms.global_rank == 0 && (leader_iter % PRINT_FREQ == 0)) {
       START_TIMING(print_leader);
       double ts = MPI_Wtime();
-      printf(
-          "[%.3f]  EXCLUDE_TIME  node-leader-0 : availableWork [%lld, %lld]\n",
-          ts, availableWork.start, availableWork.end);
+      printf("[%.3f] node-leader-0 : availableWork [%lld, %lld]\n", ts,
+             availableWork.start, availableWork.end);
       fflush(stdout);
       ++leader_iter;
       END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
