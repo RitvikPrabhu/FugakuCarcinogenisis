@@ -376,9 +376,9 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       printf("[%.3f] node-leader-0 : availableWork [%lld, %lld]\n", ts,
              availableWork.start, availableWork.end);
       fflush(stdout);
-      ++leader_iter;
       END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
     }
+    ++leader_iter;
 #endif
   }
   // Poison the workers
