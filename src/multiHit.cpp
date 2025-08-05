@@ -537,13 +537,13 @@ static void write_output(int rank, std::ofstream &outfile,
     }
   }
 #ifdef ENABLE_PROFILE
-  outfile << ")  F-max = " << F_max << '\n';
-  outfile << "Prune distribution (level 0 … " << NUMHITS - 1 << "): ";
+  outfile << ")  F-max = " << F_max << ", Prune distribution (level 0 ... "
+          << NUMHITS - 1 << "): ";
   for (int i = 0; i < NUMHITS; ++i) {
     outfile << boundCounts[i] << (i == NUMHITS - 1 ? "" : ", ");
   }
-  outfile << '\n';
-  outfile << "Total possible combinations  = " << totalCombPossible << "\n\n";
+  outfile << "Total possible combinations  = " << totalCombPossible
+          << std::endl;
 #else
   outfile << ")  F-max = " << F_max << std::endl;
 #endif // ENABLE_PROFILE
