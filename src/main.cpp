@@ -112,10 +112,25 @@ void cleanup_communicators(CommsStruct &comms) {
 #endif
 }
 
-void write_worker_time_metrics(const char *metricsFile, const double *all_times,
-                               int count, const char *metric_name) {
+void write_time_metrics(const char *metricsFile, const double *all_times,
+                        int count, const char *metric_name) {
   if (count <= 0) {
     std::cerr << "No data points provided for " << metric_name << "\n";
+    return;
+  }
+
+  std::vector<double> times;
+  times.reserve(static_cast<std::size_t>(count));
+  for (int i = 0; i < count; ++i) {
+    if (all_times[i] != 0.0) {
+      times.push_back(all_times[i]);
+    }
+  }
+
+  if (times.empty()) {
+    std::cerr << "All data points for " << metric_name
+              << " are zero — "
+                 "no statistics written.\n";
     return;
   }
 
@@ -163,28 +178,6 @@ void write_worker_time_metrics(const char *metricsFile, const double *all_times,
   ofs << "Range: " << range << " seconds \n";
   ofs << "Mean: " << mean << " seconds\n";
   ofs << "Std Dev: " << stddev << " seconds \n\n";
-
-  ofs.close();
-}
-
-void write_master_time_metrics(const char *metricsFile, const double *all_times,
-                               int count, const char *metric_name) {
-  if (count <= 0) {
-    std::cerr << "No data points provided for " << metric_name << "\n";
-    return;
-  }
-
-  double time = all_times[0];
-
-  std::ofstream ofs(metricsFile, std::ios_base::app);
-  if (!ofs.is_open()) {
-    std::cerr << "Error opening metrics file: " << metricsFile << std::endl;
-    return;
-  }
-
-  ofs << "===== Metrics for: " << metric_name << " =====\n";
-  ofs << "CHUNK SIZE OF: " << CHUNK_SIZE << "\n";
-  ofs << "Time: " << time << " seconds \n\n";
 
   ofs.close();
 }
@@ -287,20 +280,20 @@ int main(int argc, char *argv[]) {
     ofs << "Performance Metrics\n";
     ofs.close();
 
-    write_worker_time_metrics(argv[2], worker_times.data(), worker_times.size(),
-                              "WORKER_TIME");
-    write_worker_time_metrics(argv[2], worker_runTimes.data(),
-                              worker_runTimes.size(), "WORKER_RUNNING_TIME");
-    write_worker_time_metrics(argv[2], worker_idletimes.data(),
-                              worker_idletimes.size(), "WORKER_IDLE_TIME");
-    write_master_time_metrics(argv[2], master_time.data(), master_time.size(),
-                              "MASTER_TIME");
-    write_master_time_metrics(argv[2], master_time.data(), master_time.size(),
-                              "COMM_LOCAL_TIME");
-    write_master_time_metrics(argv[2], master_time.data(), master_time.size(),
-                              "COMM_GLOBAL_TIME");
-    write_worker_time_metrics(argv[2], total_times.data(), total_times.size(),
-                              "TOTAL_TIME");
+    write_time_metrics(argv[2], worker_times.data(), worker_times.size(),
+                       "WORKER_TIME");
+    write_time_metrics(argv[2], worker_runTimes.data(), worker_runTimes.size(),
+                       "WORKER_RUNNING_TIME");
+    write_time_metrics(argv[2], worker_idletimes.data(),
+                       worker_idletimes.size(), "WORKER_IDLE_TIME");
+    write_time_metrics(argv[2], master_time.data(), master_time.size(),
+                       "MASTER_TIME");
+    write_time_metrics(argv[2], master_time.data(), master_time.size(),
+                       "COMM_LOCAL_TIME");
+    write_time_metrics(argv[2], master_time.data(), master_time.size(),
+                       "COMM_GLOBAL_TIME");
+    write_time_metrics(argv[2], total_times.data(), total_times.size(),
+                       "TOTAL_TIME");
   }
 #endif
   FREE_DATA_TABLE(dataTable);
