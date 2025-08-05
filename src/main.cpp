@@ -210,6 +210,7 @@ int main(int argc, char *argv[]) {
 
   END_TIMING(total_time, elapsed_times[TOTAL_TIME]);
 
+  double t0_profile = MPI_Wtime();
 #ifdef ENABLE_PROFILE
   elapsed_times[WORKER_RUNNING_TIME] =
       elapsed_times[TOTAL_TIME] - elapsed_times[WORKER_IDLE_TIME];
@@ -298,6 +299,13 @@ int main(int argc, char *argv[]) {
                        "TOTAL_TIME");
   }
 #endif
+  if (rank == 0) {
+    double t1 = MPI_Wtime();
+    printf("Rank %d elapsed for final metrics gather ops: %.6f seconds\n", rank,
+           t1 - t0);
+    fflush(stdout);
+  }
+
   FREE_DATA_TABLE(dataTable);
   cleanup_communicators(comms);
   MPI_Finalize();
