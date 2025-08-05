@@ -213,6 +213,8 @@ int main(int argc, char *argv[]) {
 #ifdef ENABLE_PROFILE
   elapsed_times[WORKER_RUNNING_TIME] =
       elapsed_times[TOTAL_TIME] - elapsed_times[WORKER_IDLE_TIME];
+
+  elapsed_times[TOTAL_TIME] -= elapsed_times[EXCLUDE_TIME];
   std::vector<double> all_elapsed_times;
   if (rank == 0) {
     all_elapsed_times.resize(size * TIMING_COUNT);

@@ -526,7 +526,9 @@ static inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
 }
 
 static void write_output(int rank, std::ofstream &outfile,
-                         const int globalBestComb[], double F_max) {
+                         const int globalBestComb[], double F_max,
+                         const LAMBDA_TYPE boundCounts[NUMHITS],
+                         LAMBDA_TYPE totalCombPossible) {
   outfile << "(";
   for (size_t idx = 0; idx < NUMHITS; ++idx) {
     outfile << globalBestComb[idx];
@@ -534,7 +536,17 @@ static void write_output(int rank, std::ofstream &outfile,
       outfile << ", ";
     }
   }
+#ifdef ENABLE_PROFILE
+  outfile << ")  F-max = " << F_max << '\n';
+  outfile << "Prune distribution (level 0 … " << NUMHITS - 1 << "): ";
+  for (int i = 0; i < NUMHITS; ++i) {
+    outfile << boundCounts[i] << (i == NUMHITS - 1 ? "" : ", ");
+  }
+  outfile << '\n';
+  outfile << "Total possible combinations  = " << totalCombPossible << "\n\n";
+#else
   outfile << ")  F-max = " << F_max << std::endl;
+#endif // ENABLE_PROFILE
 }
 
 static void max_f_with_comb(void *in, void *inout, int *len,
@@ -597,8 +609,10 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
     SET_INTERSECT(buffers[0], rowI, rowJ, dataTable.tumorRowUnits);
-    if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits))
+    if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits)) {
+      INCREMENT_BOUND_LEVEL(1);
       continue;
+    }
 
     localComb[0] = computed.i;
     localComb[1] = computed.j;
@@ -624,6 +638,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
       SET_INTERSECT(buffers[level - 1], buffers[level - 2], rowK,
                     dataTable.tumorRowUnits);
       if (SET_IS_EMPTY(buffers[level - 1], dataTable.tumorRowUnits)) {
+        INCREMENT_BOUND_LEVEL(level);
         ++indices[level];
         continue;
       }
@@ -631,7 +646,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
       localComb[level] = indices[level];
 
       if (level == NUMHITS - 1) {
-        INCREMENT_COMBO_COUNT(elapsed_times);
         int TP = SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
         SET normalRows[NUMHITS];
         for (int idx = 0; idx < NUMHITS; ++idx) {
@@ -759,6 +773,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
 
   LAMBDA_TYPE num_Comb = nCr(numGenes, 2);
+  LAMBDA_TYPE totalCombPossible = nCr(numGenes, NUMHITS);
 
   SET droppedSamples;
   SET_NEW(droppedSamples, tumorUnits);
@@ -771,6 +786,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
+    std::fill(std::begin(bound_level_counts), std::end(bound_level_counts), 0);
     double localBestMaxF;
     int localComb[NUMHITS];
     initialize_local_comb_and_f(localBestMaxF, localComb);
@@ -784,6 +800,13 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     MPI_MAX_F_WITH_COMB, comms);
     int globalBestComb[NUMHITS];
     extract_global_comb(globalBestComb, globalResult);
+
+    START_TIMING(metrics_time);
+    long long globalBoundCounts[NUMHITS] = {0};
+    ALL_REDUCE_FUNC(bound_level_counts, globalBoundCounts, NUMHITS,
+                    MPI_LONG_LONG, MPI_SUM, comms);
+    END_TIMING(metrics_time, elapsed_times[EXCLUDE_TIME]);
+
     SET intersectionSets[NUMHITS];
     for (int i = 0; i < NUMHITS; ++i) {
       intersectionSets[i] =
@@ -802,7 +825,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
 
     if (rank == 0)
-      write_output(rank, outfile, globalBestComb, globalResult.f);
+      write_output(rank, outfile, globalBestComb, globalResult.f,
+                   globalBoundCounts, totalCombPossible);
   }
 
   if (rank == 0)

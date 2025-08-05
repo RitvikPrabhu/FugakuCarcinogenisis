@@ -64,10 +64,14 @@ inline double elapsed_times[TIMING_COUNT] = {0.0};
     double var##_end = MPI_Wtime();                                            \
     accumulated_time += var##_end - var##_start;                               \
   } while (0)
-#define INCREMENT_COMBO_COUNT(elapsedTimesArr)                                 \
+
+inline long long bound_level_counts[NUMHITS] = {0};
+
+#define INCREMENT_BOUND_LEVEL(lvl)                                             \
   do {                                                                         \
-    (elapsedTimesArr)[COMBINATION_COUNT] += 1.0;                               \
+    bound_level_counts[(lvl)]++;                                               \
   } while (0)
+
 #else
 #define START_TIMING(var)
 #define END_TIMING(var, accumulated_time)
