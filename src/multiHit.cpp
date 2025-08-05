@@ -542,8 +542,7 @@ static void write_output(int rank, std::ofstream &outfile,
   for (int i = 0; i < NUMHITS; ++i) {
     outfile << boundCounts[i] << (i == NUMHITS - 1 ? "" : ", ");
   }
-  outfile << "Total possible combinations  = " << totalCombPossible
-          << std::endl;
+  outfile << " out of " << totalCombPossible << " combinations." << std::endl;
 #else
   outfile << ")  F-max = " << F_max << std::endl;
 #endif // ENABLE_PROFILE
