@@ -21,8 +21,13 @@ enum profile_out {
   WORKER_TIME,
   WORKER_RUNNING_TIME,
   WORKER_IDLE_TIME,
-
   MASTER_TIME,
+
+  COMM_GLOBAL_TIME,
+  COMM_LOCAL_TIME,
+
+  EXCLUDE_TIME,
+
   TOTAL_TIME,
   COMBINATION_COUNT,
   TIMING_COUNT
@@ -52,6 +57,7 @@ static int hash_hostname(const char *hostname) {
 // #undef HIERARCHICAL_COMMS
 
 #ifdef ENABLE_PROFILE
+extern double elapsed_times[TIMING_COUNT];
 #define START_TIMING(var) double var##_start = MPI_Wtime();
 #define END_TIMING(var, accumulated_time)                                      \
   do {                                                                         \
