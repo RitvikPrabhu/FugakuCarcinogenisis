@@ -113,3 +113,4 @@ sets_t read_data(const char *filename, int rank, const CommsStruct &comms) {
   delete[] file_buffer;
   return table;
 }
+
