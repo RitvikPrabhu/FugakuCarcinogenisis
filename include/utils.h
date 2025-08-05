@@ -57,7 +57,7 @@ static int hash_hostname(const char *hostname) {
 // #undef HIERARCHICAL_COMMS
 
 #ifdef ENABLE_PROFILE
-extern double elapsed_times[TIMING_COUNT];
+inline double elapsed_times[TIMING_COUNT] = {0.0};
 #define START_TIMING(var) double var##_start = MPI_Wtime();
 #define END_TIMING(var, accumulated_time)                                      \
   do {                                                                         \

@@ -58,7 +58,9 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
   }
 
   // Phase 3: Broadcast result to all processes in the local communicator
+  START_TIMING(local_bcast);
   MPI_Bcast(recvbuf, count, datatype, 0, comms.local_comm);
+  END_TIMING(local_bcast, elapsed_times[COMM_LOCAL_TIME]);
 
   // Cleanup
   free(local_result);
