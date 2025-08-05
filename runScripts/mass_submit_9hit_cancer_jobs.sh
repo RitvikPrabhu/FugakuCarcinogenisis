@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+#set -x
 
 #cancers=(
 #  ACC BLCA BRCA CESC CHOL COAD DLBC ESCA GBM HNSC
@@ -8,23 +8,27 @@ set -x
 #  UCEC UCS UVM
 #)
 
+#cancers=(
+#UCS UVM KICH MESO ACC PCPG CHOL PAAD TGCT THYM
+#)
+
 cancers=(
-ACC.combinedData_sorted_bin
+ACC
 )
 
 node_configs=(
-  10000
+  400
 )
 
-ELAPSE=${ELAPSE:-"00:05:00"}
+ELAPSE=${ELAPSE:-"24:00:00"}
 GROUP=ra000012
 
 for NNODES in "${node_configs[@]}"; do
   NPROC=$((NNODES * 48))
 
   for cancer in "${cancers[@]}"; do
-    JOB_NAME="${cancer}_4hit_run_${NNODES}nodes"
-    OUTPUT_DIR="/vol0004/ra000012/ritvik/FugakuCarcinogenisis/runScripts/strong_scaling/strong_scaling/4hit/${cancer}/${NNODES}_nodes_out"
+    JOB_NAME="${cancer}_9hit_run_${NNODES}nodes"
+    OUTPUT_DIR="/vol0004/ra000012/ritvik/FugakuCarcinogenisis/runScripts/strong_scaling/9hit/${cancer}/${NNODES}_nodes_out"
 
     PJSUB_ARGS=(
       -N "${JOB_NAME}"
@@ -37,21 +41,20 @@ for NNODES in "${node_configs[@]}"; do
       -x "PJM_LLIO_GFSCACHE=/vol0004"
       -L "rscgrp=large"
       -m b,e
-      #--mail-list $(git config user.email)
-      --mail-list ritvikp@vt.edu
+      --mail-list $(git config user.email)
     )
 
     echo "Submitting job for cancer: ${cancer} with ${NNODES} nodes"
     mkdir -p "${OUTPUT_DIR}"
 
     pjsub "${PJSUB_ARGS[@]}" << EOF
-llio_transfer /vol0004/ra000012/ritvik/FugakuCarcinogenisis/build/run_4hit
+llio_transfer /vol0004/ra000012/ritvik/FugakuCarcinogenisis//build/run_9hit
 llio_transfer /vol0004/ra000012/ritvik/FugakuCarcinogenisis/data/${cancer}.txt
 
-mpiexec /vol0004/ra000012/ritvik/FugakuCarcinogenisis/build/run_4hit \\
+mpiexec /vol0004/ra000012/ritvik/FugakuCarcinogenisis/build/run_9hit \\
   /vol0004/ra000012/ritvik/FugakuCarcinogenisis/data/${cancer}.txt \\
-  $OUTPUT_DIR/${cancer}_4hit_profile.csv \\
-  $OUTPUT_DIR/${cancer}_4hit_profile.out
+  $OUTPUT_DIR/${cancer}_9hit.csv \\
+  $OUTPUT_DIR/${cancer}_9hit.out
 EOF
 
   done

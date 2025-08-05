@@ -24,7 +24,7 @@ for NNODES in "${node_configs[@]}"; do
 
   for cancer in "${cancers[@]}"; do
     JOB_NAME="${cancer}_6hit_run_${NNODES}nodes"
-    OUTPUT_DIR="strong_scaling/6hit/${cancer}/${NNODES}_nodes_out"
+    OUTPUT_DIR="/vol0004/ra000012/ritvik/FugakuCarcinogenisis/runScripts/strong_scaling/6hit/${cancer}/${NNODES}_nodes_out"
 
     PJSUB_ARGS=(
       -N "${JOB_NAME}"
@@ -44,11 +44,11 @@ for NNODES in "${node_configs[@]}"; do
     mkdir -p "${OUTPUT_DIR}"
 
     pjsub "${PJSUB_ARGS[@]}" << EOF
-llio_transfer ../build/run_6hit
-llio_transfer ../data/${cancer}.txt
+llio_transfer /vol0004/ra000012/ritvik/FugakuCarcinogenisis/build/run_6hit
+llio_transfer /vol0004/ra000012/ritvik/FugakuCarcinogenisis/data/${cancer}.txt
 
-mpiexec -mca common_tofu_num_mrq_entries 2097152 ../build/run_6hit \\
-  ../data/${cancer}.txt \\
+mpiexec /vol0004/ra000012/ritvik/FugakuCarcinogenisis/build/run_6hit \\
+  /vol0004/ra000012/ritvik/FugakuCarcinogenisis/data/${cancer}.txt \\
   $OUTPUT_DIR/${cancer}_6hit.csv \\
   $OUTPUT_DIR/${cancer}_6hit.out
 EOF
