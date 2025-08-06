@@ -17,12 +17,21 @@
 #define CHUNK_SIZE 102400
 #endif
 
+#ifndef PRINT_FREQ
+#define PRINT_FREQ 10000
+#endif
+
 enum profile_out {
   WORKER_TIME,
   WORKER_RUNNING_TIME,
   WORKER_IDLE_TIME,
-
   MASTER_TIME,
+
+  COMM_GLOBAL_TIME,
+  COMM_LOCAL_TIME,
+
+  EXCLUDE_TIME,
+
   TOTAL_TIME,
   COMBINATION_COUNT,
   TIMING_COUNT
@@ -52,20 +61,21 @@ static int hash_hostname(const char *hostname) {
 // #undef HIERARCHICAL_COMMS
 
 #ifdef ENABLE_PROFILE
+inline double elapsed_times[TIMING_COUNT] = {0.0};
 #define START_TIMING(var) double var##_start = MPI_Wtime();
 #define END_TIMING(var, accumulated_time)                                      \
   do {                                                                         \
     double var##_end = MPI_Wtime();                                            \
     accumulated_time += var##_end - var##_start;                               \
   } while (0)
-#define INCREMENT_COMBO_COUNT(elapsedTimesArr)                                 \
-  do {                                                                         \
-    (elapsedTimesArr)[COMBINATION_COUNT] += 1.0;                               \
-  } while (0)
+
+inline long long bound_level_counts[NUMHITS] = {0};
+#define INCREMENT_BOUND_LEVEL(lvl) (++bound_level_counts[(lvl)])
+
 #else
 #define START_TIMING(var)
 #define END_TIMING(var, accumulated_time)
-#define INCREMENT_COMBO_COUNT(elapsedTimesArr)
+#define INCREMENT_BOUND_LEVEL(elapsedTimesArr)
 #endif
 
 #endif

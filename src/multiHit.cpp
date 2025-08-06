@@ -36,9 +36,10 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
   // Allocate buffer for local reduction
   void *local_result = malloc(count * datatype_size);
 
+  START_TIMING(local_reduce);
   // Phase 1: Local Reduction
   MPI_Reduce(sendbuf, local_result, count, datatype, op, 0, comms.local_comm);
-
+  END_TIMING(local_reduce, elapsed_times[COMM_LOCAL_TIME]);
   // Allocate buffer for global reduction (only needed for rank 0 in
   // local_comm)
   void *global_result = NULL;
@@ -48,14 +49,18 @@ static void Allreduce_hierarchical(void *sendbuf, void *recvbuf, int count,
 
   // Phase 2: Global Reduction (only rank 0 in each node participates)
   if (comms.is_leader) {
+    START_TIMING(global_reduce);
     MPI_Allreduce(local_result, global_result, count, datatype, op,
                   comms.global_comm);
+    END_TIMING(global_reduce, elapsed_times[COMM_GLOBAL_TIME]);
     // Copy the final result to recvbuf
     memcpy(recvbuf, global_result, count * datatype_size);
   }
 
   // Phase 3: Broadcast result to all processes in the local communicator
+  START_TIMING(local_bcast);
   MPI_Bcast(recvbuf, count, datatype, 0, comms.local_comm);
+  END_TIMING(local_bcast, elapsed_times[COMM_LOCAL_TIME]);
 
   // Cleanup
   free(local_result);
@@ -96,8 +101,10 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
                                            const CommsStruct &comms) {
   int requester = st.MPI_SOURCE;
   char dummy;
+  START_TIMING(recv);
   MPI_Recv(&dummy, 1, MPI_BYTE, requester, TAG_REQUEST_WORK, comms.local_comm,
            MPI_STATUS_IGNORE);
+  END_TIMING(recv, elapsed_times[COMM_LOCAL_TIME]);
   WorkChunk reply;
   if (availableWork.start <= availableWork.end) {
     LAMBDA_TYPE chunkEnd =
@@ -109,8 +116,10 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
     reply = {0, -1};
   }
 
+  START_TIMING(send);
   MPI_Send(&reply, sizeof(WorkChunk), MPI_BYTE, requester, TAG_ASSIGN_WORK,
            comms.local_comm);
+  END_TIMING(send, elapsed_times[COMM_LOCAL_TIME]);
 }
 
 inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
@@ -119,8 +128,10 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
                                                 const CommsStruct &comms) {
   char dummy;
   MPI_Request rq_recv;
+  START_TIMING(victim_irecv);
   MPI_Irecv(&dummy, 1, MPI_BYTE, st.MPI_SOURCE, TAG_NODE_STEAL_REQ,
             comms.global_comm, &rq_recv);
+  END_TIMING(victim_irecv, elapsed_times[COMM_GLOBAL_TIME]);
 
   WorkChunk reply;
 
@@ -135,16 +146,20 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
   }
 
   MPI_Request rq;
+  START_TIMING(victim_isend);
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
             TAG_NODE_STEAL_REPLY, comms.global_comm, &rq);
+  END_TIMING(victim_isend, elapsed_times[COMM_GLOBAL_TIME]);
 }
 
 static inline void root_broadcast_termination(const CommsStruct &comms,
                                               MPI_Win &term_win) {
   bool termination_signal = true;
   for (int rank = 0; rank < comms.num_nodes; ++rank) {
+    START_TIMING(node_term);
     MPI_Put(&termination_signal, 1, MPI_C_BOOL, rank, 0, 1, MPI_C_BOOL,
             term_win);
+    END_TIMING(node_term, elapsed_times[COMM_GLOBAL_TIME]);
   }
   MPI_Win_flush_all(term_win);
 }
@@ -168,12 +183,16 @@ static inline void try_forward_token_if_idle(WorkChunk &availableWork,
     } else {
       tok.finalRound = (tok.colour == WHITE);
       tok.colour = WHITE;
+      START_TIMING(send);
       MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
                comms.global_comm);
+      END_TIMING(send, elapsed_times[COMM_GLOBAL_TIME]);
     }
   } else {
+    START_TIMING(send);
     MPI_Send(&tok, sizeof(Token), MPI_BYTE, next_leader, TAG_TOKEN,
              comms.global_comm);
+    END_TIMING(send, elapsed_times[COMM_GLOBAL_TIME]);
   }
 
   have_token = false;
@@ -183,8 +202,10 @@ static inline void try_forward_token_if_idle(WorkChunk &availableWork,
 inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
                                  const CommsStruct &comms) {
   MPI_Status status;
+  START_TIMING(recv);
   MPI_Recv(&tok, sizeof(Token), MPI_BYTE, st.MPI_SOURCE, TAG_TOKEN,
            comms.global_comm, &status);
+  END_TIMING(recv, elapsed_times[COMM_GLOBAL_TIME]);
   have_token = true;
 }
 
@@ -194,9 +215,10 @@ assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
   LAMBDA_TYPE max_end = loot.start - 1;
   for (int w = 1; w <= num_workers; ++w) {
     WorkChunk work = calculate_worker_range(loot, w - 1, num_workers);
-
+    START_TIMING(assign_work);
     MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
+    END_TIMING(assign_work, elapsed_times[COMM_LOCAL_TIME]);
     if (work.end > max_end)
       max_end = work.end;
   }
@@ -228,36 +250,49 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
 
     MPI_Request rq;
     MPI_Status status;
-
+    START_TIMING(isend);
     MPI_Isend(&dummy, 1, MPI_BYTE, victim, TAG_NODE_STEAL_REQ,
               comms.global_comm, &rq);
+    END_TIMING(isend, elapsed_times[COMM_GLOBAL_TIME]);
 
     WorkChunk loot;
     MPI_Request rq_recv;
+    START_TIMING(irecv);
     MPI_Irecv(&loot, sizeof(WorkChunk), MPI_BYTE, victim, TAG_NODE_STEAL_REPLY,
               comms.global_comm, &rq_recv);
+    END_TIMING(irecv, elapsed_times[COMM_GLOBAL_TIME]);
 
     int completed = 0;
     MPI_Win_sync(term_win);
 
     while (!completed && !(*global_done)) {
+      START_TIMING(recv_test);
       MPI_Test(&rq_recv, &completed, MPI_STATUS_IGNORE);
+      END_TIMING(recv_test, elapsed_times[COMM_GLOBAL_TIME]);
       int flag = 0;
       MPI_Status st;
+      START_TIMING(iprobe);
       MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comms.global_comm, &flag, &st);
+      END_TIMING(iprobe, elapsed_times[COMM_GLOBAL_TIME]);
 
       if (flag) {
         switch (st.MPI_TAG) {
 
         case TAG_NODE_STEAL_REQ:
+          START_TIMING(steal_wait);
           MPI_Wait(&rq, &status);
+          END_TIMING(steal_wait, elapsed_times[COMM_GLOBAL_TIME]);
           inter_node_work_steal_victim(availableWork, st, my_color, tok, comms);
           break;
         }
       }
+      START_TIMING(win_sync);
       MPI_Win_sync(term_win);
+      END_TIMING(win_sync, elapsed_times[COMM_GLOBAL_TIME]);
     }
+    START_TIMING(send_wait);
     MPI_Wait(&rq, &status);
+    END_TIMING(send_wait, elapsed_times[COMM_GLOBAL_TIME]);
 
     if (length(loot) > 0) {
       availableWork = assign_and_update_availableWork(loot, num_workers, comms);
@@ -269,8 +304,10 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
 static void send_poison_pill(int num_workers, const CommsStruct &comms) {
   WorkChunk poison{0, -2};
   for (int w = 1; w <= num_workers; ++w) {
+    START_TIMING(poison);
     MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
+    END_TIMING(poison, elapsed_times[COMM_LOCAL_TIME]);
   }
 }
 
@@ -287,7 +324,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
   Token tok = {WHITE, false};
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
-
+  std::size_t leader_iter = 0;
   while (true) {
     MPI_Win_sync(term_win);
     if (*global_done) {
@@ -296,7 +333,9 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     MPI_Status st;
     int flag;
     // local probe
+    START_TIMING(local_probe);
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comms.local_comm, &flag, &st);
+    END_TIMING(local_probe, elapsed_times[COMM_LOCAL_TIME]);
     if (flag) {
       int tag = st.MPI_TAG;
       switch (tag) {
@@ -308,7 +347,9 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
 
     // global probe
     flag = 0;
+    START_TIMING(global_probe);
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comms.global_comm, &flag, &st);
+    END_TIMING(global_probe, elapsed_times[COMM_GLOBAL_TIME]);
     if (flag) {
       int tag = st.MPI_TAG;
       switch (tag) {
@@ -327,51 +368,76 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       inter_node_work_steal_initiate(availableWork, st, num_workers, my_color,
                                      tok, term_win, global_done, comms);
     }
+
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && (leader_iter % PRINT_FREQ == 0)) {
+      START_TIMING(print_leader);
+      double ts = MPI_Wtime();
+      printf("[%.3f] node-leader-0 : availableWork [%lld, %lld]\n", ts,
+             availableWork.start, availableWork.end);
+      fflush(stdout);
+      END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
+    }
+    ++leader_iter;
+#endif
   }
   // Poison the workers
   send_poison_pill(num_workers, comms);
+  START_TIMING(free_window);
   MPI_Win_unlock_all(term_win);
   MPI_Win_free(&term_win);
+  END_TIMING(free_window, elapsed_times[COMM_GLOBAL_TIME]);
 }
 
 static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                                 double &localBestMaxF, int localComb[],
                                 sets_t dataTable, SET *buffers,
-                                double elapsed_times[], CommsStruct &comms) {
+                                CommsStruct &comms) {
 
   while (true) {
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
-                            localBestMaxF, dataTable, buffers, elapsed_times,
-                            comms);
+                            localBestMaxF, dataTable, buffers, comms);
+    START_TIMING(idle);
     char dummy;
+    START_TIMING(local_steal);
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
+    END_TIMING(local_steal, elapsed_times[COMM_LOCAL_TIME]);
     MPI_Status status;
+    START_TIMING(local_recv);
     MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
              comms.local_comm, &status);
+    END_TIMING(local_recv, elapsed_times[COMM_LOCAL_TIME]);
 
     if (length(myChunk) < 0) {
+      END_TIMING(idle, elapsed_times[WORKER_IDLE_TIME]);
       break;
     }
+    END_TIMING(idle, elapsed_times[WORKER_IDLE_TIME]);
   }
 }
 
-static inline void
-execute_hierarchical(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
-                     double &localBestMaxF, int localComb[], sets_t dataTable,
-                     SET *buffers, double elapsed_times[], CommsStruct &comms) {
+static inline void execute_hierarchical(int rank, int size_minus_one,
+                                        LAMBDA_TYPE num_Comb,
+                                        double &localBestMaxF, int localComb[],
+                                        sets_t dataTable, SET *buffers,
+                                        CommsStruct &comms) {
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
   const int num_workers = comms.local_size - 1;
 
   if (comms.is_leader) {
     leaderRange.start += (CHUNK_SIZE * num_workers);
+    START_TIMING(leader_time);
     node_leader_hierarchical(leaderRange, num_workers, comms);
+    END_TIMING(leader_time, elapsed_times[MASTER_TIME]);
   } else {
     const int worker_id = comms.local_rank - 1;
     WorkChunk myChunk =
         calculate_worker_range(leaderRange, worker_id, num_workers);
 
+    START_TIMING(worker_time);
     worker_hierarchical(comms.local_rank, myChunk, localBestMaxF, localComb,
-                        dataTable, buffers, elapsed_times, comms);
+                        dataTable, buffers, comms);
+    END_TIMING(worker_time, elapsed_times[WORKER_TIME]);
   }
 }
 
@@ -472,7 +538,9 @@ static inline LambdaComputed compute_lambda_variables(LAMBDA_TYPE lambda,
 }
 
 static void write_output(int rank, std::ofstream &outfile,
-                         const int globalBestComb[], double F_max) {
+                         const int globalBestComb[], double F_max,
+                         const LAMBDA_TYPE boundCounts[NUMHITS],
+                         LAMBDA_TYPE totalCombPossible) {
   outfile << "(";
   for (size_t idx = 0; idx < NUMHITS; ++idx) {
     outfile << globalBestComb[idx];
@@ -480,7 +548,16 @@ static void write_output(int rank, std::ofstream &outfile,
       outfile << ", ";
     }
   }
+#ifdef ENABLE_PROFILE
+  outfile << ")  F-max = " << F_max << ", Prune distribution (level 0 ... "
+          << NUMHITS - 1 << "): ";
+  for (int i = 0; i < NUMHITS; ++i) {
+    outfile << boundCounts[i] << (i == NUMHITS - 1 ? "" : ", ");
+  }
+  outfile << " out of " << totalCombPossible << " combinations." << std::endl;
+#else
   outfile << ")  F-max = " << F_max << std::endl;
+#endif // ENABLE_PROFILE
 }
 
 static void max_f_with_comb(void *in, void *inout, int *len,
@@ -526,7 +603,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
                                            LAMBDA_TYPE endComb,
                                            int bestCombination[], double &maxF,
                                            sets_t &dataTable, SET *buffers,
-                                           double elapsed_times[],
                                            CommsStruct &comms) {
 
   const int totalGenes = dataTable.numRows;
@@ -536,16 +612,19 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
   for (LAMBDA_TYPE lambda = startComb; lambda <= endComb; ++lambda) {
 
     LambdaComputed computed = compute_lambda_variables(lambda, totalGenes);
-    if (computed.j < 0)
+    if (computed.j < 0) {
       continue;
+    }
 
     SET rowI =
         GET_ROW(dataTable.tumorData, computed.i, dataTable.tumorRowUnits);
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
     SET_INTERSECT(buffers[0], rowI, rowJ, dataTable.tumorRowUnits);
-    if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits))
+    if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits)) {
+      INCREMENT_BOUND_LEVEL(1);
       continue;
+    }
 
     localComb[0] = computed.i;
     localComb[1] = computed.j;
@@ -571,6 +650,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
       SET_INTERSECT(buffers[level - 1], buffers[level - 2], rowK,
                     dataTable.tumorRowUnits);
       if (SET_IS_EMPTY(buffers[level - 1], dataTable.tumorRowUnits)) {
+        INCREMENT_BOUND_LEVEL(level);
         ++indices[level];
         continue;
       }
@@ -578,7 +658,6 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
       localComb[level] = indices[level];
 
       if (level == NUMHITS - 1) {
-        INCREMENT_COMBO_COUNT(elapsed_times);
         int TP = SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
         SET normalRows[NUMHITS];
         for (int idx = 0; idx < NUMHITS; ++idx) {
@@ -597,6 +676,7 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
           for (int k = 0; k < NUMHITS; ++k)
             bestCombination[k] = localComb[k];
         }
+        INCREMENT_BOUND_LEVEL(NUMHITS - 1);
         ++indices[level];
       } else {
         ++level;
@@ -610,11 +690,10 @@ static bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
                                     double &localBestMaxF, int localComb[],
                                     LAMBDA_TYPE &begin, LAMBDA_TYPE &end,
                                     MPI_Status &status, sets_t dataTable,
-                                    SET *buffers, double elapsed_times[],
-                                    CommsStruct &comms) {
+                                    SET *buffers, CommsStruct &comms) {
   START_TIMING(run_time);
   process_lambda_interval(begin, end, localComb, localBestMaxF, dataTable,
-                          buffers, elapsed_times, comms);
+                          buffers, comms);
   END_TIMING(run_time, elapsed_times[WORKER_RUNNING_TIME]);
   char signal = 'a';
   MPI_Send(&signal, 1, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
@@ -632,8 +711,7 @@ static bool process_and_communicate(int rank, LAMBDA_TYPE num_Comb,
 
 static void worker_process(int rank, LAMBDA_TYPE num_Comb,
                            double &localBestMaxF, int localComb[],
-                           sets_t dataTable, SET *buffers,
-                           double elapsed_times[], CommsStruct &comms) {
+                           sets_t dataTable, SET *buffers, CommsStruct &comms) {
   std::pair<LAMBDA_TYPE, LAMBDA_TYPE> chunk_indices =
       calculate_initial_chunk(rank, num_Comb, CHUNK_SIZE);
 
@@ -643,9 +721,9 @@ static void worker_process(int rank, LAMBDA_TYPE num_Comb,
   MPI_Status status;
 
   while (end <= num_Comb) {
-    bool has_next = process_and_communicate(
-        rank, num_Comb, localBestMaxF, localComb, begin, end, status, dataTable,
-        buffers, elapsed_times, comms);
+    bool has_next =
+        process_and_communicate(rank, num_Comb, localBestMaxF, localComb, begin,
+                                end, status, dataTable, buffers, comms);
     if (!has_next) {
       break;
     }
@@ -654,8 +732,7 @@ static void worker_process(int rank, LAMBDA_TYPE num_Comb,
 
 static void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                          double &localBestMaxF, int localComb[],
-                         sets_t dataTable, SET *buffers, double elapsed_times[],
-                         CommsStruct &comms) {
+                         sets_t dataTable, SET *buffers, CommsStruct &comms) {
   if (rank == 0) {
     START_TIMING(master_proc);
     master_process(size_minus_one, num_Comb);
@@ -663,7 +740,7 @@ static void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
   } else {
     START_TIMING(worker_proc);
     worker_process(rank, num_Comb, localBestMaxF, localComb, dataTable, buffers,
-                   elapsed_times, comms);
+                   comms);
     END_TIMING(worker_proc, elapsed_times[WORKER_TIME]);
   }
 }
@@ -692,8 +769,7 @@ static void extract_global_comb(int globalBestComb[],
 }
 
 void distribute_tasks(int rank, int size, const char *outFilename,
-                      double elapsed_times[], sets_t dataTable,
-                      CommsStruct &comms) {
+                      sets_t dataTable, CommsStruct &comms) {
   int Nt = dataTable.numTumor;
   int numGenes = dataTable.numRows;
 
@@ -710,6 +786,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   MPI_Op MPI_MAX_F_WITH_COMB = create_max_f_with_comb_op(MPI_RESULT_WITH_COMB);
 
   LAMBDA_TYPE num_Comb = nCr(numGenes, 2);
+  LAMBDA_TYPE totalCombPossible = nCr(numGenes, NUMHITS);
 
   SET droppedSamples;
   SET_NEW(droppedSamples, tumorUnits);
@@ -720,14 +797,17 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     outputFileWriteError(outfile);
   }
 
+  std::size_t dist_iter = 0;
+
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
+    std::fill(std::begin(bound_level_counts), std::end(bound_level_counts), 0);
     double localBestMaxF;
     int localComb[NUMHITS];
     initialize_local_comb_and_f(localBestMaxF, localComb);
 
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
-            buffers, elapsed_times, comms);
+            buffers, comms);
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
@@ -735,6 +815,13 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     MPI_MAX_F_WITH_COMB, comms);
     int globalBestComb[NUMHITS];
     extract_global_comb(globalBestComb, globalResult);
+
+    START_TIMING(metrics_time);
+    long long globalBoundCounts[NUMHITS] = {0};
+    ALL_REDUCE_FUNC(bound_level_counts, globalBoundCounts, NUMHITS,
+                    MPI_LONG_LONG, MPI_SUM, comms);
+    END_TIMING(metrics_time, elapsed_times[EXCLUDE_TIME]);
+
     SET intersectionSets[NUMHITS];
     for (int i = 0; i < NUMHITS; ++i) {
       intersectionSets[i] =
@@ -752,8 +839,20 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
 
-    if (rank == 0)
-      write_output(rank, outfile, globalBestComb, globalResult.f);
+    if (rank == 0) {
+      write_output(rank, outfile, globalBestComb, globalResult.f,
+                   globalBoundCounts, totalCombPossible);
+#ifdef ENABLE_PROFILE
+      START_TIMING(print_dist);
+      double ts = MPI_Wtime();
+      printf("[%.3f] rank-0 : completed distribute_tasks "
+             "iteration %zu\n",
+             ts, dist_iter);
+      fflush(stdout);
+      ++dist_iter;
+      END_TIMING(print_dist, elapsed_times[EXCLUDE_TIME]);
+#endif
+    }
   }
 
   if (rank == 0)
