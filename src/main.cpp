@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
   double t0_profile = MPI_Wtime();
 #ifdef ENABLE_PROFILE
   elapsed_times[WORKER_RUNNING_TIME] =
-      elapsed_times[TOTAL_TIME] - elapsed_times[WORKER_IDLE_TIME];
+      elapsed_times[WORKER_TIME] - elapsed_times[WORKER_IDLE_TIME];
 
   elapsed_times[TOTAL_TIME] -= elapsed_times[EXCLUDE_TIME];
   std::vector<double> all_elapsed_times;

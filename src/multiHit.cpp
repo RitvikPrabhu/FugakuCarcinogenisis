@@ -393,6 +393,7 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
                                 double &localBestMaxF, int localComb[],
                                 sets_t dataTable, SET *buffers,
                                 CommsStruct &comms) {
+  MPI_Status status;
 
   while (true) {
     process_lambda_interval(myChunk.start, myChunk.end, localComb,
@@ -401,12 +402,9 @@ static void worker_hierarchical(int worker_local_rank, WorkChunk &myChunk,
     char dummy;
     START_TIMING(local_steal);
     MPI_Send(&dummy, 1, MPI_BYTE, 0, TAG_REQUEST_WORK, comms.local_comm);
-    END_TIMING(local_steal, elapsed_times[COMM_LOCAL_TIME]);
-    MPI_Status status;
-    START_TIMING(local_recv);
     MPI_Recv(&myChunk, sizeof(WorkChunk), MPI_BYTE, 0, TAG_ASSIGN_WORK,
              comms.local_comm, &status);
-    END_TIMING(local_recv, elapsed_times[COMM_LOCAL_TIME]);
+    END_TIMING(local_steal, elapsed_times[COMM_LOCAL_TIME]);
 
     if (length(myChunk) < 0) {
       END_TIMING(idle, elapsed_times[WORKER_IDLE_TIME]);
@@ -552,7 +550,7 @@ static void write_output(int rank, std::ofstream &outfile,
   outfile << ")  F-max = " << F_max << ", Prune distribution (level 0 ... "
           << NUMHITS - 1 << "): ";
   for (int i = 0; i < NUMHITS; ++i) {
-    outfile << boundCounts[i] << (i == NUMHITS - 1 ? "" : ", ");
+    outfile << boundCounts[i] << (i == NUMHITS - 1 ? "; Unpruned: " : ", ");
   }
   outfile << " out of " << totalCombPossible << " combinations." << std::endl;
 #else
