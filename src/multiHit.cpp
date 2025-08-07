@@ -550,7 +550,8 @@ static void write_output(int rank, std::ofstream &outfile,
   outfile << ")  F-max = " << F_max << ", Prune distribution (level 0 ... "
           << NUMHITS - 1 << "): ";
   for (int i = 0; i < NUMHITS; ++i) {
-    outfile << boundCounts[i] << (i == NUMHITS - 1 ? "; Unpruned: " : ", ");
+    outfile << boundCounts[i]
+            << (i == NUMHITS - 1 ? " <-- Last index is number Unpruned" : ", ");
   }
   outfile << " out of " << totalCombPossible << " combinations." << std::endl;
 #else
