@@ -381,9 +381,10 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       START_TIMING(print_leader);
       double ts = MPI_Wtime();
       printf("[%.3f] node-leader-0 : availableWork [%lld, %lld]. Dispensed "
-             "%lld lambdas out of %lld lambdas\n",
+             "%lld lambdas out of %lld total lambdas (each node is responsible "
+             "for roughly %lld with regular work distribution)\n",
              ts, availableWork.start, availableWork.end, combs_dispensed,
-             num_Comb);
+             num_Comb, num_Comb / comms.num_nodes);
       fflush(stdout);
       END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
     }
