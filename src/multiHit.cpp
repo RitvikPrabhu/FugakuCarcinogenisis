@@ -98,6 +98,7 @@ inline LAMBDA_TYPE length(const WorkChunk &c) { return c.end - c.start + 1; }
 
 inline static void handle_local_work_steal(WorkChunk &availableWork,
                                            MPI_Status st,
+                                           LAMBDA_TYPE &combs_dispensed,
                                            const CommsStruct &comms) {
   int requester = st.MPI_SOURCE;
   char dummy;
@@ -111,6 +112,7 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
         std::min(availableWork.start + CHUNK_SIZE - 1, availableWork.end);
     reply = {availableWork.start, chunkEnd};
     availableWork.start = (chunkEnd + 1);
+    combs_dispensed += CHUNK_SIZE;
 
   } else {
     reply = {0, -1};
@@ -312,6 +314,7 @@ static void send_poison_pill(int num_workers, const CommsStruct &comms) {
 }
 
 static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
+                                     LAMBDA_TYPE num_Comb,
                                      const CommsStruct &comms) {
   bool *global_done;
   MPI_Win term_win;
@@ -325,6 +328,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
   std::size_t leader_iter = 0;
+  LAMBDA_TYPE combs_dispensed = availableWork.start;
   while (true) {
     MPI_Win_sync(term_win);
     if (*global_done) {
@@ -340,7 +344,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_REQUEST_WORK:
-        handle_local_work_steal(availableWork, st, comms);
+        handle_local_work_steal(availableWork, st, combs_dispensed, comms);
         break;
       }
     }
@@ -373,8 +377,10 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     if (comms.global_rank == 0 && (leader_iter % PRINT_FREQ == 0)) {
       START_TIMING(print_leader);
       double ts = MPI_Wtime();
-      printf("[%.3f] node-leader-0 : availableWork [%lld, %lld]\n", ts,
-             availableWork.start, availableWork.end);
+      printf("[%.3f] node-leader-0 : availableWork [%lld, %lld]. Dispensed "
+             "%lld lambdas out of %lld lambdas\n",
+             ts, availableWork.start, availableWork.end, combs_dispensed,
+             num_Comb);
       fflush(stdout);
       END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
     }
@@ -425,7 +431,7 @@ static inline void execute_hierarchical(int rank, int size_minus_one,
   if (comms.is_leader) {
     leaderRange.start += (CHUNK_SIZE * num_workers);
     START_TIMING(leader_time);
-    node_leader_hierarchical(leaderRange, num_workers, comms);
+    node_leader_hierarchical(leaderRange, num_workers, num_Comb, comms);
     END_TIMING(leader_time, elapsed_times[MASTER_TIME]);
   } else {
     const int worker_id = comms.local_rank - 1;
