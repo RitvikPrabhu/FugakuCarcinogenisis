@@ -45,7 +45,7 @@ for NNODES in "${node_configs[@]}"; do
     mkdir -p "${OUTPUT_DIR}"
 
     pjsub "${PJSUB_ARGS[@]}" << EOF
-llio_transfer ../build/run_4hit_timed
+llio_transfer ../build/run_4hit
 llio_transfer ../data/${cancer}.txt
 
 mpiexec ../build/run_4hit \\
