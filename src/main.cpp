@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
   MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0) {
     double t1 = MPI_Wtime();
-    printf("Rank %d elapsed: %.6f seconds\n", rank, t1 - t0);
+    printf("Read on Rank %d elapsed: %.6f seconds\n", rank, t1 - t0);
     fflush(stdout);
   }
 

@@ -112,7 +112,7 @@ inline static void handle_local_work_steal(WorkChunk &availableWork,
         std::min(availableWork.start + CHUNK_SIZE - 1, availableWork.end);
     reply = {availableWork.start, chunkEnd};
     availableWork.start = (chunkEnd + 1);
-    combs_dispensed += CHUNK_SIZE;
+    combs_dispensed += length(reply);
 
   } else {
     reply = {0, -1};
@@ -213,6 +213,7 @@ inline static void receive_token(Token &tok, MPI_Status st, bool &have_token,
 
 inline static WorkChunk
 assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
+                                LAMBDA_TYPE &combs_dispensed,
                                 const CommsStruct &comms) {
   LAMBDA_TYPE max_end = loot.start - 1;
   for (int w = 1; w <= num_workers; ++w) {
@@ -221,6 +222,7 @@ assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
     MPI_Send(&work, sizeof(WorkChunk), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
     END_TIMING(assign_work, elapsed_times[COMM_LOCAL_TIME]);
+    combs_dispensed += length(work);
     if (work.end > max_end)
       max_end = work.end;
   }
@@ -231,11 +233,10 @@ assign_and_update_availableWork(const WorkChunk &loot, int num_workers,
   }
 }
 
-inline static void
-inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
-                               int num_workers, int &my_color, Token &tok,
-                               MPI_Win &term_win, bool *global_done,
-                               const CommsStruct &comms) {
+inline static void inter_node_work_steal_initiate(
+    WorkChunk &availableWork, MPI_Status st, int num_workers, int &my_color,
+    Token &tok, MPI_Win &term_win, bool *global_done,
+    LAMBDA_TYPE &combs_dispensed, const CommsStruct &comms) {
   int myRank = comms.global_rank;
   int nLeaders = comms.num_nodes;
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -297,7 +298,8 @@ inter_node_work_steal_initiate(WorkChunk &availableWork, MPI_Status st,
     END_TIMING(send_wait, elapsed_times[COMM_GLOBAL_TIME]);
 
     if (length(loot) > 0) {
-      availableWork = assign_and_update_availableWork(loot, num_workers, comms);
+      availableWork = assign_and_update_availableWork(loot, num_workers,
+                                                      combs_dispensed, comms);
       lootReceived = true;
     }
   }
@@ -370,7 +372,8 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     // If leader node is idle, initiate a steal request
     if (length(availableWork) <= 0 && !(*global_done)) {
       inter_node_work_steal_initiate(availableWork, st, num_workers, my_color,
-                                     tok, term_win, global_done, comms);
+                                     tok, term_win, global_done,
+                                     combs_dispensed, comms);
     }
 
 #ifdef ENABLE_PROFILE
