@@ -48,7 +48,7 @@ for NNODES in "${node_configs[@]}"; do
 llio_transfer ../build/run_4hit_timed
 llio_transfer ../data/${cancer}.txt
 
-mpiexec ../build/run_4hit_timed \\
+mpiexec ../build/run_4hit \\
   ../data/${cancer}.txt \\
   $OUTPUT_DIR/${cancer}_4hit_profile.csv \\
   $OUTPUT_DIR/${cancer}_4hit_profile.out
