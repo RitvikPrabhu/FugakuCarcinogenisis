@@ -379,13 +379,37 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
 #ifdef ENABLE_PROFILE
     if (comms.global_rank == 0 && (leader_iter % PRINT_FREQ == 0)) {
       START_TIMING(print_leader);
-      double ts = MPI_Wtime();
-      printf("[%.3f] node-leader-0 : availableWork [%lld, %lld]. Dispensed "
-             "%lld lambdas out of %lld total lambdas (each node is responsible "
-             "for roughly %lld with regular work distribution)\n",
-             ts, availableWork.start, availableWork.end, combs_dispensed,
-             num_Comb, num_Comb / comms.num_nodes);
+
+      double now = MPI_Wtime();
+      double total_outer_elapsed =
+          (gprog.dist_start_ts > 0.0) ? (now - gprog.dist_start_ts) : 0.0;
+      double avg_outer_time =
+          (gprog.dist_iters_completed > 0)
+              ? (gprog.outer_time_sum / (double)gprog.dist_iters_completed)
+              : 0.0;
+      double inner_elapsed =
+          (gprog.inner_start_ts > 0.0) ? (now - gprog.inner_start_ts) : 0.0;
+
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+
+      LAMBDA_TYPE approx_per_node =
+          (comms.num_nodes > 0) ? (num_Comb / comms.num_nodes) : num_Comb;
+      if (approx_per_node <= 0)
+        approx_per_node = num_Comb; // fallback
+      double inner_pct = (approx_per_node > 0)
+                             ? std::min(100.0, 100.0 * (double)combs_dispensed /
+                                                   (double)approx_per_node)
+                             : 0.0;
+
+      printf("iter: %zu | cover: %lld/%lld | time: %.0f sec | avg_outer_time: "
+             "%.0f sec "
+             "||| inner_progress (combs dispensed): ~%lld/%lld (~%.0f%%) | "
+             "inner_time: %.0f sec\n",
+             iter_display, gprog.cover_count, gprog.total_tumor,
+             total_outer_elapsed, avg_outer_time, (long long)combs_dispensed,
+             (long long)approx_per_node, inner_pct, inner_elapsed);
       fflush(stdout);
+
       END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
     }
     ++leader_iter;
@@ -429,6 +453,12 @@ static inline void execute_hierarchical(int rank, int size_minus_one,
                                         double &localBestMaxF, int localComb[],
                                         sets_t dataTable, SET *buffers,
                                         CommsStruct &comms) {
+
+#ifdef ENABLE_PROFILE
+  if (comms.global_rank == 0)
+    gprog.inner_start_ts = MPI_Wtime();
+#endif
+
   WorkChunk leaderRange = calculate_node_range(num_Comb, comms);
   const int num_workers = comms.local_size - 1;
 
@@ -743,6 +773,9 @@ static void execute_role(int rank, int size_minus_one, LAMBDA_TYPE num_Comb,
                          double &localBestMaxF, int localComb[],
                          sets_t dataTable, SET *buffers, CommsStruct &comms) {
   if (rank == 0) {
+#ifdef ENABLE_PROFILE
+    gprog.inner_start_ts = MPI_Wtime();
+#endif
     START_TIMING(master_proc);
     master_process(size_minus_one, num_Comb);
     END_TIMING(master_proc, elapsed_times[MASTER_TIME]);
@@ -804,12 +837,23 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   if (rank == 0) {
     outfile.open(outFilename);
     outputFileWriteError(outfile);
+#ifdef ENABLE_PROFILE
+    gprog.dist_iters_completed = 0;
+    gprog.cover_count = 0;
+    gprog.total_tumor = (long long)dataTable.numTumor;
+    gprog.dist_start_ts = MPI_Wtime();
+    gprog.outer_time_sum = 0.0;
+    gprog.inner_start_ts = 0.0;
+#endif
   }
 
   std::size_t dist_iter = 0;
 
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
+#ifdef ENABLE_PROFILE
+    double outer_iter_start = MPI_Wtime();
+#endif
     std::fill(std::begin(bound_level_counts), std::end(bound_level_counts), 0);
     double localBestMaxF;
     int localComb[NUMHITS];
@@ -851,17 +895,12 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, globalResult.f,
                    globalBoundCounts, totalCombPossible);
-#ifdef ENABLE_PROFILE
-      START_TIMING(print_dist);
-      double ts = MPI_Wtime();
-      printf("[%.3f] rank-0 : completed distribute_tasks "
-             "iteration %zu\n",
-             ts, dist_iter);
-      fflush(stdout);
-      ++dist_iter;
-      END_TIMING(print_dist, elapsed_times[EXCLUDE_TIME]);
-#endif
     }
+#ifdef ENABLE_PROFILE
+    gprog.cover_count = SET_COUNT(droppedSamples, dataTable.tumorRowUnits);
+    gprog.outer_time_sum += (MPI_Wtime() - outer_iter_start);
+    gprog.dist_iters_completed += 1;
+#endif
   }
 
   if (rank == 0)

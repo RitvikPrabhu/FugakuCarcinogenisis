@@ -72,6 +72,16 @@ inline double elapsed_times[TIMING_COUNT] = {0.0};
 inline long long bound_level_counts[NUMHITS] = {0};
 #define INCREMENT_BOUND_LEVEL(lvl) (++bound_level_counts[(lvl)])
 
+struct ProgressStats {
+  std::size_t dist_iters_completed = 0;
+  long long cover_count = 0;
+  long long total_tumor = 0;
+  double dist_start_ts = 0.0;
+  double outer_time_sum = 0.0;
+  double inner_start_ts = 0.0;
+};
+inline ProgressStats gprog;
+
 #else
 #define START_TIMING(var)
 #define END_TIMING(var, accumulated_time)
