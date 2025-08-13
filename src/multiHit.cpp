@@ -381,25 +381,16 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       START_TIMING(print_leader);
 
       double now = MPI_Wtime();
-      double total_outer_elapsed =
-          (gprog.dist_start_ts > 0.0) ? (now - gprog.dist_start_ts) : 0.0;
+      double total_outer_elapsed = now - gprog.dist_start_ts;
       double avg_outer_time =
-          (gprog.dist_iters_completed > 0)
-              ? (gprog.outer_time_sum / (double)gprog.dist_iters_completed)
-              : 0.0;
-      double inner_elapsed =
-          (gprog.inner_start_ts > 0.0) ? (now - gprog.inner_start_ts) : 0.0;
+          gprog.outer_time_sum / (double)gprog.dist_iters_completed;
+      double inner_elapsed = now - gprog.inner_start_ts;
 
       std::size_t iter_display = gprog.dist_iters_completed + 1;
 
-      LAMBDA_TYPE approx_per_node =
-          (comms.num_nodes > 0) ? (num_Comb / comms.num_nodes) : num_Comb;
-      if (approx_per_node <= 0)
-        approx_per_node = num_Comb; // fallback
-      double inner_pct = (approx_per_node > 0)
-                             ? std::min(100.0, 100.0 * (double)combs_dispensed /
-                                                   (double)approx_per_node)
-                             : 0.0;
+      LAMBDA_TYPE approx_per_node = num_Comb / comms.num_nodes;
+      double inner_pct =
+          100.0 * (double)combs_dispensed / (double)approx_per_node;
 
       printf("iter: %zu | cover: %lld/%lld | time: %.0f sec | avg_outer_time: "
              "%.0f sec "
@@ -846,8 +837,6 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     gprog.inner_start_ts = 0.0;
 #endif
   }
-
-  std::size_t dist_iter = 0;
 
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
