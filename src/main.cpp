@@ -134,34 +134,35 @@ void write_time_metrics(const char *metricsFile, const double *all_times,
     return;
   }
 
-  double max_val = all_times[0];
-  double min_val = all_times[0];
+  double max_val = times[0];
+  double min_val = times[0];
   double sum = 0.0;
 
-  for (int i = 0; i < count; ++i) {
-    max_val = std::max(max_val, all_times[i]);
-    min_val = std::min(min_val, all_times[i]);
-    sum += all_times[i];
+  for (double v : times) {
+    max_val = std::max(max_val, v);
+    min_val = std::min(min_val, v);
+    sum += v;
   }
-  double mean = sum / count;
+  const std::size_t m = times.size();
+  double mean = sum / static_cast<double>(m);
 
   double variance = 0.0;
-  for (int i = 0; i < count; ++i) {
-    double diff = all_times[i] - mean;
+  for (double v : times) {
+    double diff = v - mean;
     variance += diff * diff;
   }
-  variance /= count;
+  variance /= static_cast<double>(m);
   double stddev = std::sqrt(variance);
   double range = max_val - min_val;
 
-  std::vector<double> sorted_times(all_times, all_times + count);
+  std::vector<double> sorted_times = times;
   std::sort(sorted_times.begin(), sorted_times.end());
 
   double median;
-  if (count % 2 == 0) {
-    median = (sorted_times[count / 2 - 1] + sorted_times[count / 2]) / 2.0;
+  if (m % 2 == 0) {
+    median = (sorted_times[m / 2 - 1] + sorted_times[m / 2]) / 2.0;
   } else {
-    median = sorted_times[count / 2];
+    median = sorted_times[m / 2];
   }
 
   std::ofstream ofs(metricsFile, std::ios_base::app);
@@ -178,7 +179,6 @@ void write_time_metrics(const char *metricsFile, const double *all_times,
   ofs << "Range: " << range << " seconds \n";
   ofs << "Mean: " << mean << " seconds\n";
   ofs << "Std Dev: " << stddev << " seconds \n\n";
-
   ofs.close();
 }
 
@@ -291,10 +291,10 @@ int main(int argc, char *argv[]) {
                        worker_idletimes.size(), "WORKER_IDLE_TIME");
     write_time_metrics(argv[2], master_time.data(), master_time.size(),
                        "MASTER_TIME");
-    write_time_metrics(argv[2], master_time.data(), master_time.size(),
+    write_time_metrics(argv[2], comm_local_time.data(), comm_local_time.size(),
                        "COMM_LOCAL_TIME");
-    write_time_metrics(argv[2], master_time.data(), master_time.size(),
-                       "COMM_GLOBAL_TIME");
+    write_time_metrics(argv[2], comm_global_time.data(),
+                       comm_global_time.size(), "COMM_GLOBAL_TIME");
     write_time_metrics(argv[2], total_times.data(), total_times.size(),
                        "TOTAL_TIME");
   }
@@ -302,7 +302,7 @@ int main(int argc, char *argv[]) {
   if (rank == 0) {
     double t1 = MPI_Wtime();
     printf("Rank %d elapsed for final metrics gather ops: %.6f seconds\n", rank,
-           t1 - t0);
+           t1 - t0_profile);
     fflush(stdout);
   }
 

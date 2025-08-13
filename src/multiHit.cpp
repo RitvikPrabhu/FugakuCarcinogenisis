@@ -383,7 +383,9 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       double now = MPI_Wtime();
       double total_outer_elapsed = now - gprog.dist_start_ts;
       double avg_outer_time =
-          gprog.outer_time_sum / (double)gprog.dist_iters_completed;
+          (gprog.dist_iters_completed > 0)
+              ? (gprog.outer_time_sum / (double)gprog.dist_iters_completed)
+              : 0.0;
       double inner_elapsed = now - gprog.inner_start_ts;
 
       std::size_t iter_display = gprog.dist_iters_completed + 1;
