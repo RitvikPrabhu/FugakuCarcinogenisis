@@ -143,6 +143,18 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
     reply = {mid, availableWork.end};
     availableWork.end = mid - 1;
     my_color = BLACK;
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0) {
+      START_TIMING(print_leader_victim);
+      double now = MPI_Wtime();
+      double total_outer_elapsed = now - gprog.dist_start_ts;
+      printf("ATTENTION: WORK GIVEN at time: %.0f sec | "
+             "tasks left [start -> end]: %lld -> %lld\n",
+             total_outer_elapsed, availableWork.start, availableWork.end);
+      fflush(stdout);
+      END_TIMING(print_leader_victim, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
   } else {
     reply = {0, -1};
   }
@@ -152,19 +164,6 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
             TAG_NODE_STEAL_REPLY, comms.global_comm, &rq);
   END_TIMING(victim_isend, elapsed_times[COMM_GLOBAL_TIME]);
-
-#ifdef ENABLE_PROFILE
-  if (comms.global_rank == 0) {
-    START_TIMING(print_leader_victim);
-    double now = MPI_Wtime();
-    double total_outer_elapsed = now - gprog.dist_start_ts;
-    printf("ATTENTION: WORK GIVEN at time: %.0f sec | "
-           "tasks left [start -> end]: %lld -> %lld\n",
-           total_outer_elapsed, availableWork.start, availableWork.end);
-    fflush(stdout);
-    END_TIMING(print_leader_victim, elapsed_times[EXCLUDE_TIME]);
-  }
-#endif
 }
 
 static inline void root_broadcast_termination(const CommsStruct &comms,
