@@ -152,6 +152,19 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
   MPI_Isend(&reply, sizeof(WorkChunk), MPI_BYTE, st.MPI_SOURCE,
             TAG_NODE_STEAL_REPLY, comms.global_comm, &rq);
   END_TIMING(victim_isend, elapsed_times[COMM_GLOBAL_TIME]);
+
+#ifdef ENABLE_PROFILE
+  if (comms.global_rank == 0) {
+    START_TIMING(print_leader_victim);
+    double now = MPI_Wtime();
+    double total_outer_elapsed = now - gprog.dist_start_ts;
+    printf("ATTENTION: WORK GIVEN at time: %.0f sec | "
+           "tasks left [start -> end]: %lld -> %lld\n",
+           total_outer_elapsed, availableWork.start, availableWork.end);
+    fflush(stdout);
+    END_TIMING(print_leader_victim, elapsed_times[EXCLUDE_TIME]);
+  }
+#endif
 }
 
 static inline void root_broadcast_termination(const CommsStruct &comms,
@@ -301,6 +314,18 @@ inline static void inter_node_work_steal_initiate(
       availableWork = assign_and_update_availableWork(loot, num_workers,
                                                       combs_dispensed, comms);
       lootReceived = true;
+#ifdef ENABLE_PROFILE
+      if (comms.global_rank == 0) {
+        START_TIMING(print_leader_theif);
+        double now = MPI_Wtime();
+        double total_outer_elapsed = now - gprog.dist_start_ts;
+        printf("ATTENTION: WORK STOLEN at time: %.0f sec | "
+               "tasks left [start -> end]: %lld -> %lld\n",
+               total_outer_elapsed, availableWork.start, availableWork.end);
+        fflush(stdout);
+        END_TIMING(print_leader_theif, elapsed_times[EXCLUDE_TIME]);
+      }
+#endif
     }
   }
 }
@@ -397,10 +422,12 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       printf("iter: %zu | cover: %lld/%lld | time: %.0f sec | avg_outer_time: "
              "%.0f sec "
              "||| inner_progress (combs dispensed): ~%lld/%lld (~%.0f%%) | "
+             "tasks unclaimed [start -> end]: %lld -> %lld"
              "inner_time: %.0f sec\n",
              iter_display, gprog.cover_count, gprog.total_tumor,
              total_outer_elapsed, avg_outer_time, (long long)combs_dispensed,
-             (long long)approx_per_node, inner_pct, inner_elapsed);
+             (long long)approx_per_node, inner_pct, availableWork.start,
+             availableWork.end, inner_elapsed);
       fflush(stdout);
 
       END_TIMING(print_leader, elapsed_times[EXCLUDE_TIME]);
@@ -852,6 +879,16 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, comms);
+    if (comms.global_rank == 0) {
+#ifdef ENABLE_PROFILE
+      START_TIMING(print_out_iter);
+      double now = MPI_Wtime();
+      double total_outer_elapsed = now - gprog.dist_start_ts;
+      printf("EXIT ITERATION at time: %.0f sec\n", total_outer_elapsed);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
