@@ -422,7 +422,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       printf("iter: %zu | cover: %lld/%lld | time: %.0f sec | avg_outer_time: "
              "%.0f sec "
              "||| inner_progress (combs dispensed): ~%lld/%lld (~%.0f%%) | "
-             "tasks unclaimed [start -> end]: %lld -> %lld"
+             "tasks unclaimed [start -> end]: %lld -> %lld | "
              "inner_time: %.0f sec\n",
              iter_display, gprog.cover_count, gprog.total_tumor,
              total_outer_elapsed, avg_outer_time, (long long)combs_dispensed,
@@ -879,8 +879,8 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, comms);
-    if (comms.global_rank == 0) {
 #ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now = MPI_Wtime();
       double total_outer_elapsed = now - gprog.dist_start_ts;
