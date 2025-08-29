@@ -875,19 +875,47 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 #ifdef ENABLE_PROFILE
     double outer_iter_start = MPI_Wtime();
 #endif
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_bookKeeping = MPI_Wtime();
+      double total_outer_elapsed_bookKeeping =
+          now_before_bookKeeping - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("While iter start book keeping for iter %zu at time: %.0f sec\n",
+             iter_display, total_outer_elapsed_bookKeeping);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     std::fill(std::begin(bound_level_counts), std::end(bound_level_counts), 0);
     double localBestMaxF;
     int localComb[NUMHITS];
     initialize_local_comb_and_f(localBestMaxF, localComb);
 
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_execute = MPI_Wtime();
+      double total_outer_elapsed_execute =
+          now_before_execute - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("ENTER EXECUTE for iter %zu at time: %.0f sec\n", iter_display,
+             total_outer_elapsed_execute);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
+
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, comms);
+    MPI_Barrier(MPI_COMM_WORLD);
 #ifdef ENABLE_PROFILE
     if (comms.global_rank == 0 && comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now = MPI_Wtime();
       double total_outer_elapsed = now - gprog.dist_start_ts;
-      printf("EXIT ITERATION at time: %.0f sec\n", total_outer_elapsed);
+      printf("All ranks EXIT EXECUTE at time: %.0f sec\n", total_outer_elapsed);
       fflush(stdout);
       END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
     }
@@ -895,6 +923,19 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_reduce1 = MPI_Wtime();
+      double total_outer_elapsed_reduce1 =
+          now_before_reduce1 - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("ENTER REDUCE 1 for iter %zu at time: %.0f sec\n", iter_display,
+             total_outer_elapsed_reduce1);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     ALL_REDUCE_FUNC(&localResult, &globalResult, 1, MPI_RESULT_WITH_COMB,
                     MPI_MAX_F_WITH_COMB, comms);
     int globalBestComb[NUMHITS];
@@ -902,6 +943,19 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     START_TIMING(metrics_time);
     long long globalBoundCounts[NUMHITS] = {0};
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_reduce2 = MPI_Wtime();
+      double total_outer_elapsed_reduce2 =
+          now_before_reduce2 - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("ENTER REDUCE 2 for iter %zu at time: %.0f sec\n", iter_display,
+             total_outer_elapsed_reduce2);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     ALL_REDUCE_FUNC(bound_level_counts, globalBoundCounts, NUMHITS,
                     MPI_LONG_LONG, MPI_SUM, comms);
     END_TIMING(metrics_time, elapsed_times[EXCLUDE_TIME]);
@@ -912,17 +966,81 @@ void distribute_tasks(int rank, int size, const char *outFilename,
           GET_ROW(dataTable.tumorData, globalBestComb[i], tumorUnits);
     }
 
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_intersect = MPI_Wtime();
+      double total_outer_elapsed_intersect =
+          now_before_intersect - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("ENTER intersect for iter %zu at time: %.0f sec\n", iter_display,
+             total_outer_elapsed_intersect);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     SET_INTERSECT_N(buffers[NUMHITS - 2], intersectionSets, NUMHITS,
                     tumorUnits);
 
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_union = MPI_Wtime();
+      double total_outer_elapsed_union = now_before_union - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("ENTER Union for iter %zu at time: %.0f sec\n", iter_display,
+             total_outer_elapsed_union);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     SET_UNION(droppedSamples, droppedSamples, buffers[NUMHITS - 2],
               dataTable.tumorRowUnits);
 
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_updateCollection = MPI_Wtime();
+      double total_outer_elapsed_updateCollection =
+          now_before_updateCollection - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("ENTER UpdateSetCollection for iter %zu at time: %.0f sec\n",
+             iter_display, total_outer_elapsed_updateCollection);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     UPDATE_SET_COLLECTION(dataTable.tumorData, buffers[NUMHITS - 2],
                           dataTable.numRows, dataTable.tumorRowUnits);
 
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_updateNT = MPI_Wtime();
+      double total_outer_elapsed_updateNT =
+          now_before_updateNT - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("ENTER Update NT for iter %zu at time: %.0f sec\n", iter_display,
+             total_outer_elapsed_updateNT);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
 
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_before_finished = MPI_Wtime();
+      double total_outer_elapsed_finished =
+          now_before_finished - gprog.dist_start_ts;
+      std::size_t iter_display = gprog.dist_iters_completed + 1;
+      printf("While iter complete for iter %zu at time: %.0f sec\n",
+             iter_display, total_outer_elapsed_finished);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
     if (rank == 0) {
       write_output(rank, outfile, globalBestComb, globalResult.f,
                    globalBoundCounts, totalCombPossible);
