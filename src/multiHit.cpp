@@ -679,10 +679,13 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     SET rowJ =
         GET_ROW(dataTable.tumorData, computed.j, dataTable.tumorRowUnits);
     SET_INTERSECT(buffers[0], rowI, rowJ, dataTable.tumorRowUnits);
+
+#ifdef BOUND
     if (SET_IS_EMPTY(buffers[0], dataTable.tumorRowUnits)) {
       INCREMENT_BOUND_LEVEL(1);
       continue;
     }
+#endif
 
     localComb[0] = computed.i;
     localComb[1] = computed.j;
@@ -707,12 +710,13 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
           GET_ROW(dataTable.tumorData, indices[level], dataTable.tumorRowUnits);
       SET_INTERSECT(buffers[level - 1], buffers[level - 2], rowK,
                     dataTable.tumorRowUnits);
+#ifdef BOUND
       if (SET_IS_EMPTY(buffers[level - 1], dataTable.tumorRowUnits)) {
         INCREMENT_BOUND_LEVEL(level);
         ++indices[level];
         continue;
       }
-
+#endif
       localComb[level] = indices[level];
 
       if (level == NUMHITS - 1) {

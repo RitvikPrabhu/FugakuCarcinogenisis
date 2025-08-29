@@ -16,6 +16,11 @@ if(ENABLE_PROFILE)
   add_definitions(-DENABLE_PROFILE)
 endif()
 
+option(BOUND "Enable branch and bound" ON)
+if(BOUND)
+  add_definitions(-DBOUND)
+endif()
+
 option(USE_CPP_SET "Use C++ Set implementation" OFF)
 if(USE_CPP_SET)
     add_definitions(-DUSE_CPP_SET)
