@@ -174,6 +174,11 @@ static inline void root_broadcast_termination(const CommsStruct &comms,
     MPI_Put(&termination_signal, 1, MPI_C_BOOL, rank, 0, 1, MPI_C_BOOL,
             term_win);
     END_TIMING(node_term, elapsed_times[COMM_GLOBAL_TIME]);
+    if (comms.global_rank == 0) {
+      printf("[root] BROADCAST TERMINATION at %.0fs\n",
+             MPI_Wtime() - gprog.dist_start_ts);
+      fflush(stdout);
+    }
   }
   MPI_Win_flush_all(term_win);
 }
@@ -358,6 +363,12 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
   while (true) {
     MPI_Win_sync(term_win);
     if (*global_done) {
+      if (comms.global_rank == 0) {
+        printf("[leader %d] saw global_done at %.0fs\n", comms.global_rank,
+               MPI_Wtime() - gprog.dist_start_ts);
+        fflush(stdout);
+      }
+
       break;
     }
     MPI_Status st;
@@ -909,13 +920,25 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, comms);
-    MPI_Barrier(MPI_COMM_WORLD);
 #ifdef ENABLE_PROFILE
     if (comms.global_rank == 0 && comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now = MPI_Wtime();
       double total_outer_elapsed = now - gprog.dist_start_ts;
-      printf("All ranks EXIT EXECUTE at time: %.0f sec\n", total_outer_elapsed);
+      printf("EXIT EXECUTE at time: %.0f sec\n", total_outer_elapsed);
+      fflush(stdout);
+      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    }
+#endif
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+#ifdef ENABLE_PROFILE
+    if (comms.global_rank == 0 && comms.local_rank == 0) {
+      START_TIMING(print_out_iter);
+      double now_barrier = MPI_Wtime();
+      double total_outer_elapsed_barrier = now_barrier - gprog.dist_start_ts;
+      printf("Barrier at time: %.0f sec\n", total_outer_elapsed_barrier);
       fflush(stdout);
       END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
     }
