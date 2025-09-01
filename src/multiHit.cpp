@@ -937,8 +937,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
       double t;
       int r;
     } in{t_exec_done_rel, rank}, maxloc;
-    MPI_Allreduce(&in, &maxloc, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
-                  comms.global_comm);
+    ALL_REDUCE_FUNC(&in, &maxloc, 1, MPI_DOUBLE_INT, MPI_MAXLOC, comms);
 
     double slack = maxloc.t - t_exec_done_rel;
     if (slack < 0)
