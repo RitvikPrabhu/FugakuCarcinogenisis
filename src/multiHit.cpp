@@ -869,15 +869,16 @@ void distribute_tasks(int rank, int size, const char *outFilename,
   if (rank == 0) {
     outfile.open(outFilename);
     outputFileWriteError(outfile);
-#ifdef ENABLE_PROFILE
-    gprog.dist_iters_completed = 0;
-    gprog.cover_count = 0;
-    gprog.total_tumor = (long long)dataTable.numTumor;
-    gprog.dist_start_ts = MPI_Wtime();
-    gprog.outer_time_sum = 0.0;
-    gprog.inner_start_ts = 0.0;
-#endif
   }
+
+#ifdef ENABLE_PROFILE
+  gprog.dist_iters_completed = 0;
+  gprog.cover_count = 0;
+  gprog.total_tumor = (long long)dataTable.numTumor;
+  gprog.dist_start_ts = MPI_Wtime();
+  gprog.outer_time_sum = 0.0;
+  gprog.inner_start_ts = 0.0;
+#endif
 
   while (
       !CHECK_ALL_BITS_SET(droppedSamples, tumorBits, dataTable.tumorRowUnits)) {
