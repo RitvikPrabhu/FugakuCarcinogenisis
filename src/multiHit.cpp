@@ -359,7 +359,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
   bool have_token = (comms.global_rank == 0);
   int my_color = WHITE;
   std::size_t leader_iter = 0;
-  LAMBDA_TYPE combs_dispensed = availableWork.start;
+  LAMBDA_TYPE combs_dispensed = CHUNK_SIZE * num_workers;
   while (true) {
     MPI_Win_sync(term_win);
     if (*global_done) {
