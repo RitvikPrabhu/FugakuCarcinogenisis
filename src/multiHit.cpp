@@ -144,16 +144,14 @@ inline static void inter_node_work_steal_victim(WorkChunk &availableWork,
     availableWork.end = mid - 1;
     my_color = BLACK;
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0) {
-      START_TIMING(print_leader_victim);
-      double now = MPI_Wtime();
-      double total_outer_elapsed = now - gprog.dist_start_ts;
-      printf("ATTENTION: WORK GIVEN at time: %.0f sec | "
-             "tasks left [start -> end]: %lld -> %lld\n",
-             total_outer_elapsed, availableWork.start, availableWork.end);
-      fflush(stdout);
-      END_TIMING(print_leader_victim, elapsed_times[EXCLUDE_TIME]);
-    }
+    START_TIMING(print_leader_victim);
+    double now = MPI_Wtime();
+    double total_outer_elapsed = now - gprog.dist_start_ts;
+    printf("ATTENTION: WORK GIVEN at time: %.0f sec | "
+           "tasks left [start -> end]: %lld -> %lld\n",
+           total_outer_elapsed, availableWork.start, availableWork.end);
+    fflush(stdout);
+    END_TIMING(print_leader_victim, elapsed_times[EXCLUDE_TIME]);
 #endif
   } else {
     reply = {0, -1};
@@ -174,12 +172,10 @@ static inline void root_broadcast_termination(const CommsStruct &comms,
     MPI_Put(&termination_signal, 1, MPI_C_BOOL, rank, 0, 1, MPI_C_BOOL,
             term_win);
     END_TIMING(node_term, elapsed_times[COMM_GLOBAL_TIME]);
-    if (comms.global_rank == 0) {
-      printf("[root] BROADCAST TERMINATION at %.0fs\n",
-             MPI_Wtime() - gprog.dist_start_ts);
-      fflush(stdout);
-    }
   }
+  printf("[root] BROADCAST TERMINATION at %.0fs\n",
+         MPI_Wtime() - gprog.dist_start_ts);
+  fflush(stdout);
   MPI_Win_flush_all(term_win);
 }
 
@@ -319,16 +315,14 @@ inline static void inter_node_work_steal_initiate(
                                                       combs_dispensed, comms);
       lootReceived = true;
 #ifdef ENABLE_PROFILE
-      if (comms.global_rank == 0) {
-        START_TIMING(print_leader_theif);
-        double now = MPI_Wtime();
-        double total_outer_elapsed = now - gprog.dist_start_ts;
-        printf("ATTENTION: WORK STOLEN at time: %.0f sec | "
-               "tasks left [start -> end]: %lld -> %lld\n",
-               total_outer_elapsed, availableWork.start, availableWork.end);
-        fflush(stdout);
-        END_TIMING(print_leader_theif, elapsed_times[EXCLUDE_TIME]);
-      }
+      START_TIMING(print_leader_theif);
+      double now = MPI_Wtime();
+      double total_outer_elapsed = now - gprog.dist_start_ts;
+      printf("ATTENTION: WORK STOLEN at time: %.0f sec | "
+             "tasks left [start -> end]: %lld -> %lld\n",
+             total_outer_elapsed, availableWork.start, availableWork.end);
+      fflush(stdout);
+      END_TIMING(print_leader_theif, elapsed_times[EXCLUDE_TIME]);
 #endif
     }
   }
@@ -336,12 +330,18 @@ inline static void inter_node_work_steal_initiate(
 
 static void send_poison_pill(int num_workers, const CommsStruct &comms) {
   WorkChunk poison{0, -2};
+  printf("[leader %d] start sending poison pill at %.0fs\n", comms.global_rank,
+         MPI_Wtime() - gprog.dist_start_ts);
+  fflush(stdout);
   for (int w = 1; w <= num_workers; ++w) {
     START_TIMING(poison);
     MPI_Send(&poison, sizeof(poison), MPI_BYTE, w, TAG_ASSIGN_WORK,
              comms.local_comm);
     END_TIMING(poison, elapsed_times[COMM_LOCAL_TIME]);
   }
+  printf("[leader %d] Finish sending poison pill at %.0fs\n", comms.global_rank,
+         MPI_Wtime() - gprog.dist_start_ts);
+  fflush(stdout);
 }
 
 static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
@@ -363,11 +363,9 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
   while (true) {
     MPI_Win_sync(term_win);
     if (*global_done) {
-      if (comms.global_rank == 0) {
-        printf("[leader %d] saw global_done at %.0fs\n", comms.global_rank,
-               MPI_Wtime() - gprog.dist_start_ts);
-        fflush(stdout);
-      }
+      printf("[leader %d] saw global_done at %.0fs\n", comms.global_rank,
+             MPI_Wtime() - gprog.dist_start_ts);
+      fflush(stdout);
 
       break;
     }
@@ -412,7 +410,7 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     }
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && (leader_iter % PRINT_FREQ == 0)) {
+    if ((leader_iter % PRINT_FREQ == 0)) {
       START_TIMING(print_leader);
 
       double now = MPI_Wtime();
@@ -887,7 +885,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     double outer_iter_start = MPI_Wtime();
 #endif
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_bookKeeping = MPI_Wtime();
       double total_outer_elapsed_bookKeeping =
@@ -905,7 +903,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     initialize_local_comb_and_f(localBestMaxF, localComb);
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_execute = MPI_Wtime();
       double total_outer_elapsed_execute =
@@ -921,7 +919,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, comms);
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now = MPI_Wtime();
       double total_outer_elapsed = now - gprog.dist_start_ts;
@@ -934,7 +932,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     MPI_Barrier(MPI_COMM_WORLD);
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_barrier = MPI_Wtime();
       double total_outer_elapsed_barrier = now_barrier - gprog.dist_start_ts;
@@ -947,7 +945,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_reduce1 = MPI_Wtime();
       double total_outer_elapsed_reduce1 =
@@ -967,7 +965,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     START_TIMING(metrics_time);
     long long globalBoundCounts[NUMHITS] = {0};
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_reduce2 = MPI_Wtime();
       double total_outer_elapsed_reduce2 =
@@ -990,7 +988,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     }
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_intersect = MPI_Wtime();
       double total_outer_elapsed_intersect =
@@ -1006,7 +1004,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                     tumorUnits);
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_union = MPI_Wtime();
       double total_outer_elapsed_union = now_before_union - gprog.dist_start_ts;
@@ -1021,7 +1019,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
               dataTable.tumorRowUnits);
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_updateCollection = MPI_Wtime();
       double total_outer_elapsed_updateCollection =
@@ -1037,7 +1035,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
                           dataTable.numRows, dataTable.tumorRowUnits);
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_updateNT = MPI_Wtime();
       double total_outer_elapsed_updateNT =
@@ -1052,7 +1050,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
     Nt -= SET_COUNT(buffers[NUMHITS - 2], dataTable.tumorRowUnits);
 
 #ifdef ENABLE_PROFILE
-    if (comms.global_rank == 0 && comms.local_rank == 0) {
+    if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
       double now_before_finished = MPI_Wtime();
       double total_outer_elapsed_finished =
