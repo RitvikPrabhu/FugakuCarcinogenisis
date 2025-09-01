@@ -941,14 +941,16 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     double slack = maxloc.t - t_exec_done_rel;
     if (slack < 0)
-      slack = 0; // guard tiny FP/clock jitter
+      slack = 0;
     if (rank == 0) {
-      fprintf(stderr, "[STRAGGLER] rank %d left EXECUTE last at %.3fs\n",
-              maxloc.r, maxloc.t);
+      printf("[STRAGGLER] rank %d left EXECUTE last at %.3fs\n", maxloc.r,
+             maxloc.t);
+      fflush(stdout);
     }
-    if (slack > 1.0 /* threshold to cut spam */ && comms.local_rank == 0) {
-      fprintf(stderr, "[rank %d] slack_before_barrier=%.3fs (waited for %d)\n",
-              rank, slack, maxloc.r);
+    if (slack > 1.0 && comms.local_rank == 0) {
+      printf("[rank %d] slack_before_barrier=%.3fs (waited for %d)\n", rank,
+             slack, maxloc.r);
+      fflush(stdout);
     }
 
     /**
