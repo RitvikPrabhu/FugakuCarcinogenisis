@@ -919,6 +919,7 @@ void distribute_tasks(int rank, int size, const char *outFilename,
 
     EXECUTE(rank, size - 1, num_Comb, localBestMaxF, localComb, dataTable,
             buffers, comms);
+
 #ifdef ENABLE_PROFILE
     if (comms.local_rank == 0) {
       START_TIMING(print_out_iter);
@@ -929,19 +930,41 @@ void distribute_tasks(int rank, int size, const char *outFilename,
       END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
     }
 #endif
+    double t_exec_done_abs = MPI_Wtime();
+    double t_exec_done_rel = t_exec_done_abs - gprog.dist_start_ts;
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    struct {
+      double t;
+      int r;
+    } in{t_exec_done_rel, rank}, maxloc;
+    MPI_Allreduce(&in, &maxloc, 1, MPI_DOUBLE_INT, MPI_MAXLOC,
+                  comms.global_comm);
 
-#ifdef ENABLE_PROFILE
-    if (comms.local_rank == 0) {
-      START_TIMING(print_out_iter);
-      double now_barrier = MPI_Wtime();
-      double total_outer_elapsed_barrier = now_barrier - gprog.dist_start_ts;
-      printf("Barrier at time: %.0f sec\n", total_outer_elapsed_barrier);
-      fflush(stdout);
-      END_TIMING(print_out_iter, elapsed_times[EXCLUDE_TIME]);
+    double slack = maxloc.t - t_exec_done_rel;
+    if (slack < 0)
+      slack = 0; // guard tiny FP/clock jitter
+    if (rank == 0) {
+      fprintf(stderr, "[STRAGGLER] rank %d left EXECUTE last at %.3fs\n",
+              maxloc.r, maxloc.t);
     }
-#endif
+    if (slack > 1.0 /* threshold to cut spam */ && comms.local_rank == 0) {
+      fprintf(stderr, "[rank %d] slack_before_barrier=%.3fs (waited for %d)\n",
+              rank, slack, maxloc.r);
+    }
+
+    /**
+        MPI_Barrier(MPI_COMM_WORLD);
+
+    #ifdef ENABLE_PROFILE
+        if (comms.local_rank == 0) {
+          START_TIMING(print_out_iter);
+          double now_barrier = MPI_Wtime();
+          double total_outer_elapsed_barrier = now_barrier -
+    gprog.dist_start_ts; printf("Barrier at time: %.0f sec\n",
+    total_outer_elapsed_barrier); fflush(stdout); END_TIMING(print_out_iter,
+    elapsed_times[EXCLUDE_TIME]);
+        }
+    #endif**/
 
     MPIResultWithComb localResult = create_mpi_result(localBestMaxF, localComb);
     MPIResultWithComb globalResult = {};
