@@ -16,7 +16,7 @@
 
 #include "multiHit.h"
 #include "utils.h"
-
+// Logger branch
 //////////////////////////////  Start Allreduce_hierarchical
 /////////////////////////
 
