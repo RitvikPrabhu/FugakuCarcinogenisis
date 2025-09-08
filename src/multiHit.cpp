@@ -301,12 +301,6 @@ inline static void inter_node_work_steal_initiate(
       availableWork = assign_and_update_availableWork(loot, num_workers,
                                                       combs_dispensed, comms);
       lootReceived = true;
-#ifdef ENABLE_PROFILE
-      START_TIMING(print_leader_theif);
-      double now = MPI_Wtime();
-      double total_outer_elapsed = now - gprog.dist_start_ts;
-      END_TIMING(print_leader_theif, elapsed_times[EXCLUDE_TIME]);
-#endif
     }
   }
 }
