@@ -666,6 +666,32 @@ static inline void process_lambda_interval(LAMBDA_TYPE startComb,
     localComb[0] = computed.i;
     localComb[1] = computed.j;
 
+#if NUMHITS == 2
+    const int TP = SET_COUNT(buffers[0], dataTable.tumorRowUnits);
+
+    SET normalRows[2];
+    normalRows[0] =
+        GET_ROW(dataTable.normalData, localComb[0], dataTable.normalRowUnits);
+    normalRows[1] =
+        GET_ROW(dataTable.normalData, localComb[1], dataTable.normalRowUnits);
+    SET_INTERSECT_N(buffers[0], normalRows, 2, dataTable.normalRowUnits);
+
+    const int coveredNormal = SET_COUNT(buffers[0], dataTable.normalRowUnits);
+    const int TN = (int)dataTable.numNormal - coveredNormal;
+    const double F =
+        (alpha * TP + TN) / (dataTable.numTumor + dataTable.numNormal);
+
+    if (F >= maxF) {
+      maxF = F;
+      bestCombination[0] = localComb[0];
+      bestCombination[1] = localComb[1];
+    }
+#ifdef BOUND
+    INCREMENT_BOUND_LEVEL(NUMHITS - 1);
+#endif
+    continue;
+#endif
+
     int indices[NUMHITS];
     indices[0] = computed.i;
     indices[1] = computed.j;
