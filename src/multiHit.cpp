@@ -360,7 +360,8 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
       int tag = st.MPI_TAG;
       switch (tag) {
       case TAG_NODE_STEAL_REQ:
-        inter_node_work_steal_victim(availableWork, st, my_color, tok, comms);
+        // inter_node_work_steal_victim(availableWork, st, my_color, tok,
+        // comms);
         break;
       case TAG_TOKEN:
         receive_token(tok, st, have_token, comms);
@@ -370,11 +371,12 @@ static void node_leader_hierarchical(WorkChunk availableWork, int num_workers,
     try_forward_token_if_idle(availableWork, have_token, my_color, tok,
                               next_leader, term_win, comms);
     // If leader node is idle, initiate a steal request
+    /**
     if (length(availableWork) <= 0 && !(*global_done)) {
       inter_node_work_steal_initiate(availableWork, st, num_workers, my_color,
                                      tok, term_win, global_done,
                                      combs_dispensed, comms);
-    }
+    }**/
 
 #ifdef ENABLE_PROFILE
     if ((leader_iter % PRINT_FREQ == 0)) {
